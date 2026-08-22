@@ -1,0 +1,168 @@
+# =============================================================
+# Flutter frontend + C# (.NET) backend
+# Works for a monorepo (e.g. /app + /backend) or a single project.
+# =============================================================
+
+# ------------------------
+# Secrets / local config
+# ------------------------
+*.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
+*.pfx
+*.p12
+*.key
+*.pem
+# Android signing
+key.properties
+*.jks
+*.keystore
+
+docs
+mockups
+
+# ------------------------
+# Flutter / Dart
+# ------------------------
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+coverage/
+doc/api/
+
+# Keep pubspec.lock for apps (commit it). Uncomment if this is a package:
+# pubspec.lock
+
+# Flutter — Android
+**/android/**/gradle-wrapper.jar
+**/android/.gradle
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+
+# Flutter — iOS / macOS
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Pods/
+**/ios/.symlinks/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+*.ipa
+*.dSYM.zip
+
+# Flutter — Windows / Linux desktop
+**/windows/flutter/ephemeral/
+**/windows/flutter/generated_plugin*
+**/linux/flutter/ephemeral/
+**/linux/flutter/generated_plugin*
+
+# Flutter — Web
+**/web/.dart_tool/
+
+# ------------------------
+# C# / .NET
+# ------------------------
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+publish/
+[Pp]ublish[Pp]rofiles/*.user
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+project.lock.json
+project.fragment.lock.json
+artifacts/
+.vs/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+.nuget/
+
+# Entity Framework
+*.mdf
+*.ldf
+*.ndf
+*.dbmdl
+*.jfm
+
+# Test results / coverage
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.coverage
+*.coveragexml
+coverlet.*
+TestResults/
+BenchmarkDotNet.Artifacts/
+
+# ------------------------
+# IDEs / editors
+# ------------------------
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# ------------------------
+# OS
+# ------------------------
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------
+# Misc
+# ------------------------
+*.log
+logs/
+tmp/
+temp/
+node_modules/
