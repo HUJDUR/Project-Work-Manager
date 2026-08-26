@@ -1,3 +1,6 @@
 <Solution>
-  <Project Path="pwm/pwm.csproj" />
+  <Project Path="pwm.Common.Services/pwm.Common.Services.csproj" Id="219f828d-67c9-4d35-8651-118ca4764d69" />
+  <Project Path="pwm.Model/pwm.Model.csproj" />
+  <Project Path="pwm.Services/pwm.Services.csproj" />
+  <Project Path="pwm.WebAPI/pwm.WebAPI.csproj" />
 </Solution>
