@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
+using pwm.Services;
 using pwm.Services.Database;
 using pwm.Services.Database.Seed;
+using pwm.WebAPI.Filters;
 
 // --seed fills the database with test data, --seed --force empties it first.
 // Both flags are stripped before the host reads the remaining arguments.
@@ -15,7 +18,10 @@ builder.Services.AddDbContext<PWMDbContext>(options =>
 
 builder.Services.AddScoped<DataSeeder>();
 
-builder.Services.AddControllers();
+// Mapster, the validator fallback and every entity service
+builder.Services.AddPwmServices();
+
+builder.Services.AddControllers(options => options.Filters.Add<ExceptionFilter>());
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -34,6 +40,7 @@ if (app.Environment.IsDevelopment())
     await scope.ServiceProvider.GetRequiredService<PWMDbContext>().Database.MigrateAsync();
 
     app.MapOpenApi();
+    app.MapScalarApiReference();
 }
 
 app.UseHttpsRedirection();
