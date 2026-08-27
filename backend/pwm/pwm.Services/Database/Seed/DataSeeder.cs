@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using pwm.Common.Services.CryptoService;
 
 namespace pwm.Services.Database.Seed
 {
@@ -17,6 +17,7 @@ namespace pwm.Services.Database.Seed
         public const string DefaultPassword = "test";
 
         private readonly PWMDbContext _db;
+        private readonly ICryptoService _cryptoService;
 
         // Anchor for all generated dates, so a seeded database always looks
         // like it has been in use up to today.
@@ -37,9 +38,10 @@ namespace pwm.Services.Database.Seed
         private WorkLogDetail[] _workLogDetails = [];
         private TruckLoad[] _truckLoads = [];
 
-        public DataSeeder(PWMDbContext db)
+        public DataSeeder(PWMDbContext db, ICryptoService cryptoService)
         {
             _db = db;
+            _cryptoService = cryptoService;
         }
 
         /// <summary>
@@ -138,14 +140,12 @@ namespace pwm.Services.Database.Seed
             return days.ToArray();
         }
 
-        // PBKDF2 over a per-user random salt. Whatever the auth service ends up
-        // doing has to match this, otherwise the seeded logins will not work.
-        private static (string Hash, string Salt) HashPassword(string password)
+        // Same hashing the UserService uses, so seeded logins verify
+        private (string Hash, string Salt) HashPassword(string password)
         {
-            var salt = RandomNumberGenerator.GetBytes(16);
-            var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, 100_000, HashAlgorithmName.SHA256, 32);
+            var salt = _cryptoService.GenerateSlat();
 
-            return (Convert.ToBase64String(hash), Convert.ToBase64String(salt));
+            return (_cryptoService.GenerateHash(password, salt), salt);
         }
     }
 }
