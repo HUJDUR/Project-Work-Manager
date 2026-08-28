@@ -143,7 +143,7 @@ namespace pwm.Services.Database.Seed
         // Same hashing the UserService uses, so seeded logins verify
         private (string Hash, string Salt) HashPassword(string password)
         {
-            var salt = _cryptoService.GenerateSlat();
+            var salt = _cryptoService.GenerateSalt();
 
             return (_cryptoService.GenerateHash(password, salt), salt);
         }

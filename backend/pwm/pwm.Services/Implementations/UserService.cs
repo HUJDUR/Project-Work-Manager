@@ -70,7 +70,7 @@ namespace pwm.Services.Implementations
         protected override User MapInsertRequestToEntity(UserInsertRequest request)
         {
             var entity = base.MapInsertRequestToEntity(request);
-            var salt = _cryptoService.GenerateSlat();
+            var salt = _cryptoService.GenerateSalt();
 
             entity.PasswordSalt = salt;
             entity.PasswordHash = _cryptoService.GenerateHash(request.Password, salt);
@@ -84,7 +84,7 @@ namespace pwm.Services.Implementations
 
             if (!string.IsNullOrWhiteSpace(request.Password))
             {
-                var salt = _cryptoService.GenerateSlat();
+                var salt = _cryptoService.GenerateSalt();
 
                 entity.PasswordSalt = salt;
                 entity.PasswordHash = _cryptoService.GenerateHash(request.Password, salt);
