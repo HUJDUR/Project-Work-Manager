@@ -9,10 +9,21 @@ Project Work Manager (PWM) — a work-tracking system for a metal fabrication sh
 Monorepo layout:
 
 - `backend/pwm/` — .NET 10 solution (`pwm.slnx`), four projects
-- `frontend/pwm_desktop`, `frontend/pwm_mobile` — two Flutter apps (currently scaffolding only, one `main.dart` each)
+- `frontend/pwm_desktop` — Flutter desktop app; the dashboard and work hours screens are built, the other modules are placeholders
+- `frontend/pwm_mobile` — Flutter mobile app (scaffolding only, one `main.dart`)
 - `docs/mockups/` — UI mockups that define the intended screens (gitignored)
 - `docs/PWM - prijava seminarskog rada v3.md` - defines the projects scope and needed funcionality
 - `docs/RSII_Upute_za_izradu_seminarskog_rada_2025_26.md` - defines the project requirements regarding implementation
+
+## Working on this repo
+
+`docs/progress.md` is the running checklist: which screens are built, what each remaining one needs, and
+the open decisions. Read it at the start of a session, take the top unchecked item, and tick it off when
+the work lands.
+
+When a task is done, save your closing message to `docs/comments/<task>.md` — see
+`docs/comments/work hours.md`. It is the handover: what was built, which judgement calls were made, and
+what is still open.
 
 ## Commands
 
@@ -42,9 +53,10 @@ While the schema is still throwaway, prefer deleting `pwm.Services/Database/Migr
 Flutter, from `frontend/pwm_desktop` or `frontend/pwm_mobile`:
 
 ```bash
-flutter run
+flutter run -d windows                                        # desktop app
+flutter run --dart-define=baseUrl=http://localhost:5094/       # point at a different API
 flutter test
-flutter test test/widget_test.dart --plain-name "<test name>"   # single test
+flutter test test/dashboard_test.dart --plain-name "<test name>"   # single test
 ```
 
 There is no backend test project yet.
@@ -53,10 +65,14 @@ There is no backend test project yet.
 
 Four projects, referenced in a straight line — `pwm.WebAPI` → `pwm.Services` → (`pwm.Model`, `pwm.Common.Services`):
 
-- **pwm.Model** — DTOs only: `Requests/`, `Responses/`, `SearchObjects/`. No logic.
+- **pwm.Model** — DTOs only: `Requests/`, `Responses/`, `SearchObjects/`, plus `Exceptions/ClinetException`
+  (the spelling is deliberate — the desktop client's error parser is written against it). No logic.
 - **pwm.Services** — EF entities + `PWMDbContext` under `Database/`, the seeder under `Database/Seed/`, and the service layer.
 - **pwm.Common.Services** — cross-cutting helpers. `CryptoService` (PBKDF2) is the **only** place passwords get hashed; both `UserService` and the seeder go through `ICryptoService`.
-- **pwm.WebAPI** — controllers, `Program.cs`, exception filter.
+- **pwm.WebAPI** — controllers, `Program.cs`, exception filter. `ExceptionFilter` funnels every exception
+  through `ModelState` and answers `{ "message": "...", "errors": { key: [messages] } }`: FluentValidation
+  failures keyed by property, `ClinetException` under `clientError` (both 400), anything else under
+  `serverError` as a 500 with the detail kept in the log.
 
 ### The generic service/controller pattern
 
@@ -104,6 +120,95 @@ Entities mirror the ER diagram in `docs/`:
 `Database/Seed/DataSeeder` is one partial class split by area (Lookups, Organisation, Production, Logistics, Reporting). It runs in dependency order, saving after each stage so generated Ids are available to the next. Work logs are generated with a fixed `Random(20260826)` over the last 20 weekdays, and monthly reports are computed from those work logs rather than hardcoded, so a reseeded database always holds the same numbers. All seeded users share the password `test`.
 
 `SeedAsync` is a no-op if any users exist; `--force` calls `ClearAsync`, which deletes children first and reseeds identity counters via `DBCC CHECKIDENT`.
+
+## Desktop frontend architecture
+
+`frontend/pwm_desktop/lib` is layered so a new module only adds files, never rewires the ones below it:
+
+```
+main.dart                     MaterialApp + theme, hands off to MasterScreen
+layouts/master_screen.dart    top bar + left navigation, the frame every screen renders into
+models/                       one class per backend table, plus PageResult and the dashboard view model
+providers/base_provider.dart  transport: get / getById / insert / update / remove, auth headers, baseUrl
+providers/auth_provider.dart  the access token those headers carry
+providers/<entity>_provider.dart  four-line subclass per controller: endpoint + row parser
+providers/dashboard_provider.dart the dashboard's ChangeNotifier
+screens/<name>_screen.dart    one screen per navigation entry
+screens/widgets/              the pieces those screens are built from
+utils/app_theme.dart          AppColors / AppSpacing / AppCard — the mockup's design tokens
+utils/formatters.dart         hours, tonnes, dates, "3 d ago"
+utils/api_client_exception.dart  ApiClientException + the parser that reads the API's error bodies
+```
+
+State management is `provider`; charts are `fl_chart`. A screen owns its own `ChangeNotifier` through a
+`ChangeNotifierProvider` rather than a global store, and takes an optional factory parameter so tests can
+inject a provider fed by fakes (see `test/dashboard_test.dart`).
+
+The API base URL comes from `--dart-define=baseUrl` and **must end in a slash** — `BaseProvider` builds
+routes as `{baseUrl}{endpoint}`, so endpoints are written without a leading one (`super('Project')`).
+It defaults to `http://localhost:5094/`.
+
+### Models and code generation
+
+Every model mirrors one `pwm.Model.Responses.*Response` and is a `@JsonSerializable()` class whose mappers
+are generated — `factory X.fromJson(...) => _$XFromJson(json)` and `Map<String, dynamic> toJson() => _$XToJson(this)`.
+Dart field names match the API's camelCase keys one-for-one (the .NET naming policy lower-cases whole
+acronyms, so `VAT`/`EORI` arrive as `vat`/`eori`); computed helpers such as `User.fullName` and
+`TruckLoad.netWeight` carry `@JsonKey(includeFromJson: false, includeToJson: false)`.
+
+After touching a model, regenerate:
+
+```bash
+dart run build_runner build      # add --watch while iterating
+```
+
+`PageResult<T>` is the exception: `BaseProvider.get` fills its two fields in directly, so it stays a
+plain mutable class with no mapper at all.
+
+`models/notification.dart` declares `Notification`, which collides with Flutter's own class of that name;
+a file needing both should import `package:flutter/material.dart` with a `hide Notification` clause.
+
+`BaseProvider<T>` is the only place HTTP happens: `get({filter})`, `getById`, `insert`, `update`, `remove`.
+`filter` is a plain map flattened by `getQueryString`, which is what carries the search object's `page`,
+`pageSize`, `includeTotalCount` and `sortBy` (it prefixes every pair with `&`, so URLs read `?&page=1` —
+ASP.NET binds that fine). `createHeaders` attaches `Authorization: Bearer {AuthProvider.accesstoken}`; the
+API has no auth endpoint yet, so that token is empty until one exists.
+
+Errors: `validateResponse` throws `ApiClientException` carrying whatever `ApiErrorParser` finds in the
+body — a root `message`, else `errors.clientError`, else the other `errors` entries. That is exactly the
+shape `pwm.WebAPI/Filters/ExceptionFilter` now emits, so business-rule and validation messages reach the
+user verbatim. All five calls run `validateResponse`, so `ApiClientException` is the only failure type a
+screen has to handle — except a dead API, where `package:http` still throws its own `ClientException`.
+One gap left: the filter has no `KeyNotFoundException` branch, so a missing id comes back 500 rather
+than 404. `test/base_provider_test.dart` pins the mapping from each error body to its message.
+
+### Where the dashboard numbers come from
+
+Responses carry raw foreign keys and there is no aggregate endpoint, so `DashboardProvider` fetches the
+eleven tables it needs in one `Future.wait`, builds id→entity maps, and does every join and sum client-side.
+Metrics and both charts cover a rolling 30-day window (`DashboardProvider.windowDays`); "active project"
+means any status other than Delivered or Cancelled. This is the seam where a server-side `/Dashboard`
+summary endpoint would replace the client-side aggregation if the data ever outgrows seed scale.
+
+Every table it reads is injected as a `BaseProvider<T>`, so the test suite substitutes one generic fake
+provider per table instead of stubbing HTTP.
+
+New screens plug into `MasterScreen._destinations`; the entries with no screen yet render a
+`PlaceholderBody`.
+
+### Work Hours
+
+A row is one `WorkLogDetail`, joined to its worker through `WorkLog.UserId` and to its project and
+operation by id. Two columns the mockup asks for are not in the schema and are derived in
+`WorkHoursProvider`: **regular vs overtime** splits each worker-day at
+`WorkHoursProvider.regularHoursPerDay` (8 h) by walking that day's bookings in start order, and **status**
+reads as "In progress" while either `FinishedAt` or the shift's `ClockedOut` is null. Search, project,
+date range and the two funnel-menu toggles all filter client-side, and the four summary cards total
+whatever is left after filtering.
+
+"Add Work Hours" writes a `WorkLog` first and then a `WorkLogDetail` pointing at the new id — the API has
+no endpoint that creates both. Because `ClockedOut` and `FinishedAt` are `NOT NULL`, the dialog always
+sends a finished block; an open shift still cannot be recorded.
 
 ## Configuration
 
