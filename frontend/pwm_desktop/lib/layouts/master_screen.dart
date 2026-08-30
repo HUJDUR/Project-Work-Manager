@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../screens/dashboard_screen.dart';
+import '../screens/login_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/projects_screen.dart';
 import '../screens/recommendations_screen.dart';
@@ -180,25 +183,72 @@ class _TopBar extends StatelessWidget {
 class _AccountChip extends StatelessWidget {
   const _AccountChip();
 
+  Future<void> _signOut(BuildContext context) async {
+    final navigator = Navigator.of(context);
+
+    await context.read<AuthProvider>().signOut();
+
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final user = auth.currentUser;
+
     return Row(
       children: [
-        const CircleAvatar(
+        CircleAvatar(
           radius: 17,
           backgroundColor: AppColors.accentSoft,
-          child: Icon(Icons.person_outline, size: 19, color: AppColors.accent),
+          child: user == null
+              ? const Icon(Icons.person_outline, size: 19, color: AppColors.accent)
+              : Text(
+                  user.initials,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.accent,
+                  ),
+                ),
         ),
         const SizedBox(width: 10),
-        const Text(
-          'Nadir Hujdur',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              user?.fullName ?? 'Not signed in',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+            if (auth.currentRole.isNotEmpty)
+              Text(
+                auth.currentRole,
+                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+          ],
         ),
         const SizedBox(width: 4),
-        IconButton(
-          onPressed: () {},
+        PopupMenuButton<String>(
           tooltip: 'Account',
+          position: PopupMenuPosition.under,
           icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+          onSelected: (_) => _signOut(context),
+          itemBuilder: (context) => const [
+            PopupMenuItem(
+              value: 'signOut',
+              child: Row(
+                children: [
+                  Icon(Icons.logout, size: 18, color: AppColors.textSecondary),
+                  SizedBox(width: 10),
+                  Text('Sign out', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

@@ -384,6 +384,38 @@ namespace pwm.Services.Database.Migrations
                     b.ToTable("ProjectStatusTypes", (string)null);
                 });
 
+            modelBuilder.Entity("pwm.Services.Database.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens", (string)null);
+                });
+
             modelBuilder.Entity("pwm.Services.Database.TruckLoad", b =>
                 {
                     b.Property<int>("Id")
@@ -744,6 +776,17 @@ namespace pwm.Services.Database.Migrations
                     b.Navigation("ProjectCategory");
 
                     b.Navigation("ProjectStatus");
+                });
+
+            modelBuilder.Entity("pwm.Services.Database.RefreshToken", b =>
+                {
+                    b.HasOne("pwm.Services.Database.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("pwm.Services.Database.TruckLoad", b =>

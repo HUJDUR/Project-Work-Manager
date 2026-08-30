@@ -95,6 +95,31 @@ Mapping is Mapster by property name — a `Response`/`Request` property only map
 
 `BaseCRUDService` demands an `IValidator<TInsert>` and `IValidator<TUpdate>` in its constructor. `Validators/DefaultValidator<T>` is registered as the open-generic fallback so any request type resolves; register a concrete `AbstractValidator<T>` after it to take over for that type.
 
+### Authentication and authorization
+
+JWT, issued by `AccessController` (`/Access/Login`, `/Access/LoginWithRefreshToken`, `/Access/Logout`) over
+`pwm.WebAPI/Services/AccessManager`. `UserService.AuthenticateAsync` is the only password check — it goes
+through `ICryptoService.Verify` and answers an `AuthenticatedUser` (the `UserResponse` plus the role name,
+which `UserResponse` itself does not carry). Tokens are signed from the `JwtToken` section of
+`appsettings.json`; the claim types are the constants in `ClaimNames`, and `Roles` in `pwm.Model/Access`
+holds the three seeded `UserTypes.Type` values.
+
+Refresh tokens are rows in `RefreshTokens`, rotated on every use — one live token per user, deleted on
+sign-out. That table has no controller and no DTOs; `IRefreshTokenService` is its only door.
+
+`Program.cs` sets a **fallback policy of `RequireAuthenticatedUser`**, so a new endpoint is authenticated
+unless it says `[AllowAnonymous]` (only sign-in, refresh and the API docs do). Roles are then checked per
+action by `Filters/AuthorizationAttribute`, which reads the `Role` claim and answers 403:
+
+- reading is open to every signed-in user;
+- writing is `[Authorization(Roles.Administrator, Roles.Manager)]` on `BaseCRUDController`;
+- `WorkLogController` and `WorkLogDetailController` override insert/update to admit `Roles.Worker` — that
+  is the mobile clock-in path;
+- `UserController` narrows all three writes to `Roles.Administrator`.
+
+Changing an action's roles means overriding the base method purely to re-declare the attribute; MVC honours
+the most derived one.
+
 ### CRUD vs read-only
 
 Deliberate split — do not add write endpoints to the read-only set without asking:
@@ -126,11 +151,11 @@ Entities mirror the ER diagram in `docs/`:
 `frontend/pwm_desktop/lib` is layered so a new module only adds files, never rewires the ones below it:
 
 ```
-main.dart                     MaterialApp + theme, hands off to MasterScreen
+main.dart                     MultiProvider over every entity provider, MaterialApp + theme, opens LoginScreen
 layouts/master_screen.dart    top bar + left navigation, the frame every screen renders into
 models/                       one class per backend table, plus PageResult and the dashboard view model
 providers/base_provider.dart  transport: get / getById / insert / update / remove, auth headers, baseUrl
-providers/auth_provider.dart  the access token those headers carry
+providers/auth_provider.dart  sign in / refresh / sign out, and the token those headers carry
 providers/<entity>_provider.dart  four-line subclass per controller: endpoint + row parser
 providers/dashboard_provider.dart the dashboard's ChangeNotifier
 screens/<name>_screen.dart    one screen per navigation entry
@@ -171,8 +196,10 @@ a file needing both should import `package:flutter/material.dart` with a `hide N
 `BaseProvider<T>` is the only place HTTP happens: `get({filter})`, `getById`, `insert`, `update`, `remove`.
 `filter` is a plain map flattened by `getQueryString`, which is what carries the search object's `page`,
 `pageSize`, `includeTotalCount` and `sortBy` (it prefixes every pair with `&`, so URLs read `?&page=1` —
-ASP.NET binds that fine). `createHeaders` attaches `Authorization: Bearer {AuthProvider.accesstoken}`; the
-API has no auth endpoint yet, so that token is empty until one exists.
+ASP.NET binds that fine). `createHeaders` attaches `Authorization: Bearer {AuthProvider.accesstoken}`,
+which `LoginScreen` fills in through `AuthProvider.login`. Every call goes out through `BaseProvider.send`,
+which on a 401 spends the refresh token once and repeats the request, so an expired access token is
+invisible to the screens.
 
 Errors: `validateResponse` throws `ApiClientException` carrying whatever `ApiErrorParser` finds in the
 body — a root `message`, else `errors.clientError`, else the other `errors` entries. That is exactly the
@@ -181,6 +208,18 @@ user verbatim. All five calls run `validateResponse`, so `ApiClientException` is
 screen has to handle — except a dead API, where `package:http` still throws its own `ClientException`.
 One gap left: the filter has no `KeyNotFoundException` branch, so a missing id comes back 500 rather
 than 404. `test/base_provider_test.dart` pins the mapping from each error body to its message.
+
+### Sign-in
+
+`main` opens `LoginScreen`, which pushes `MasterScreen` once `AuthProvider.login` returns; the account chip
+in the top bar signs out and comes back. `AuthProvider` keeps the token, refresh token, user and role in
+**static** fields because `BaseProvider.createHeaders` reads them with no `BuildContext` to hand — the app
+builds exactly one instance, so the static and instance views never disagree. Its three calls
+(`Access/Login`, `Access/LoginWithRefreshToken`, `Access/Logout`) are the only HTTP outside `BaseProvider`,
+which is deliberate: they are what produces the token that provider's headers carry.
+
+`LoginScreen` takes an optional `onSignedIn` callback for the same reason `DashboardScreen` takes a
+provider factory — a test can sign in without the app then trying to load dashboards.
 
 ### Where the dashboard numbers come from
 
@@ -214,7 +253,11 @@ sends a finished block; an open shift still cannot be recorded.
 
 `appsettings.json` holds the `PWMConnection` string. If it has no `Password=`, `Program.cs` appends one from the `DB_PASSWORD` environment variable — matching how `backend/.env` already feeds docker-compose.
 
-Migrations are applied automatically on startup in Development only. Scalar API docs are served at `/scalar/v1` (Development only); the raw spec is at `/openapi/v1.json`.
+`JwtToken` holds the signing key, issuer, audience and both lifetimes. The committed `SecretKey` is a
+development value; `JWT_SECRET` in the environment is used when the setting is missing, and startup fails
+if neither is set.
+
+Migrations are applied automatically on startup in Development only. Scalar API docs are served at `/scalar/v1` (Development only); the raw spec is at `/openapi/v1.json`. Both are mapped `AllowAnonymous`, or the fallback policy would lock them; the spec declares the `Bearer` scheme so Scalar can send a token from `/Access/Login`.
 
 ## Known rough edges
 

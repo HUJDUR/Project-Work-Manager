@@ -1,9 +1,16 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 using pwm.Services;
 using pwm.Services.Database;
 using pwm.Services.Database.Seed;
+using pwm.WebAPI;
 using pwm.WebAPI.Filters;
+using pwm.WebAPI.Services.AccessManager;
 
 // --seed fills the database with test data, --seed --force empties it first.
 // Both flags are stripped before the host reads the remaining arguments.
@@ -21,9 +28,27 @@ builder.Services.AddScoped<DataSeeder>();
 // Mapster, the validator fallback and every entity service
 builder.Services.AddPwmServices();
 
+builder.Services.AddScoped<IAccessManager, AccessManager>();
+AddJwtAuthentication(builder);
+
 builder.Services.AddControllers(options => options.Filters.Add<ExceptionFilter>());
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// The bearer scheme is declared so the Scalar UI can send a token from /Access/Login.
+builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, context, cancellationToken) =>
+{
+    document.Components ??= new OpenApiComponents();
+    document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+    document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JSON Web Token",
+        In = ParameterLocation.Header,
+        Description = "Paste the accesstoken returned by POST /Access/Login.",
+    };
+
+    return Task.CompletedTask;
+}));
 
 var app = builder.Build();
 
@@ -39,17 +64,63 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<PWMDbContext>().Database.MigrateAsync();
 
-    app.MapOpenApi();
-    app.MapScalarApiReference();
+    // The fallback policy would otherwise lock the developer out of the API docs
+    app.MapOpenApi().AllowAnonymous();
+    app.MapScalarApiReference().AllowAnonymous();
 }
 
-app.UseHttpsRedirection();
+// Not in Development: on the https launch profile this answers the clients' plain-HTTP
+// calls with a 307 to :7138, and Dart's http client will not replay a POST body across it.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
+
+// Every endpoint needs a valid token except the ones marked [AllowAnonymous]
+// (sign-in and refresh); roles are checked per action by AuthorizationAttribute.
+static void AddJwtAuthentication(WebApplicationBuilder builder)
+{
+    var jwt = builder.Configuration.GetSection("JwtToken");
+    var secretKey = jwt["SecretKey"] ?? Environment.GetEnvironmentVariable("JWT_SECRET")
+        ?? throw new InvalidOperationException("JwtToken:SecretKey is not configured.");
+
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = jwt["Issuer"],
+                ValidAudience = jwt["Audience"],
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+                RoleClaimType = ClaimNames.Role,
+                NameClaimType = ClaimNames.Email,
+                ClockSkew = TimeSpan.FromSeconds(30),
+            };
+        });
+
+    builder.Services.AddAuthorization(options =>
+    {
+        if (DevSettings.BypassAuthentication)
+        {
+            return;
+        }
+
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+    });
+}
 
 // The password lives in backend/.env next to docker-compose.yml, so it is read
 // from the DB_PASSWORD environment variable rather than from appsettings.json.
