@@ -5,6 +5,7 @@ export 'company.dart';
 export 'company_type.dart';
 export 'country.dart';
 export 'dashboard_data.dart';
+export 'login_result.dart';
 export 'monthly_hour_report.dart';
 export 'monthly_hour_report_detail.dart';
 export 'notification.dart';

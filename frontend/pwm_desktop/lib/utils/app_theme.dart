@@ -11,6 +11,9 @@ abstract final class AppColors {
   static const textMuted = Color(0xFF9CA3AF);
   static const accent = Color(0xFF2563EB);
   static const accentSoft = Color(0xFFEAF1FE);
+  static const danger = Color(0xFFB91C1C);
+  static const dangerSoft = Color(0xFFFEF2F2);
+  static const dangerBorder = Color(0xFFFECACA);
 
   static const series = <Color>[
     Color(0xFF2563EB),

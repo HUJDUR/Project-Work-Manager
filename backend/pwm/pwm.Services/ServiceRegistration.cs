@@ -26,6 +26,7 @@ namespace pwm.Services
             services.AddScoped<ICompanyService, CompanyService>();
             services.AddScoped<IUserTypeService, UserTypeService>();
             services.AddScoped<IUserService, UserService>();
+            services.AddScoped<IRefreshTokenService, RefreshTokenService>();
             services.AddScoped<IOperationTypeService, OperationTypeService>();
             services.AddScoped<IUserOperationService, UserOperationService>();
             services.AddScoped<IActivityLogTypeService, ActivityLogTypeService>();

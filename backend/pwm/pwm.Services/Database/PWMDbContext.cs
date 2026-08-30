@@ -15,6 +15,7 @@ namespace pwm.Services.Database
         public DbSet<Company> Companies { get; set; }
         public DbSet<UserType> UserTypes { get; set; }
         public DbSet<User> Users { get; set; }
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<OperationType> OperationTypes { get; set; }
         public DbSet<UserOperation> UserOperations { get; set; }
         public DbSet<ActivityLogType> ActivityLogTypes { get; set; }
@@ -48,6 +49,7 @@ namespace pwm.Services.Database
 
             modelBuilder.Entity<UserType>().ToTable("UserTypes");
             modelBuilder.Entity<User>().ToTable("Users");
+            modelBuilder.Entity<RefreshToken>().ToTable("RefreshTokens");
             modelBuilder.Entity<OperationType>().ToTable("OperationTypes");
             modelBuilder.Entity<UserOperation>().ToTable("UserOperations");
 
@@ -76,6 +78,7 @@ namespace pwm.Services.Database
 
             modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
             modelBuilder.Entity<UserType>().HasIndex(x => x.Type).IsUnique();
+            modelBuilder.Entity<RefreshToken>().HasIndex(x => x.Token).IsUnique();
             modelBuilder.Entity<OperationType>().HasIndex(x => x.Name).IsUnique();
 
             modelBuilder.Entity<UserOperation>()
@@ -123,6 +126,12 @@ namespace pwm.Services.Database
                 .WithMany()
                 .HasForeignKey(x => x.UserTypeId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<RefreshToken>()
+                .HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<UserOperation>()
                 .HasOne(x => x.User)

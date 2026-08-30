@@ -9,29 +9,27 @@ import '../utils/api_client_exception.dart';
 import 'auth_provider.dart';
 
 abstract class BaseProvider<T> with ChangeNotifier {
-  static String? _baseUrl;
-
-  static String? get baseUrl => _baseUrl;
+  /// Must end in a slash: routes are built as `{baseUrl}{endpoint}`.
+  static const String baseUrl = String.fromEnvironment(
+    "baseUrl",
+    defaultValue: "http://localhost:5094/",
+  );
 
   /// API resource segment, e.g. `Project` -> `{baseUrl}Project`.
   final String endpoint;
 
-  BaseProvider(this.endpoint) {
-    _baseUrl = const String.fromEnvironment("baseUrl",
-        defaultValue: "http://localhost:5094/");
-  }
+  BaseProvider(this.endpoint);
 
   Future<PageResult<T>> get({dynamic filter}) async {
-    var url = "$_baseUrl$endpoint";
+    var url = "$baseUrl$endpoint";
     if (filter != null) {
       var queryString = getQueryString(filter);
       url = "$url?$queryString";
     }
 
     var uri = Uri.parse(url);
-    var headers = createHeaders();
 
-    var response = await http.get(uri, headers: headers);
+    var response = await send((headers) => http.get(uri, headers: headers));
 
     validateResponse(response);
     var data = jsonDecode(response.body);
@@ -45,11 +43,10 @@ abstract class BaseProvider<T> with ChangeNotifier {
   }
 
   Future<T> getById(int id) async {
-    var url = "$_baseUrl$endpoint/$id";
+    var url = "$baseUrl$endpoint/$id";
     var uri = Uri.parse(url);
-    var headers = createHeaders();
 
-    http.Response response = await http.get(uri, headers: headers);
+    var response = await send((headers) => http.get(uri, headers: headers));
 
     validateResponse(response);
     var data = jsonDecode(response.body);
@@ -58,12 +55,12 @@ abstract class BaseProvider<T> with ChangeNotifier {
   }
 
   Future<T> insert(dynamic request) async {
-    var url = "$_baseUrl$endpoint";
+    var url = "$baseUrl$endpoint";
     var uri = Uri.parse(url);
-    var headers = createHeaders();
-
     var jsonRequest = jsonEncode(request);
-    var response = await http.post(uri, headers: headers, body: jsonRequest);
+
+    var response =
+        await send((headers) => http.post(uri, headers: headers, body: jsonRequest));
 
     validateResponse(response);
     var data = jsonDecode(response.body);
@@ -72,12 +69,12 @@ abstract class BaseProvider<T> with ChangeNotifier {
   }
 
   Future<T> update(int id, [dynamic request]) async {
-    var url = "$_baseUrl$endpoint/$id";
+    var url = "$baseUrl$endpoint/$id";
     var uri = Uri.parse(url);
-    var headers = createHeaders();
-
     var jsonRequest = jsonEncode(request);
-    var response = await http.put(uri, headers: headers, body: jsonRequest);
+
+    var response =
+        await send((headers) => http.put(uri, headers: headers, body: jsonRequest));
 
     validateResponse(response);
     var data = jsonDecode(response.body);
@@ -86,13 +83,25 @@ abstract class BaseProvider<T> with ChangeNotifier {
   }
 
   Future remove(int id) async {
-    var url = "$_baseUrl$endpoint/$id";
+    var url = "$baseUrl$endpoint/$id";
     var uri = Uri.parse(url);
-    var headers = createHeaders();
 
-    var response = await http.delete(uri, headers: headers);
+    var response = await send((headers) => http.delete(uri, headers: headers));
 
     validateResponse(response);
+  }
+
+  /// Sends the request, and once the access token has expired, retries it with a
+  /// fresh one rather than making the user sign in again mid-session.
+  @protected
+  Future<Response> send(Future<Response> Function(Map<String, String> headers) request) async {
+    var response = await request(createHeaders());
+
+    if (response.statusCode == 401 && await AuthProvider.tryRefresh()) {
+      response = await request(createHeaders());
+    }
+
+    return response;
   }
 
   T fromJson(dynamic data) {

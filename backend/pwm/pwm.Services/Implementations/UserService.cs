@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using FluentValidation;
 using MapsterMapper;
+using Microsoft.EntityFrameworkCore;
+using pwm.Model.Access;
 using pwm.Common.Services.CryptoService;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
@@ -27,6 +30,40 @@ namespace pwm.Services.Implementations
         {
             _cryptoService = cryptoService;
         }
+
+        public async Task<AuthenticatedUser?> AuthenticateAsync(string email, string password)
+        {
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            {
+                return null;
+            }
+
+            var user = await _dbContext.Users
+                .Include(x => x.UserType)
+                .FirstOrDefaultAsync(x => x.Email == email);
+
+            if (user == null || !_cryptoService.Verify(user.PasswordHash, user.PasswordSalt, password))
+            {
+                return null;
+            }
+
+            return ToAuthenticatedUser(user);
+        }
+
+        public async Task<AuthenticatedUser?> GetAuthenticatedUserAsync(int id)
+        {
+            var user = await _dbContext.Users
+                .Include(x => x.UserType)
+                .FirstOrDefaultAsync(x => x.Id == id);
+
+            return user == null ? null : ToAuthenticatedUser(user);
+        }
+
+        private AuthenticatedUser ToAuthenticatedUser(User user) => new()
+        {
+            User = _mapper.Map<UserResponse>(user),
+            Role = user.UserType?.Type ?? string.Empty,
+        };
 
         protected override IEnumerable<User> ApplyFilters(IEnumerable<User> query, UserSearchObject? search)
         {
