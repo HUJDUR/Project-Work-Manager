@@ -30,6 +30,11 @@ namespace pwm.Services.Implementations
                 return query;
             }
 
+            if (search.TruckLoadStatusId.HasValue)
+            {
+                query = query.Where(x => x.TruckLoadStatusId == search.TruckLoadStatusId.Value);
+            }
+
             if (search.TransportCompanyId.HasValue)
             {
                 query = query.Where(x => x.TransportCompanyId == search.TransportCompanyId.Value);

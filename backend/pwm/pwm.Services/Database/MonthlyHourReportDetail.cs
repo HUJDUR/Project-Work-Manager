@@ -23,6 +23,14 @@ namespace pwm.Services.Database
         public User User { get; set; } = null!;
 
         [Required]
-        public int TotalHours { get; set; }
+        public double TotalHours { get; set; }
+
+        /// <summary>The first eight hours of each of this worker's days in the month.</summary>
+        [Required]
+        public double RegularHours { get; set; }
+
+        /// <summary>Everything past eight hours on a day.</summary>
+        [Required]
+        public double OvertimeHours { get; set; }
     }
 }

@@ -185,6 +185,37 @@ namespace pwm.Services.Database.Migrations
                     b.ToTable("Countries", (string)null);
                 });
 
+            modelBuilder.Entity("pwm.Services.Database.GeneratedReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("GeneratedById")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Parameters")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GeneratedAt");
+
+                    b.HasIndex("GeneratedById");
+
+                    b.ToTable("GeneratedReports", (string)null);
+                });
+
             modelBuilder.Entity("pwm.Services.Database.MonthlyHourReport", b =>
                 {
                     b.Property<int>("Id")
@@ -196,8 +227,8 @@ namespace pwm.Services.Database.Migrations
                     b.Property<int>("Month")
                         .HasColumnType("int");
 
-                    b.Property<int>("TotalHours")
-                        .HasColumnType("int");
+                    b.Property<double>("TotalHours")
+                        .HasColumnType("float");
 
                     b.Property<int>("Year")
                         .HasColumnType("int");
@@ -221,8 +252,14 @@ namespace pwm.Services.Database.Migrations
                     b.Property<int>("MonthlyHourReportId")
                         .HasColumnType("int");
 
-                    b.Property<int>("TotalHours")
-                        .HasColumnType("int");
+                    b.Property<double>("OvertimeHours")
+                        .HasColumnType("float");
+
+                    b.Property<double>("RegularHours")
+                        .HasColumnType("float");
+
+                    b.Property<double>("TotalHours")
+                        .HasColumnType("float");
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
@@ -300,6 +337,14 @@ namespace pwm.Services.Database.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreationDate")
                         .HasColumnType("datetime2");
 
@@ -312,12 +357,23 @@ namespace pwm.Services.Database.Migrations
                     b.Property<DateTime?>("DeliveryDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<DateTime>("ProductionStartDate")
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ProductionStartDate")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("ProjectCategoryId")
@@ -330,6 +386,8 @@ namespace pwm.Services.Database.Migrations
                         .HasColumnType("float");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("CustomerId");
 
@@ -450,6 +508,9 @@ namespace pwm.Services.Database.Migrations
                     b.Property<int>("TransportCompanyId")
                         .HasColumnType("int");
 
+                    b.Property<int>("TruckLoadStatusId")
+                        .HasColumnType("int");
+
                     b.Property<string>("VehicleRegistration")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -460,6 +521,8 @@ namespace pwm.Services.Database.Migrations
                     b.HasIndex("LoadDate");
 
                     b.HasIndex("TransportCompanyId");
+
+                    b.HasIndex("TruckLoadStatusId");
 
                     b.ToTable("TruckLoads", (string)null);
                 });
@@ -486,7 +549,8 @@ namespace pwm.Services.Database.Migrations
 
                     b.Property<string>("UnloadColor")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int>("UnloadPriority")
                         .HasColumnType("int");
@@ -498,6 +562,27 @@ namespace pwm.Services.Database.Migrations
                     b.HasIndex("TruckLoadId");
 
                     b.ToTable("TruckLoadDetails", (string)null);
+                });
+
+            modelBuilder.Entity("pwm.Services.Database.TruckLoadStatusType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("TruckLoadStatusTypes", (string)null);
                 });
 
             modelBuilder.Entity("pwm.Services.Database.User", b =>
@@ -612,7 +697,7 @@ namespace pwm.Services.Database.Migrations
                     b.Property<DateTime>("ClockedIn")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("ClockedOut")
+                    b.Property<DateTime?>("ClockedOut")
                         .HasColumnType("datetime2");
 
                     b.Property<double>("Hours")
@@ -636,7 +721,7 @@ namespace pwm.Services.Database.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("FinishedAt")
+                    b.Property<DateTime?>("FinishedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<double>("Hours")
@@ -714,6 +799,17 @@ namespace pwm.Services.Database.Migrations
                     b.Navigation("CompanyType");
                 });
 
+            modelBuilder.Entity("pwm.Services.Database.GeneratedReport", b =>
+                {
+                    b.HasOne("pwm.Services.Database.User", "GeneratedBy")
+                        .WithMany()
+                        .HasForeignKey("GeneratedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("GeneratedBy");
+                });
+
             modelBuilder.Entity("pwm.Services.Database.MonthlyHourReportDetail", b =>
                 {
                     b.HasOne("pwm.Services.Database.MonthlyHourReport", "MonthlyHourReport")
@@ -746,6 +842,12 @@ namespace pwm.Services.Database.Migrations
 
             modelBuilder.Entity("pwm.Services.Database.Project", b =>
                 {
+                    b.HasOne("pwm.Services.Database.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("pwm.Services.Database.Company", "Customer")
                         .WithMany()
                         .HasForeignKey("CustomerId")
@@ -768,6 +870,8 @@ namespace pwm.Services.Database.Migrations
                         .HasForeignKey("ProjectStatusId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("CreatedBy");
 
                     b.Navigation("Customer");
 
@@ -797,7 +901,15 @@ namespace pwm.Services.Database.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("pwm.Services.Database.TruckLoadStatusType", "TruckLoadStatus")
+                        .WithMany()
+                        .HasForeignKey("TruckLoadStatusId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("TransportCompany");
+
+                    b.Navigation("TruckLoadStatus");
                 });
 
             modelBuilder.Entity("pwm.Services.Database.TruckLoadDetail", b =>

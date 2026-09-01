@@ -7,6 +7,7 @@ class TruckLoad {
   const TruckLoad({
     required this.id,
     required this.transportCompanyId,
+    required this.truckLoadStatusId,
     required this.loadDate,
     required this.driverName,
     required this.driverSurname,
@@ -18,6 +19,7 @@ class TruckLoad {
 
   final int id;
   final int transportCompanyId;
+  final int truckLoadStatusId;
   final DateTime loadDate;
   final String driverName;
   final String driverSurname;

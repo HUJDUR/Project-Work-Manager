@@ -10,6 +10,10 @@ namespace pwm.Model.Responses
 
         public int UserId { get; set; }
 
-        public int TotalHours { get; set; }
+        public double TotalHours { get; set; }
+
+        public double RegularHours { get; set; }
+
+        public double OvertimeHours { get; set; }
     }
 }

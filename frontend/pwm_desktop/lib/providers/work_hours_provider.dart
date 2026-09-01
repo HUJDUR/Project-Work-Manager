@@ -33,12 +33,6 @@ class WorkHoursProvider extends ChangeNotifier {
   /// A worker's day is regular up to this many hours; the rest is overtime.
   static const double regularHoursPerDay = 8;
 
-  static const Map<String, dynamic> _wholeTable = {
-    'page': 1,
-    'pageSize': 2000,
-    'includeTotalCount': false,
-  };
-
   final BaseProvider<WorkLog> _workLogs;
   final BaseProvider<WorkLogDetail> _workLogDetails;
   final BaseProvider<User> _users;
@@ -189,8 +183,9 @@ class WorkHoursProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<E>> _rows<E>(BaseProvider<E> provider) =>
-      provider.get(filter: _wholeTable).then((result) => result.items);
+  /// A whole lookup table, paged through by [BaseProvider.getAll] because the
+  /// API caps how many rows one request may return.
+  Future<List<E>> _rows<E>(BaseProvider<E> provider) => provider.getAll();
 
   List<WorkHoursEntry> _buildEntries(
     List<WorkLog> workLogs,
@@ -222,13 +217,17 @@ class WorkHoursProvider extends ChangeNotifier {
 
       entries.add(WorkHoursEntry(
         id: detail.id,
+        workLogId: detail.workLogId,
         userId: workLog?.userId ?? 0,
         projectId: detail.projectId,
+        operationTypeId: detail.operationTypeId,
         workerName: worker?.fullName ?? 'Unknown worker',
         workerInitials: worker?.initials ?? '?',
         projectName: projectById[detail.projectId]?.name ?? 'Unknown project',
         operationName: operationById[detail.operationTypeId]?.name ?? 'Unknown operation',
         date: detail.startedAt,
+        startedAt: detail.startedAt,
+        finishedAt: detail.finishedAt,
         regularHours: regular,
         overtimeHours: detail.hours - regular,
         status: detail.finishedAt == null || workLog?.clockedOut == null
@@ -240,8 +239,12 @@ class WorkHoursProvider extends ChangeNotifier {
     return entries.reversed.toList();
   }
 
-  /// Writes the shift first because the detail needs its id.
-  Future<void> addWorkHours({
+  /// Inserts when [id] is null and updates otherwise. Adding writes the shift
+  /// first because the detail needs its id - the API has no endpoint that
+  /// creates both. Editing writes the same pair back.
+  Future<void> saveWorkHours({
+    int? id,
+    int? workLogId,
     required int userId,
     required int projectId,
     required int operationTypeId,
@@ -250,22 +253,42 @@ class WorkHoursProvider extends ChangeNotifier {
   }) async {
     final hours = finishedAt.difference(startedAt).inMinutes / 60;
 
-    final workLog = await _workLogs.insert({
+    final shift = {
       'userId': userId,
       'clockedIn': startedAt.toIso8601String(),
       'clockedOut': finishedAt.toIso8601String(),
       'hours': hours,
-    });
+    };
 
-    await _workLogDetails.insert({
-      'workLogId': workLog.id,
+    final logId = workLogId == null
+        ? (await _workLogs.insert(shift)).id
+        : (await _workLogs.update(workLogId, shift)).id;
+
+    final block = {
+      'workLogId': logId,
       'operationTypeId': operationTypeId,
       'projectId': projectId,
       'startedAt': startedAt.toIso8601String(),
       'finishedAt': finishedAt.toIso8601String(),
       'hours': hours,
-    });
+    };
 
-    await load();
+    if (id == null) {
+      await _workLogDetails.insert(block);
+    } else {
+      await _workLogDetails.update(id, block);
+    }
+  }
+
+  /// Removes the block, and the shift with it when nothing else was booked
+  /// against it - a shift with no work on it is not a record of anything.
+  Future<void> deleteWorkHours(WorkHoursEntry entry) async {
+    await _workLogDetails.remove(entry.id);
+
+    final siblings = _allEntries
+        .where((other) => other.workLogId == entry.workLogId && other.id != entry.id);
+    if (siblings.isEmpty) {
+      await _workLogs.remove(entry.workLogId);
+    }
   }
 }

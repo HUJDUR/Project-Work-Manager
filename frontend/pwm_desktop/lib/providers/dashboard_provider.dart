@@ -46,12 +46,6 @@ class DashboardProvider extends ChangeNotifier {
         _activityLogTypes = activityLogTypes ?? ActivityLogTypeProvider(),
         _userTypes = userTypes ?? UserTypeProvider();
 
-  static const Map<String, dynamic> _wholeTable = {
-    'page': 1,
-    'pageSize': 2000,
-    'includeTotalCount': false,
-  };
-
   static const int windowDays = 30;
   static const int _listLength = 5;
   static const int _projectsInChart = 6;
@@ -129,8 +123,9 @@ class DashboardProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<E>> _rows<E>(BaseProvider<E> provider) =>
-      provider.get(filter: _wholeTable).then((result) => result.items);
+  /// A whole lookup table, paged through by [BaseProvider.getAll] because the
+  /// API caps how many rows one request may return.
+  Future<List<E>> _rows<E>(BaseProvider<E> provider) => provider.getAll();
 
   DashboardData _aggregate({
     required List<Project> projects,

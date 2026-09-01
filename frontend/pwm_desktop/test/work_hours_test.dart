@@ -10,8 +10,28 @@ class _FakeProvider<T> extends BaseProvider<T> {
 
   final List<T> rows;
 
+  /// What was written, so a test can read the bodies back.
+  final List<Map<String, dynamic>> inserted = [];
+  final List<(int, Map<String, dynamic>)> updated = [];
+  final List<int> removed = [];
+
   @override
   Future<PageResult<T>> get({dynamic filter}) async => PageResult<T>()..items = rows;
+
+  @override
+  Future<T> insert(dynamic request) async {
+    inserted.add(Map<String, dynamic>.from(request as Map));
+    return rows.first;
+  }
+
+  @override
+  Future<T> update(int id, [dynamic request]) async {
+    updated.add((id, Map<String, dynamic>.from(request as Map)));
+    return rows.firstWhere((row) => (row as dynamic).id == id, orElse: () => rows.first);
+  }
+
+  @override
+  Future remove(int id) async => removed.add(id);
 }
 
 final _today = DateUtils.dateOnly(DateTime.now());
@@ -42,13 +62,16 @@ WorkLogDetail _booking({
       hours: hours,
     );
 
+late _FakeProvider<WorkLog> _shiftRows;
+late _FakeProvider<WorkLogDetail> _bookingRows;
+
 WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
-      workLogs: _FakeProvider([
+      workLogs: _shiftRows = _FakeProvider([
         _shift(10, 1, _today),
         _shift(11, 2, _today),
         _shift(12, 1, _lastWeek),
       ]),
-      workLogDetails: _FakeProvider([
+      workLogDetails: _bookingRows = _FakeProvider([
         _booking(
             id: 100,
             workLogId: 10,
@@ -106,18 +129,22 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
             id: 1,
             customerId: 1,
             name: 'Hall roof MU-1',
+            code: 'MU-1',
             weight: 1000,
             projectCategoryId: 1,
             creationDate: _today,
-            projectStatusId: 3),
+            projectStatusId: 3,
+            createdByUserId: 1),
         Project(
             id: 2,
             customerId: 1,
             name: 'Railing MU-2',
+            code: 'MU-2',
             weight: 500,
             projectCategoryId: 1,
             creationDate: _today,
-            projectStatusId: 3),
+            projectStatusId: 3,
+            createdByUserId: 1),
       ]),
       operationTypes: _FakeProvider(const [OperationType(id: 1, name: 'Welding')]),
     );
@@ -198,6 +225,75 @@ void main() {
     test('offers only active workers for a new entry', () {
       expect(provider.workers.map((worker) => worker.fullName),
           ['Damir Softic', 'Emir Kovacevic']);
+    });
+
+    test('carries the ids and both timestamps a details form writes back', () {
+      final entry = provider.entries.firstWhere((entry) => entry.id == 101);
+
+      expect(entry.workLogId, 10);
+      expect(entry.operationTypeId, 1);
+      expect(entry.startedAt, _today.add(const Duration(hours: 12)));
+      expect(entry.finishedAt, isNotNull);
+    });
+
+    test('books new hours as a shift and a block against it', () async {
+      await provider.saveWorkHours(
+        userId: 2,
+        projectId: 1,
+        operationTypeId: 3,
+        startedAt: DateTime(2026, 8, 31, 7),
+        finishedAt: DateTime(2026, 8, 31, 15, 30),
+      );
+
+      final shift = _shiftRows.inserted.single;
+      expect(shift['userId'], 2);
+      expect(shift['hours'], 8.5);
+
+      final block = _bookingRows.inserted.single;
+      expect(block['workLogId'], 10);
+      expect(block['projectId'], 1);
+      expect(block['operationTypeId'], 3);
+      expect(block['hours'], 8.5);
+    });
+
+    test('puts an edited block and its shift back rather than adding a second',
+        () async {
+      final entry = provider.entries.firstWhere((entry) => entry.id == 103);
+
+      await provider.saveWorkHours(
+        id: entry.id,
+        workLogId: entry.workLogId,
+        userId: entry.userId,
+        projectId: 2,
+        operationTypeId: entry.operationTypeId,
+        startedAt: DateTime(2026, 8, 24, 7),
+        finishedAt: DateTime(2026, 8, 24, 11),
+      );
+
+      expect(_shiftRows.updated.single.$1, 12);
+      final (id, block) = _bookingRows.updated.single;
+      expect(id, 103);
+      expect(block['projectId'], 2);
+      expect(block['hours'], 4);
+      expect(_bookingRows.inserted, isEmpty);
+    });
+
+    test('deletes the shift with the last block booked against it', () async {
+      // Shift 12 carries only booking 103.
+      await provider.deleteWorkHours(
+          provider.entries.firstWhere((entry) => entry.id == 103));
+
+      expect(_bookingRows.removed, [103]);
+      expect(_shiftRows.removed, [12]);
+    });
+
+    test('keeps a shift that still has other blocks on it', () async {
+      // Shift 10 carries bookings 100 and 101.
+      await provider.deleteWorkHours(
+          provider.entries.firstWhere((entry) => entry.id == 100));
+
+      expect(_bookingRows.removed, [100]);
+      expect(_shiftRows.removed, isEmpty);
     });
   });
 

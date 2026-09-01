@@ -16,6 +16,12 @@ namespace pwm.Services.Database
         [Required]
         public Company TransportCompany { get; set; } = null!;
 
+        public int TruckLoadStatusId { get; set; }
+
+        [ForeignKey(nameof(TruckLoadStatusId))]
+        [Required]
+        public TruckLoadStatusType TruckLoadStatus { get; set; } = null!;
+
         public DateTime LoadDate { get; set; }
 
         [Required]

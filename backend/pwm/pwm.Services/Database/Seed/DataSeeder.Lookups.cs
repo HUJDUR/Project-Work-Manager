@@ -84,6 +84,17 @@ namespace pwm.Services.Database.Seed
             ];
             await AddRangeAsync(_projectStatuses);
 
+            _truckLoadStatuses =
+            [
+                new TruckLoadStatusType { Name = "Planned" },
+                new TruckLoadStatusType { Name = "Loading" },
+                new TruckLoadStatusType { Name = "Loaded" },
+                new TruckLoadStatusType { Name = "In transit" },
+                new TruckLoadStatusType { Name = "Delivered" },
+                new TruckLoadStatusType { Name = "Cancelled" },
+            ];
+            await AddRangeAsync(_truckLoadStatuses);
+
             _activityLogTypes =
             [
                 new ActivityLogType { Name = "Login" },
@@ -111,6 +122,8 @@ namespace pwm.Services.Database.Seed
         private ProjectCategory FindCategory(string name) => _projectCategories.First(x => x.Name == name);
 
         private ProjectStatusType FindStatus(string name) => _projectStatuses.First(x => x.Name == name);
+
+        private TruckLoadStatusType FindLoadStatus(string name) => _truckLoadStatuses.First(x => x.Name == name);
 
         private ActivityLogType FindLogType(string name) => _activityLogTypes.First(x => x.Name == name);
 

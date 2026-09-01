@@ -14,7 +14,8 @@ class MonthlyHourReport {
   final int id;
   final int year;
   final int month;
-  final int totalHours;
+  /// Fractional: a shift is rarely a whole number of hours.
+  final double totalHours;
 
   factory MonthlyHourReport.fromJson(Map<String, dynamic> json) =>
       _$MonthlyHourReportFromJson(json);

@@ -33,10 +33,12 @@ Project _project({required int id, required String name, required int statusId})
       id: id,
       customerId: 1,
       name: name,
+      code: 'P-$id',
       weight: 1000,
       projectCategoryId: 1,
       creationDate: _now,
       projectStatusId: statusId,
+      createdByUserId: 1,
     );
 
 DashboardProvider _fakeDashboard() => DashboardProvider(
@@ -123,6 +125,7 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
         TruckLoad(
           id: 50,
           transportCompanyId: 7,
+          truckLoadStatusId: 1,
           loadDate: _yesterday,
           driverName: 'Ivan',
           driverSurname: 'Maric',

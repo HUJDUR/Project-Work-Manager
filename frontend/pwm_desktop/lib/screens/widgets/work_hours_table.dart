@@ -22,9 +22,12 @@ class _Column {
 }
 
 class WorkHoursTable extends StatelessWidget {
-  const WorkHoursTable({super.key, required this.entries});
+  const WorkHoursTable({super.key, required this.entries, required this.onRowTap});
 
   final List<WorkHoursEntry> entries;
+
+  /// Opens the row in the details screen.
+  final ValueChanged<WorkHoursEntry> onRowTap;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +49,10 @@ class WorkHoursTable extends StatelessWidget {
                 : ListView.separated(
                     itemCount: entries.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) => _EntryRow(entry: entries[index]),
+                    itemBuilder: (context, index) => _EntryRow(
+                      entry: entries[index],
+                      onTap: () => onRowTap(entries[index]),
+                    ),
                   ),
           ),
         ],
@@ -76,6 +82,7 @@ class _HeaderRow extends StatelessWidget {
                 ),
               ),
             ),
+          const SizedBox(width: 32),
         ],
       ),
     );
@@ -83,39 +90,47 @@ class _HeaderRow extends StatelessWidget {
 }
 
 class _EntryRow extends StatelessWidget {
-  const _EntryRow({required this.entry});
+  const _EntryRow({required this.entry, required this.onTap});
 
   final WorkHoursEntry entry;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(flex: _columns[0].flex, child: _Worker(entry: entry)),
-          Expanded(
-            flex: _columns[1].flex,
-            child: _Cell(entry.projectName, caption: entry.operationName),
-          ),
-          Expanded(flex: _columns[2].flex, child: _Cell(formatFullDate(entry.date))),
-          Expanded(
-            flex: _columns[3].flex,
-            child: _Cell(formatHours(entry.regularHours)),
-          ),
-          Expanded(
-            flex: _columns[4].flex,
-            child: _Cell(
-              entry.isOvertime ? formatHours(entry.overtimeHours) : '—',
-              color: entry.isOvertime ? AppColors.accent : AppColors.textMuted,
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(flex: _columns[0].flex, child: _Worker(entry: entry)),
+            Expanded(
+              flex: _columns[1].flex,
+              child: _Cell(entry.projectName, caption: entry.operationName),
             ),
-          ),
-          Expanded(
-            flex: _columns[5].flex,
-            child: _Cell(formatHours(entry.totalHours), bold: true),
-          ),
-          Expanded(flex: _columns[6].flex, child: _StatusChip(status: entry.status)),
-        ],
+            Expanded(flex: _columns[2].flex, child: _Cell(formatFullDate(entry.date))),
+            Expanded(
+              flex: _columns[3].flex,
+              child: _Cell(formatHours(entry.regularHours)),
+            ),
+            Expanded(
+              flex: _columns[4].flex,
+              child: _Cell(
+                entry.isOvertime ? formatHours(entry.overtimeHours) : '—',
+                color: entry.isOvertime ? AppColors.accent : AppColors.textMuted,
+              ),
+            ),
+            Expanded(
+              flex: _columns[5].flex,
+              child: _Cell(formatHours(entry.totalHours), bold: true),
+            ),
+            Expanded(flex: _columns[6].flex, child: _StatusChip(status: entry.status)),
+            const SizedBox(
+              width: 32,
+              child: Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
+            ),
+          ],
+        ),
       ),
     );
   }

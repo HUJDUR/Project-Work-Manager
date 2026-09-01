@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using pwm.Model.Enums;
 
 namespace pwm.Services.Database.Seed
 {
@@ -22,9 +23,9 @@ namespace pwm.Services.Database.Seed
                 {
                     Year = month.Year,
                     Month = month.Month,
-                    TotalHours = (int)Math.Round(_workLogs
+                    TotalHours = Math.Round(_workLogs
                         .Where(log => log.ClockedIn.Year == month.Year && log.ClockedIn.Month == month.Month)
-                        .Sum(log => log.Hours)),
+                        .Sum(log => log.Hours), 2),
                 })
                 .ToArray();
 
@@ -40,16 +41,70 @@ namespace pwm.Services.Database.Seed
 
                 foreach (var group in perUser)
                 {
+                    // Everything over eight hours on a date is overtime, so the split
+                    // is worked out per day rather than over the month's total.
+                    var regular = 0.0;
+                    var overtime = 0.0;
+
+                    foreach (var day in group.GroupBy(log => log.ClockedIn.Date))
+                    {
+                        var hours = day.Sum(log => log.Hours);
+                        var regularToday = Math.Min(hours, RegularHoursPerDay);
+
+                        regular += regularToday;
+                        overtime += hours - regularToday;
+                    }
+
                     details.Add(new MonthlyHourReportDetail
                     {
                         MonthlyHourReportId = report.Id,
                         UserId = group.Key,
-                        TotalHours = (int)Math.Round(group.Sum(log => log.Hours)),
+                        TotalHours = Math.Round(regular + overtime, 2),
+                        RegularHours = Math.Round(regular, 2),
+                        OvertimeHours = Math.Round(overtime, 2),
                     });
                 }
             }
 
             await AddRangeAsync(details.ToArray());
+        }
+
+        /// <summary>Mirrors <c>ReportService.RegularHoursPerDay</c>: over eight is overtime.</summary>
+        private const double RegularHoursPerDay = 8;
+
+        private async Task SeedGeneratedReportsAsync()
+        {
+            // A short history for the Reports screen's "Recent Reports" list. The PDFs
+            // are not stored - each row is rebuilt from these parameters on download.
+            var admin = FindUser("admin@pwm.ba").Id;
+            var manager = FindUser("amar.begic@pwm.ba").Id;
+            var lastMonth = _today.AddMonths(-1);
+
+            var reports = new[]
+            {
+                CreateGeneratedReport(ReportType.MonthlyWorkHours, admin, daysAgo: 21,
+                    parameters: $$"""{"Year":{{lastMonth.Year}},"Month":{{lastMonth.Month}},"UserId":null,"ProjectId":null}"""),
+
+                CreateGeneratedReport(ReportType.TransportLoads, manager, daysAgo: 12,
+                    parameters: """{"ProjectId":null,"DateFrom":null,"DateTo":null}"""),
+
+                CreateGeneratedReport(ReportType.MonthlyWorkHours, manager, daysAgo: 3,
+                    parameters: $$"""{"Year":{{_today.Year}},"Month":{{_today.Month}},"UserId":null,"ProjectId":null}"""),
+            };
+
+            await AddRangeAsync(reports);
+        }
+
+        private GeneratedReport CreateGeneratedReport(
+            ReportType type, int generatedById, int daysAgo, string parameters)
+        {
+            return new GeneratedReport
+            {
+                Type = type,
+                Parameters = parameters,
+                GeneratedAt = _today.AddDays(-daysAgo).AddHours(10),
+                GeneratedById = generatedById,
+            };
         }
 
         private async Task SeedNotificationsAsync()

@@ -18,6 +18,6 @@ namespace pwm.Services.Database
         public int Month { get; set; }
 
         [Required]
-        public int TotalHours { get; set; }
+        public double TotalHours { get; set; }
     }
 }

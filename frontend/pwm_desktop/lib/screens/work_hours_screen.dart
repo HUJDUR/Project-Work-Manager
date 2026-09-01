@@ -5,9 +5,25 @@ import '../models/models.dart';
 import '../providers/work_hours_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
-import 'widgets/add_work_hours_dialog.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/work_hours_table.dart';
+import 'work_hours_details_screen.dart';
+
+/// Opens one block of hours - or a blank form when [entry] is null - and
+/// reloads once the details screen reports it wrote something.
+Future<void> openWorkHoursDetails(
+  BuildContext context,
+  WorkHoursProvider provider, {
+  WorkHoursEntry? entry,
+}) async {
+  final result = await Navigator.of(context).push<String>(
+    MaterialPageRoute(
+      builder: (_) => WorkHoursDetailsScreen(provider: provider, entry: entry),
+    ),
+  );
+
+  if (result == 'reload') await provider.load();
+}
 
 /// Every recorded work hour, laid out as in `docs/mockups/desktop/Hours.png`.
 class WorkHoursScreen extends StatelessWidget {
@@ -54,7 +70,13 @@ class _Body extends StatelessWidget {
           const SizedBox(height: AppSpacing.gap),
           _SummaryRow(provider: provider),
           const SizedBox(height: AppSpacing.gap),
-          Expanded(child: WorkHoursTable(entries: provider.entries)),
+          Expanded(
+            child: WorkHoursTable(
+              entries: provider.entries,
+              onRowTap: (entry) =>
+                  openWorkHoursDetails(context, provider, entry: entry),
+            ),
+          ),
         ],
       ),
     );
@@ -83,7 +105,7 @@ class _Header extends StatelessWidget {
         ),
         const Spacer(),
         OutlinedButton.icon(
-          onPressed: () => AddWorkHoursDialog.show(context, provider),
+          onPressed: () => openWorkHoursDetails(context, provider),
           icon: const Icon(Icons.add, size: 18),
           label: const Text('Add Work Hours'),
           style: OutlinedButton.styleFrom(
@@ -161,6 +183,11 @@ class _FilterBarState extends State<_FilterBar> {
     super.dispose();
   }
 
+  void _clearFilters() {
+    _searchController.clear();
+    widget.provider.clearFilters();
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = widget.provider;
@@ -209,7 +236,7 @@ class _FilterBarState extends State<_FilterBar> {
         const SizedBox(width: 12),
         Expanded(flex: 3, child: _DateRangeField(provider: provider)),
         const SizedBox(width: 12),
-        _FilterMenu(provider: provider),
+        _FilterMenu(provider: provider, onClear: _clearFilters),
       ],
     );
   }
@@ -268,9 +295,10 @@ class _DateRangeField extends StatelessWidget {
 }
 
 class _FilterMenu extends StatelessWidget {
-  const _FilterMenu({required this.provider});
+  const _FilterMenu({required this.provider, required this.onClear});
 
   final WorkHoursProvider provider;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -306,7 +334,7 @@ class _FilterMenu extends StatelessWidget {
       onSelected: (value) => switch (value) {
         'overtime' => provider.setOvertimeOnly(!provider.overtimeOnly),
         'inProgress' => provider.setInProgressOnly(!provider.inProgressOnly),
-        _ => provider.clearFilters(),
+        _ => onClear(),
       },
     );
   }

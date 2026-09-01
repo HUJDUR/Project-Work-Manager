@@ -72,6 +72,17 @@ namespace pwm.Services.Implementations
                 return query;
             }
 
+            if (!string.IsNullOrWhiteSpace(search.Search))
+            {
+                var needle = search.Search;
+                query = query.Where(x =>
+                    x.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || x.Surname.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || x.Email.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || (x.JobTitle != null
+                        && x.JobTitle.Contains(needle, StringComparison.OrdinalIgnoreCase)));
+            }
+
             if (!string.IsNullOrWhiteSpace(search.Name))
             {
                 var name = search.Name;

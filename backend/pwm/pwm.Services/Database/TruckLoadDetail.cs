@@ -28,6 +28,7 @@ namespace pwm.Services.Database
 
         public int UnloadPriority { get; set; }
 
+        [MaxLength(20)]
         public string UnloadColor { get; set; } = string.Empty;
     }
 }
