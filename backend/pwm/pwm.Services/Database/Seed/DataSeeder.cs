@@ -33,6 +33,7 @@ namespace pwm.Services.Database.Seed
         private ActivityLogType[] _activityLogTypes = [];
         private ProjectCategory[] _projectCategories = [];
         private ProjectStatusType[] _projectStatuses = [];
+        private TruckLoadStatusType[] _truckLoadStatuses = [];
         private Project[] _projects = [];
         private WorkLog[] _workLogs = [];
         private WorkLogDetail[] _workLogDetails = [];
@@ -66,6 +67,7 @@ namespace pwm.Services.Database.Seed
             await SeedWorkLogsAsync();
             await SeedTruckLoadsAsync();
             await SeedMonthlyHourReportsAsync();
+            await SeedGeneratedReportsAsync();
             await SeedNotificationsAsync();
             await SeedActivityLogsAsync();
 
@@ -79,10 +81,12 @@ namespace pwm.Services.Database.Seed
         {
             await _db.ActivityLogs.ExecuteDeleteAsync();
             await _db.Notifications.ExecuteDeleteAsync();
+            await _db.GeneratedReports.ExecuteDeleteAsync();
             await _db.MonthlyHourReportDetails.ExecuteDeleteAsync();
             await _db.MonthlyHourReports.ExecuteDeleteAsync();
             await _db.TruckLoadDetails.ExecuteDeleteAsync();
             await _db.TruckLoads.ExecuteDeleteAsync();
+            await _db.TruckLoadStatusTypes.ExecuteDeleteAsync();
             await _db.WorkLogDetails.ExecuteDeleteAsync();
             await _db.WorkLogs.ExecuteDeleteAsync();
             await _db.Projects.ExecuteDeleteAsync();

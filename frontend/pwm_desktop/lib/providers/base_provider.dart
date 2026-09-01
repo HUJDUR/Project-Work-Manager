@@ -15,10 +15,38 @@ abstract class BaseProvider<T> with ChangeNotifier {
     defaultValue: "http://localhost:5094/",
   );
 
+  /// The largest page the API will serve: `BaseSearchObject.MaxPageSize` clamps
+  /// anything bigger, so asking for a whole table in one request does not work.
+  static const int maxPageSize = 100;
+
+  /// Stops [getAll] running away if the API ever keeps answering with full pages.
+  static const int _maxPages = 200;
+
   /// API resource segment, e.g. `Project` -> `{baseUrl}Project`.
   final String endpoint;
 
   BaseProvider(this.endpoint);
+
+  /// Every row of a lookup table, walked one capped page at a time. Use it for the
+  /// small reference tables; a table that can grow belongs behind a real filter.
+  Future<List<T>> getAll({Map<String, dynamic>? filter}) async {
+    final rows = <T>[];
+
+    for (var page = 1; page <= _maxPages; page++) {
+      final result = await get(filter: {
+        ...?filter,
+        'page': page,
+        'pageSize': maxPageSize,
+        'includeTotalCount': false,
+      });
+
+      rows.addAll(result.items);
+
+      if (result.items.length < maxPageSize) break;
+    }
+
+    return rows;
+  }
 
   Future<PageResult<T>> get({dynamic filter}) async {
     var url = "$baseUrl$endpoint";

@@ -23,11 +23,13 @@ namespace pwm.Services.Database
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<ProjectCategory> ProjectCategories { get; set; }
         public DbSet<ProjectStatusType> ProjectStatusTypes { get; set; }
+        public DbSet<TruckLoadStatusType> TruckLoadStatusTypes { get; set; }
         public DbSet<Project> Projects { get; set; }
         public DbSet<WorkLog> WorkLogs { get; set; }
         public DbSet<WorkLogDetail> WorkLogDetails { get; set; }
         public DbSet<TruckLoad> TruckLoads { get; set; }
         public DbSet<TruckLoadDetail> TruckLoadDetails { get; set; }
+        public DbSet<GeneratedReport> GeneratedReports { get; set; }
         public DbSet<MonthlyHourReport> MonthlyHourReports { get; set; }
         public DbSet<MonthlyHourReportDetail> MonthlyHourReportDetails { get; set; }
 
@@ -59,6 +61,7 @@ namespace pwm.Services.Database
 
             modelBuilder.Entity<ProjectCategory>().ToTable("ProjectCategories");
             modelBuilder.Entity<ProjectStatusType>().ToTable("ProjectStatusTypes");
+            modelBuilder.Entity<TruckLoadStatusType>().ToTable("TruckLoadStatusTypes");
             modelBuilder.Entity<Project>().ToTable("Projects");
 
             modelBuilder.Entity<WorkLog>().ToTable("WorkLogs");
@@ -67,6 +70,7 @@ namespace pwm.Services.Database
             modelBuilder.Entity<TruckLoad>().ToTable("TruckLoads");
             modelBuilder.Entity<TruckLoadDetail>().ToTable("TruckLoadDetails");
 
+            modelBuilder.Entity<GeneratedReport>().ToTable("GeneratedReports");
             modelBuilder.Entity<MonthlyHourReport>().ToTable("MonthlyHourReports");
             modelBuilder.Entity<MonthlyHourReportDetail>().ToTable("MonthlyHourReportDetails");
         }
@@ -88,8 +92,10 @@ namespace pwm.Services.Database
             modelBuilder.Entity<ActivityLogType>().HasIndex(x => x.Name).IsUnique();
             modelBuilder.Entity<ProjectCategory>().HasIndex(x => x.Name).IsUnique();
             modelBuilder.Entity<ProjectStatusType>().HasIndex(x => x.Name).IsUnique();
+            modelBuilder.Entity<TruckLoadStatusType>().HasIndex(x => x.Name).IsUnique();
 
             modelBuilder.Entity<TruckLoad>().HasIndex(x => x.LoadDate);
+            modelBuilder.Entity<GeneratedReport>().HasIndex(x => x.GeneratedAt);
             modelBuilder.Entity<WorkLog>().HasIndex(x => new { x.UserId, x.ClockedIn });
 
             modelBuilder.Entity<MonthlyHourReport>()
@@ -188,6 +194,12 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.ProjectStatusId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Project>()
+                .HasOne(x => x.CreatedBy)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<WorkLog>()
                 .HasOne(x => x.User)
                 .WithMany()
@@ -210,6 +222,18 @@ namespace pwm.Services.Database
                 .HasOne(x => x.Project)
                 .WithMany()
                 .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<GeneratedReport>()
+                .HasOne(x => x.GeneratedBy)
+                .WithMany()
+                .HasForeignKey(x => x.GeneratedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TruckLoad>()
+                .HasOne(x => x.TruckLoadStatus)
+                .WithMany()
+                .HasForeignKey(x => x.TruckLoadStatusId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TruckLoad>()

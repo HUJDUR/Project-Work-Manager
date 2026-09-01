@@ -19,7 +19,7 @@ namespace pwm.Services.Database
         [Required]
         public DateTime ClockedIn { get; set; }
 
-        [Required]
+        /// <summary>Null while the shift is still open - the worker has not clocked out.</summary>
         public DateTime? ClockedOut { get; set; }
 
         [Required]

@@ -30,7 +30,7 @@ namespace pwm.Services.Database
         [Required]
         public DateTime StartedAt { get; set; }
 
-        [Required]
+        /// <summary>Null while the worker is still on this block of work.</summary>
         public DateTime? FinishedAt { get; set; }
 
         [Required]

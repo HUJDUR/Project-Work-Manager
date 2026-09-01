@@ -30,6 +30,9 @@ namespace pwm.Services
 
         public virtual async Task<PageResult<TResponse>> GetAllAsync(TSearch? search = null)
         {
+            search ??= Activator.CreateInstance<TSearch>();
+            ClampPaging(search);
+
             IEnumerable<TEntity> query = this._dbContext.Set<TEntity>();
 
             query = await IncludeRelatedEntitiesAsync(search, query.AsQueryable());
@@ -48,15 +51,9 @@ namespace pwm.Services
                 query = query.AsQueryable().OrderBy(search.SortBy);
             }
 
-            if (search.Page.HasValue)
-            {
-                query = query.Skip((search.Page.Value - 1) * search.PageSize.Value);
-            }
-
-            if (search.PageSize.HasValue)
-            {
-                query = query.Take(search.PageSize.Value);
-            }
+            query = query
+                .Skip((search.Page!.Value - 1) * search.PageSize!.Value)
+                .Take(search.PageSize.Value);
 
             var list = query.Select(item => _mapper.Map<TResponse>(item)).ToList();
 
@@ -67,6 +64,18 @@ namespace pwm.Services
             };
 
             return await Task.FromResult(pageResult);
+        }
+
+        /// <summary>
+        /// Keeps every list endpoint inside <see cref="BaseSearchObject.MaxPageSize"/>: a page
+        /// is never bigger than the ceiling, and never smaller than one row.
+        /// </summary>
+        private static void ClampPaging(TSearch search)
+        {
+            search.Page = Math.Max(search.Page ?? 1, 1);
+
+            var pageSize = search.PageSize ?? BaseSearchObject.DefaultPageSize;
+            search.PageSize = Math.Clamp(pageSize, 1, BaseSearchObject.MaxPageSize);
         }
 
         protected virtual async Task<IQueryable<TEntity>> IncludeRelatedEntitiesAsync(TSearch? search, IQueryable<TEntity> query = null)

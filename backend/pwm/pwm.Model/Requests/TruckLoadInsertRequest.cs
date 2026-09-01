@@ -6,6 +6,8 @@ namespace pwm.Model.Requests
     {
         public int TransportCompanyId { get; set; }
 
+        public int TruckLoadStatusId { get; set; }
+
         public DateTime LoadDate { get; set; }
 
         public string DriverName { get; set; } = string.Empty;

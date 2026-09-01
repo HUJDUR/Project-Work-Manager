@@ -114,9 +114,16 @@ class _MasterScreenState extends State<MasterScreen> {
                 ),
                 const VerticalDivider(width: 1),
                 Expanded(
-                  child: KeyedSubtree(
+                  // A navigator per destination, so a list screen can push its
+                  // details screen over the content while the top bar and the
+                  // sidebar stay put. The key rebuilds it — and so reloads the
+                  // screen — whenever the destination changes.
+                  child: Navigator(
                     key: ValueKey(destination.label),
-                    child: Builder(builder: destination.builder),
+                    onGenerateRoute: (settings) => MaterialPageRoute(
+                      settings: settings,
+                      builder: destination.builder,
+                    ),
                   ),
                 ),
               ],

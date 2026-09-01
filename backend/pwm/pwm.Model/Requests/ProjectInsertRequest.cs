@@ -1,4 +1,5 @@
 using System;
+using pwm.Model.Enums;
 
 namespace pwm.Model.Requests
 {
@@ -7,6 +8,15 @@ namespace pwm.Model.Requests
         public int CustomerId { get; set; }
 
         public string Name { get; set; } = string.Empty;
+
+        /// <summary>The shop's own reference for the job, e.g. MU-2201.</summary>
+        public string Code { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
+
+        public string? Notes { get; set; }
+
+        public ProjectPriority Priority { get; set; } = ProjectPriority.Medium;
 
         public double Weight { get; set; }
 
@@ -21,5 +31,8 @@ namespace pwm.Model.Requests
         public DateTime? ProductionStartDate { get; set; }
 
         public int ProjectStatusId { get; set; }
+
+        /// <summary>Who raised the project.</summary>
+        public int CreatedByUserId { get; set; }
     }
 }

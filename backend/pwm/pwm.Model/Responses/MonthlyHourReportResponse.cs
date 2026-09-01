@@ -10,6 +10,6 @@ namespace pwm.Model.Responses
 
         public int Month { get; set; }
 
-        public int TotalHours { get; set; }
+        public double TotalHours { get; set; }
     }
 }

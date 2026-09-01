@@ -11,6 +11,7 @@ using pwm.Services.Database.Seed;
 using pwm.WebAPI;
 using pwm.WebAPI.Filters;
 using pwm.WebAPI.Services.AccessManager;
+using pwm.WebAPI.Services.CurrentUser;
 
 // --seed fills the database with test data, --seed --force empties it first.
 // Both flags are stripped before the host reads the remaining arguments.
@@ -29,6 +30,10 @@ builder.Services.AddScoped<DataSeeder>();
 builder.Services.AddPwmServices();
 
 builder.Services.AddScoped<IAccessManager, AccessManager>();
+
+// Who is calling, read from the token - see ICurrentUser
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 AddJwtAuthentication(builder);
 
 builder.Services.AddControllers(options => options.Filters.Add<ExceptionFilter>());

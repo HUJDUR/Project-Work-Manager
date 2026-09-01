@@ -20,10 +20,13 @@ namespace pwm.WebAPI.Controllers
             _service = service;
         }
 
+        // The parameter is not called "search": a query key matching the name of a complex
+        // parameter makes MVC try to bind the whole object from that one value, which would
+        // silently swallow the search objects' own ?search= filter.
         [HttpGet]
-        public virtual async Task<PageResult<TResponse>> GetAll([FromQuery] TSearch? search)
+        public virtual async Task<PageResult<TResponse>> GetAll([FromQuery] TSearch? searchObject)
         {
-            return await _service.GetAllAsync(search ?? new TSearch());
+            return await _service.GetAllAsync(searchObject ?? new TSearch());
         }
 
         [HttpGet("{id}")]

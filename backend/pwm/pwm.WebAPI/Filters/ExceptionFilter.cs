@@ -29,6 +29,12 @@ namespace pwm.WebAPI.Filters
                 context.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 _logger.LogWarning(context.Exception, "Validation failed for request.");
             }
+            else if (context.Exception is ForbiddenException fe)
+            {
+                context.ModelState.AddModelError("forbidden", fe.Message);
+                context.HttpContext.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                _logger.LogWarning("Forbidden: {Message}", fe.Message);
+            }
             else if (context.Exception is ClinetException ce)
             {
                 context.ModelState.AddModelError("clientError", ce.Message);
