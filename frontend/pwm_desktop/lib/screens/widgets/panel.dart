@@ -37,7 +37,7 @@ class Panel extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         subtitle!,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
@@ -68,7 +68,7 @@ class EmptyPanelMessage extends StatelessWidget {
       child: Text(
         message,
         textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+        style: TextStyle(fontSize: 13, color: AppColors.textMuted),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../screens/account_settings_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/notifications_screen.dart';
@@ -12,6 +13,7 @@ import '../screens/transport_screen.dart';
 import '../screens/work_hours_screen.dart';
 import '../screens/workers_screen.dart';
 import '../utils/app_theme.dart';
+import 'window_chrome.dart';
 
 class AppDestination {
   const AppDestination({
@@ -81,15 +83,15 @@ class _MasterScreenState extends State<MasterScreen> {
     ),
   ];
 
-  static Widget _dashboard(BuildContext context) => const DashboardScreen();
-  static Widget _projects(BuildContext context) => const ProjectsScreen();
-  static Widget _workHours(BuildContext context) => const WorkHoursScreen();
-  static Widget _workers(BuildContext context) => const WorkersScreen();
-  static Widget _transport(BuildContext context) => const TransportScreen();
-  static Widget _reports(BuildContext context) => const ReportsScreen();
+  static Widget _dashboard(BuildContext context) => DashboardScreen();
+  static Widget _projects(BuildContext context) => ProjectsScreen();
+  static Widget _workHours(BuildContext context) => WorkHoursScreen();
+  static Widget _workers(BuildContext context) => WorkersScreen();
+  static Widget _transport(BuildContext context) => TransportScreen();
+  static Widget _reports(BuildContext context) => ReportsScreen();
   static Widget _recommendations(BuildContext context) =>
-      const RecommendationsScreen();
-  static Widget _notifications(BuildContext context) => const NotificationsScreen();
+      RecommendationsScreen();
+  static Widget _notifications(BuildContext context) => NotificationsScreen();
 
   @override
   Widget build(BuildContext context) {
@@ -142,46 +144,91 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The bar doubles as the window's title bar: everything left of the caption
+    // buttons drags the window, and the buttons run its full height at the right
+    // edge so the whole thing reads as one row.
     return Container(
       height: height,
       color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: AppColors.accentSoft,
-              borderRadius: BorderRadius.circular(10),
+          Expanded(
+            child: DraggableBar(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 20, right: 16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: AppColors.accentSoft,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.precision_manufacturing_outlined,
+                          size: 20, color: AppColors.accent),
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Project Work Manager',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Metal fabrication shop',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    _ThemeToggle(),
+                    const SizedBox(width: 2),
+                    IconButton(
+                      onPressed: () {},
+                      tooltip: 'Notifications',
+                      icon: Icon(Icons.notifications_none,
+                          color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(width: 10),
+                    _AccountChip(),
+                  ],
+                ),
+              ),
             ),
-            child: const Icon(Icons.precision_manufacturing_outlined,
-                size: 20, color: AppColors.accent),
           ),
-          const SizedBox(width: 12),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Project Work Manager',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
-              Text(
-                'Metal fabrication shop',
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-            ],
+          // A hairline keeps the window buttons from reading as app controls.
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: SizedBox(width: 1, child: ColoredBox(color: AppColors.border)),
           ),
-          const Spacer(),
-          IconButton(
-            onPressed: () {},
-            tooltip: 'Notifications',
-            icon: const Icon(Icons.notifications_none, color: AppColors.textSecondary),
-          ),
-          const SizedBox(width: 8),
-          const _AccountChip(),
+          // Outside the drag area, so a press on one is a click rather than the
+          // start of a window move.
+          WindowControls(height: height),
         ],
+      ),
+    );
+  }
+}
+
+/// Flips the whole app between the two palettes. It sits next to the bell, as
+/// the one piece of chrome that is a preference rather than a destination.
+class _ThemeToggle extends StatelessWidget {
+  const _ThemeToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeController>();
+
+    return IconButton(
+      onPressed: theme.toggle,
+      tooltip: theme.isDark ? 'Switch to light theme' : 'Switch to dark theme',
+      icon: Icon(
+        theme.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+        color: AppColors.textSecondary,
       ),
     );
   }
@@ -196,7 +243,7 @@ class _AccountChip extends StatelessWidget {
     await context.read<AuthProvider>().signOut();
 
     navigator.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      MaterialPageRoute(builder: (_) => LoginScreen()),
       (route) => false,
     );
   }
@@ -212,10 +259,10 @@ class _AccountChip extends StatelessWidget {
           radius: 17,
           backgroundColor: AppColors.accentSoft,
           child: user == null
-              ? const Icon(Icons.person_outline, size: 19, color: AppColors.accent)
+              ? Icon(Icons.person_outline, size: 19, color: AppColors.accent)
               : Text(
                   user.initials,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppColors.accent,
@@ -234,24 +281,38 @@ class _AccountChip extends StatelessWidget {
             if (auth.currentRole.isNotEmpty)
               Text(
                 auth.currentRole,
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
           ],
         ),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         PopupMenuButton<String>(
           tooltip: 'Account',
           position: PopupMenuPosition.under,
-          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
-          onSelected: (_) => _signOut(context),
-          itemBuilder: (context) => const [
+          icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary),
+          onSelected: (value) => value == 'settings'
+              ? openAccountSettings(context)
+              : _signOut(context),
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'settings',
+              child: Row(
+                children: [
+                  Icon(Icons.manage_accounts_outlined,
+                      size: 18, color: AppColors.textSecondary),
+                  const SizedBox(width: 10),
+                  const Text('Account settings', style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+            const PopupMenuDivider(),
             PopupMenuItem(
               value: 'signOut',
               child: Row(
                 children: [
                   Icon(Icons.logout, size: 18, color: AppColors.textSecondary),
-                  SizedBox(width: 10),
-                  Text('Sign out', style: TextStyle(fontSize: 13)),
+                  const SizedBox(width: 10),
+                  const Text('Sign out', style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),

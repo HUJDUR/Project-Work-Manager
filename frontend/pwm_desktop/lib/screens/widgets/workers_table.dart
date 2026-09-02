@@ -13,6 +13,9 @@ const _columns = <_Column>[
   _Column('Status', 2),
 ];
 
+/// A state with no colour of its own.
+const Color _neutral = Color(0xFF6B7280);
+
 class _Column {
   const _Column(this.label, this.flex);
 
@@ -50,11 +53,11 @@ class WorkersTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _HeaderRow(),
+          _HeaderRow(),
           const Divider(height: 1),
           Expanded(
             child: rows.isEmpty
-                ? const _NoRows()
+                ? _NoRows()
                 : ListView.separated(
                     itemCount: rows.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
@@ -86,7 +89,7 @@ class _HeaderRow extends StatelessWidget {
               flex: column.flex,
               child: Text(
                 column.label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
@@ -126,7 +129,7 @@ class _WorkerRowTile extends StatelessWidget {
               flex: _columns[5].flex,
               child: _StatusChip(isActive: row.isActive),
             ),
-            const SizedBox(
+            SizedBox(
               width: 32,
               child: Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
             ),
@@ -156,7 +159,7 @@ class _Worker extends StatelessWidget {
           ),
           child: Text(
             row.initials,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.accent,
@@ -182,7 +185,7 @@ class _Operations extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (operations.isEmpty) {
-      return const _Cell('—');
+      return _Cell('—');
     }
 
     final extra = operations.length - _shown;
@@ -209,7 +212,7 @@ class _Cell extends StatelessWidget {
         Text(
           value,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: AppColors.textPrimary,
@@ -219,7 +222,7 @@ class _Cell extends StatelessWidget {
           Text(
             caption!,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
       ],
     );
@@ -230,10 +233,10 @@ class _Cell extends StatelessWidget {
 class _RoleChip extends StatelessWidget {
   const _RoleChip({required this.role});
 
-  static const _palette = <String, (Color, Color)>{
-    'administrator': (Color(0xFFEDE9FE), Color(0xFF6D3EDB)),
-    'manager': (Color(0xFFFDF3E3), Color(0xFF9A6212)),
-    'worker': (AppColors.accentSoft, AppColors.accent),
+  static const _palette = <String, Color>{
+    'administrator': Color(0xFF6D3EDB),
+    'manager': Color(0xFF9A6212),
+    'worker': Color(0xFF2563EB),
   };
 
   final String role;
@@ -241,7 +244,7 @@ class _RoleChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (background, foreground) =
-        _palette[role.toLowerCase()] ?? (const Color(0xFFF1F3F6), const Color(0xFF4B5563));
+        AppColors.chip(_palette[role.toLowerCase()] ?? _neutral);
 
     return _Chip(label: role, background: background, foreground: foreground);
   }
@@ -254,10 +257,13 @@ class _StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final (background, foreground) =
+        AppColors.chip(isActive ? const Color(0xFF107A4D) : _neutral);
+
     return _Chip(
       label: isActive ? 'Active' : 'Inactive',
-      background: isActive ? const Color(0xFFEAF7F0) : const Color(0xFFF1F3F6),
-      foreground: isActive ? const Color(0xFF107A4D) : const Color(0xFF4B5563),
+      background: background,
+      foreground: foreground,
     );
   }
 }
@@ -301,7 +307,7 @@ class _NoRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Text(
         'No workers match the current filters.',
         style: TextStyle(fontSize: 13, color: AppColors.textSecondary),

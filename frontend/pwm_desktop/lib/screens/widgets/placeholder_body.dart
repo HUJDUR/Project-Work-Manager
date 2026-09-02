@@ -13,14 +13,14 @@ class PlaceholderBody extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.construction_outlined, size: 40, color: AppColors.textMuted),
+          Icon(Icons.construction_outlined, size: 40, color: AppColors.textMuted),
           const SizedBox(height: 12),
           Text(
             '$title is not built yet',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Pick Dashboard from the navigation to see the implemented screen.',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),

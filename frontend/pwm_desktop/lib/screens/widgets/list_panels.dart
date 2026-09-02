@@ -44,7 +44,7 @@ class _ListRow extends StatelessWidget {
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -61,7 +61,7 @@ class _ListRow extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 valueCaption,
-                style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -102,7 +102,7 @@ class LatestWorkPanel extends StatelessWidget {
       title: 'Latest work',
       subtitle: 'Newest booked operations',
       child: entries.isEmpty
-          ? const EmptyPanelMessage(message: 'No work has been booked yet.')
+          ? EmptyPanelMessage(message: 'No work has been booked yet.')
           : ListView.builder(
               padding: EdgeInsets.zero,
               itemCount: entries.length,
@@ -113,7 +113,7 @@ class LatestWorkPanel extends StatelessWidget {
                   leading: _SquareBadge(
                     child: Text(
                       entry.workerInitials,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppColors.accent,
@@ -142,7 +142,7 @@ class TransportPanel extends StatelessWidget {
       title: 'Transport',
       subtitle: 'Latest truck loads',
       child: entries.isEmpty
-          ? const EmptyPanelMessage(message: 'No truck loads recorded yet.')
+          ? EmptyPanelMessage(message: 'No truck loads recorded yet.')
           : ListView.builder(
               padding: EdgeInsets.zero,
               itemCount: entries.length,
@@ -150,7 +150,7 @@ class TransportPanel extends StatelessWidget {
                 final entry = entries[index];
 
                 return _ListRow(
-                  leading: const _SquareBadge(
+                  leading: _SquareBadge(
                     child: Icon(Icons.local_shipping_outlined,
                         size: 18, color: AppColors.accent),
                   ),
@@ -176,7 +176,7 @@ class ActivityPanel extends StatelessWidget {
       title: 'Activity',
       subtitle: 'What happened recently',
       child: entries.isEmpty
-          ? const EmptyPanelMessage(message: 'No activity recorded yet.')
+          ? EmptyPanelMessage(message: 'No activity recorded yet.')
           : ListView.builder(
               padding: EdgeInsets.zero,
               itemCount: entries.length,
@@ -220,7 +220,7 @@ class _ActivityRow extends StatelessWidget {
                 Container(
                   width: 10,
                   height: 10,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.accent,
                     shape: BoxShape.circle,
                   ),
@@ -253,7 +253,7 @@ class _ActivityRow extends StatelessWidget {
                     '${entry.actorName} · ${formatRelative(entry.date)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                    style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
                   ),
                 ],
               ),

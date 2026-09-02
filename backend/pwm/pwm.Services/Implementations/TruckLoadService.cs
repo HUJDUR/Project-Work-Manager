@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using FluentValidation;
 using MapsterMapper;
 using pwm.Model.Requests;
@@ -23,11 +25,29 @@ namespace pwm.Services.Implementations
         {
         }
 
+        protected override Task<IQueryable<TruckLoad>> IncludeRelatedEntitiesAsync(
+            TruckLoadSearchObject? search, IQueryable<TruckLoad> query)
+        {
+            // Search matches the carrier's name too, so that navigation has to be loaded.
+            return Task.FromResult<IQueryable<TruckLoad>>(query.Include(x => x.TransportCompany));
+        }
+
         protected override IEnumerable<TruckLoad> ApplyFilters(IEnumerable<TruckLoad> query, TruckLoadSearchObject? search)
         {
             if (search == null)
             {
                 return query;
+            }
+
+            if (!string.IsNullOrWhiteSpace(search.Search))
+            {
+                var needle = search.Search;
+                query = query.Where(x =>
+                    x.DriverName.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || x.DriverSurname.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || x.VehicleRegistration.Contains(needle, StringComparison.OrdinalIgnoreCase)
+                    || (x.TransportCompany != null
+                        && x.TransportCompany.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)));
             }
 
             if (search.TruckLoadStatusId.HasValue)

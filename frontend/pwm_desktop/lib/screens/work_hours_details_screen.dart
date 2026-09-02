@@ -172,7 +172,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
               ],
             ),
             const SizedBox(height: formFieldGap),
-            const Text(
+            Text(
               'Regular and overtime are worked out from the whole day: the first '
               'eight hours a worker books on a date are regular, the rest overtime.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),

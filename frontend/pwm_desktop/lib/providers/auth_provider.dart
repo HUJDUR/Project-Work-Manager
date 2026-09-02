@@ -26,6 +26,13 @@ class AuthProvider with ChangeNotifier {
   User? get currentUser => user;
   String get currentRole => role;
 
+  /// After the account settings screen writes, so the top bar's chip shows the
+  /// new name without signing in again.
+  void updateCurrentUser(User updated) {
+    user = updated;
+    notifyListeners();
+  }
+
   bool _isBusy = false;
 
   bool get isBusy => _isBusy;

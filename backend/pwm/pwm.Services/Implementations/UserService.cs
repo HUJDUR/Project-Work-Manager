@@ -7,6 +7,7 @@ using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
 using pwm.Model.Access;
 using pwm.Common.Services.CryptoService;
+using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
@@ -18,6 +19,7 @@ namespace pwm.Services.Implementations
     public class UserService
         : BaseCRUDService<User, UserResponse, UserSearchObject, UserInsertRequest, UserUpdateRequest>, IUserService
     {
+        private readonly IValidator<UserProfileUpdateRequest> _profileValidator;
         private readonly ICryptoService _cryptoService;
 
         public UserService(
@@ -25,9 +27,11 @@ namespace pwm.Services.Implementations
             IMapper mapper,
             IValidator<UserInsertRequest> insertValidator,
             IValidator<UserUpdateRequest> updateValidator,
+            IValidator<UserProfileUpdateRequest> profileValidator,
             ICryptoService cryptoService)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
+            _profileValidator = profileValidator;
             _cryptoService = cryptoService;
         }
 
@@ -64,6 +68,53 @@ namespace pwm.Services.Implementations
             User = _mapper.Map<UserResponse>(user),
             Role = user.UserType?.Type ?? string.Empty,
         };
+
+        /// <summary>
+        /// A user editing their own account. Neither the role nor the active flag
+        /// can be reached from here, and changing the password means proving the
+        /// current one first.
+        /// </summary>
+        public async Task<UserResponse> UpdateProfileAsync(
+            int userId, UserProfileUpdateRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            await _profileValidator.ValidateAndThrowAsync(request);
+
+            var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId)
+                ?? throw new ClinetException("That account no longer exists.");
+
+            var email = request.Email.Trim();
+            var taken = await _dbContext.Users
+                .AnyAsync(x => x.Id != userId && x.Email == email);
+            if (taken)
+            {
+                throw new ClinetException("Another account already uses that e-mail address.");
+            }
+
+            if (!string.IsNullOrEmpty(request.NewPassword))
+            {
+                var matches = _cryptoService.Verify(
+                    user.PasswordHash, user.PasswordSalt, request.CurrentPassword ?? string.Empty);
+                if (!matches)
+                {
+                    throw new ClinetException("Your current password is not right.");
+                }
+
+                var salt = _cryptoService.GenerateSalt();
+                user.PasswordSalt = salt;
+                user.PasswordHash = _cryptoService.GenerateHash(request.NewPassword, salt);
+            }
+
+            user.Name = request.Name.Trim();
+            user.Surname = request.Surname.Trim();
+            user.Email = email;
+            user.PhoneNumber = request.PhoneNumber?.Trim();
+            user.JobTitle = request.JobTitle?.Trim();
+
+            await _dbContext.SaveChangesAsync();
+
+            return _mapper.Map<UserResponse>(user);
+        }
 
         protected override IEnumerable<User> ApplyFilters(IEnumerable<User> query, UserSearchObject? search)
         {

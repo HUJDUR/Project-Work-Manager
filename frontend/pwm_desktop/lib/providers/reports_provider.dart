@@ -1,0 +1,321 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../models/models.dart';
+import '../utils/api_client_exception.dart';
+import 'base_provider.dart';
+import 'generated_report_provider.dart';
+import 'project_provider.dart';
+import 'report_provider.dart';
+import 'user_provider.dart';
+
+enum ReportsStatusState { idle, loading, ready, failed }
+
+/// The Reports screen's own store. Generating a report is one POST that answers
+/// PDF bytes; nothing stores the document, so the Recent Reports list is rows in
+/// `GeneratedReports` and its download button re-runs the endpoint.
+class ReportsProvider extends ChangeNotifier {
+  ReportsProvider({
+    ReportProvider? reports,
+    BaseProvider<GeneratedReport>? generatedReports,
+    BaseProvider<User>? users,
+    BaseProvider<Project>? projects,
+    DateTime? today,
+  })  : _reports = reports ?? ReportProvider(),
+        _generatedReports = generatedReports ?? GeneratedReportProvider(),
+        _users = users ?? UserProvider(),
+        _projects = projects ?? ProjectProvider(),
+        _today = today ?? DateTime.now() {
+    _year = _today.year;
+    _month = _today.month;
+  }
+
+  /// How many past runs the Recent Reports panel lists.
+  static const int recentCount = 8;
+
+  /// How far back the Period dropdown reaches.
+  static const int periodMonths = 24;
+
+  static const String recentSortBy = 'GeneratedAt desc';
+
+  static final DateFormat _monthLabel = DateFormat('MMMM yyyy');
+
+  final ReportProvider _reports;
+  final BaseProvider<GeneratedReport> _generatedReports;
+  final BaseProvider<User> _users;
+  final BaseProvider<Project> _projects;
+  final DateTime _today;
+
+  ReportsStatusState _status = ReportsStatusState.idle;
+  String? _errorMessage;
+
+  List<User> _workerList = const [];
+  List<Project> _projectList = const [];
+  Map<int, User> _userById = const {};
+  Map<int, Project> _projectById = const {};
+  List<RecentReport> _recent = const [];
+
+  ReportType _type = ReportType.monthlyWorkHours;
+  late int _year;
+  late int _month;
+  int? _userId;
+  int? _projectId;
+  DateTimeRange? _dateRange;
+
+  Uint8List? _pdf;
+  String? _pdfLabel;
+  String _fileName = 'report.pdf';
+  bool _generating = false;
+
+  ReportsStatusState get status => _status;
+  String? get errorMessage => _errorMessage;
+
+  List<User> get workers => _workerList;
+  List<Project> get projects => _projectList;
+  List<RecentReport> get recent => _recent;
+
+  ReportType get type => _type;
+  int get year => _year;
+  int get month => _month;
+  int? get userId => _userId;
+  int? get projectId => _projectId;
+  DateTimeRange? get dateRange => _dateRange;
+
+  /// The bytes the preview pane renders, and what Print and Download hand on.
+  Uint8List? get pdf => _pdf;
+
+  /// What the preview is showing, e.g. "Monthly Work Hours · June 2026".
+  String? get pdfLabel => _pdfLabel;
+
+  String get fileName => _fileName;
+  bool get generating => _generating;
+
+  /// The months the Period dropdown offers, newest first.
+  List<DateTime> get periods => [
+        for (var back = 0; back < periodMonths; back++)
+          DateTime(_today.year, _today.month - back),
+      ];
+
+  DateTime get period => DateTime(_year, _month);
+
+  static String periodLabel(DateTime month) => _monthLabel.format(month);
+
+  void setType(ReportType value) {
+    if (_type == value) return;
+    _type = value;
+    notifyListeners();
+  }
+
+  void setPeriod(DateTime value) {
+    _year = value.year;
+    _month = value.month;
+    notifyListeners();
+  }
+
+  void setWorker(int? id) {
+    _userId = id;
+    notifyListeners();
+  }
+
+  void setProject(int? id) {
+    _projectId = id;
+    notifyListeners();
+  }
+
+  void setDateRange(DateTimeRange? range) {
+    _dateRange = range;
+    notifyListeners();
+  }
+
+  /// The workers and projects the parameter dropdowns offer, and the past runs.
+  Future<void> load() async {
+    _status = ReportsStatusState.loading;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final lookups = await Future.wait([
+        _all(_users),
+        _all(_projects),
+      ]);
+
+      final users = lookups[0] as List<User>;
+      final projects = lookups[1] as List<Project>;
+
+      _userById = {for (final user in users) user.id: user};
+      _projectById = {for (final project in projects) project.id: project};
+
+      _workerList = users.where((user) => user.isActive).toList()
+        ..sort((a, b) => a.fullName.compareTo(b.fullName));
+      _projectList = [...projects]..sort((a, b) => a.name.compareTo(b.name));
+
+      await _fetchRecent();
+
+      _status = ReportsStatusState.ready;
+    } on ApiClientException catch (error) {
+      _errorMessage = error.message;
+      _status = ReportsStatusState.failed;
+    } catch (error) {
+      _errorMessage = 'Something went wrong while loading reports: $error';
+      _status = ReportsStatusState.failed;
+    }
+
+    notifyListeners();
+  }
+
+  /// Runs the selected report and hands the PDF to the preview. A run also
+  /// writes a `GeneratedReport` row, so the recent list is refetched after it.
+  Future<void> generate() async {
+    _generating = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _pdf = switch (_type) {
+        ReportType.monthlyWorkHours => await _reports.monthlyWorkHours(
+            year: _year,
+            month: _month,
+            userId: _userId,
+            projectId: _projectId,
+          ),
+        ReportType.transportLoads => await _reports.transportLoads(
+            projectId: _projectId,
+            dateFrom: _dateRange?.start,
+            dateTo: _endOfDay(_dateRange?.end),
+          ),
+      };
+
+      _pdfLabel = '${_type.label} · ${_parameterSummary()}';
+      _fileName = _type == ReportType.monthlyWorkHours
+          ? 'monthly-work-hours-$_year-${_month.toString().padLeft(2, '0')}.pdf'
+          : 'transport-loads.pdf';
+
+      await _fetchRecent();
+    } on ApiClientException catch (error) {
+      _errorMessage = error.message;
+    } catch (error) {
+      _errorMessage = 'The report could not be generated: $error';
+    }
+
+    _generating = false;
+    notifyListeners();
+  }
+
+  /// Re-runs a past report and shows it in the preview, so the download button
+  /// and the Generate button end in the same place.
+  Future<void> openRecent(RecentReport report) async {
+    _generating = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _pdf = await _reports.download(report.id);
+      _pdfLabel = '${report.title} · ${report.summary}';
+      _fileName = 'report-${report.id}.pdf';
+    } on ApiClientException catch (error) {
+      _errorMessage = error.message;
+    } catch (error) {
+      _errorMessage = 'The report could not be downloaded: $error';
+    }
+
+    _generating = false;
+    notifyListeners();
+  }
+
+  Future<void> _fetchRecent() async {
+    final result = await _generatedReports.get(filter: {
+      'page': 1,
+      'pageSize': recentCount,
+      'includeTotalCount': false,
+      'sortBy': recentSortBy,
+    });
+
+    _recent = result.items.map(_toRecent).toList();
+  }
+
+  RecentReport _toRecent(GeneratedReport report) => RecentReport(
+        id: report.id,
+        type: report.reportType,
+        summary: _describe(report),
+        generatedAt: report.generatedAt,
+        generatedByName: _userById[report.generatedById]?.fullName ?? 'Unknown user',
+      );
+
+  /// Reads the request the run was made with back out of its stored JSON.
+  /// `JsonSerializer.Serialize` writes the property names as they are declared,
+  /// so the keys arrive in PascalCase.
+  String _describe(GeneratedReport report) {
+    final Map<String, dynamic> parameters;
+    try {
+      parameters = jsonDecode(report.parameters) as Map<String, dynamic>;
+    } catch (_) {
+      return 'Parameters could not be read';
+    }
+
+    T? read<T>(String key) {
+      for (final entry in parameters.entries) {
+        if (entry.key.toLowerCase() == key.toLowerCase()) return entry.value as T?;
+      }
+      return null;
+    }
+
+    return switch (report.reportType) {
+      ReportType.monthlyWorkHours => [
+          if (read<int>('year') case final year?)
+            periodLabel(DateTime(year, read<int>('month') ?? 1))
+          else
+            'Unknown period',
+          _userById[read<int>('userId')]?.fullName ?? 'All workers',
+          _projectById[read<int>('projectId')]?.name ?? 'All projects',
+        ].join(' · '),
+      ReportType.transportLoads => [
+          _projectById[read<int>('projectId')]?.name ?? 'All projects',
+          _rangeLabel(read<String>('dateFrom'), read<String>('dateTo')),
+        ].join(' · '),
+    };
+  }
+
+  static String _rangeLabel(String? from, String? to) {
+    final start = from == null ? null : DateTime.tryParse(from);
+    final end = to == null ? null : DateTime.tryParse(to);
+    if (start == null && end == null) return 'All dates';
+
+    final formatter = DateFormat('d MMM yyyy');
+    if (start != null && end != null) {
+      return '${formatter.format(start)} - ${formatter.format(end)}';
+    }
+
+    return start != null
+        ? 'From ${formatter.format(start)}'
+        : 'Until ${formatter.format(end!)}';
+  }
+
+  String _parameterSummary() => switch (_type) {
+        ReportType.monthlyWorkHours => [
+            periodLabel(period),
+            _userById[_userId]?.fullName ?? 'All workers',
+            _projectById[_projectId]?.name ?? 'All projects',
+          ].join(' · '),
+        ReportType.transportLoads => [
+            _projectById[_projectId]?.name ?? 'All projects',
+            _dateRange == null
+                ? 'All dates'
+                : _rangeLabel(
+                    _dateRange!.start.toIso8601String(),
+                    _dateRange!.end.toIso8601String(),
+                  ),
+          ].join(' · '),
+      };
+
+  /// The API compares `DateTo` against a timestamp, so a range has to run to the
+  /// last second of its closing day rather than to midnight.
+  static DateTime? _endOfDay(DateTime? date) => date == null
+      ? null
+      : DateUtils.dateOnly(date)
+          .add(const Duration(days: 1) - const Duration(seconds: 1));
+
+  Future<List<E>> _all<E>(BaseProvider<E> provider) => provider.getAll();
+}

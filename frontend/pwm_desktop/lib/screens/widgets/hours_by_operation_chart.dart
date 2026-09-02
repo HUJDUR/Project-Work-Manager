@@ -22,7 +22,7 @@ class HoursByOperationChart extends StatelessWidget {
       title: 'Hours by operation',
       subtitle: 'Share of work over the last $windowDays days',
       child: slices.isEmpty
-          ? const EmptyPanelMessage(message: 'No work has been booked in this period.')
+          ? EmptyPanelMessage(message: 'No work has been booked in this period.')
           : _buildChart(),
     );
   }
@@ -99,7 +99,7 @@ class _Legend extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 '${share.toStringAsFixed(0)}%',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
@@ -111,7 +111,7 @@ class _Legend extends StatelessWidget {
                 child: Text(
                   formatHours(slice.value),
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               ),
             ],

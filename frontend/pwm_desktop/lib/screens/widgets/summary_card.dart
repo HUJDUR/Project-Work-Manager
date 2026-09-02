@@ -40,7 +40,7 @@ class SummaryCard extends StatelessWidget {
                   metric.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
@@ -50,7 +50,7 @@ class SummaryCard extends StatelessWidget {
                   metric.caption,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
                 ),
               ],
             ),

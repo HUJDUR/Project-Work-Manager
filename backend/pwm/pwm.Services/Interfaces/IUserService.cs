@@ -13,5 +13,12 @@ namespace pwm.Services.Interfaces
 
         /// <summary>The same shape as <see cref="AuthenticateAsync"/>, for refreshing a token.</summary>
         Task<AuthenticatedUser?> GetAuthenticatedUserAsync(int id);
+
+        /// <summary>
+        /// Updates the account identified by <paramref name="userId"/> from the
+        /// narrow profile request. The caller passes the id from the token,
+        /// never from the route or the body.
+        /// </summary>
+        Task<UserResponse> UpdateProfileAsync(int userId, UserProfileUpdateRequest request);
     }
 }
