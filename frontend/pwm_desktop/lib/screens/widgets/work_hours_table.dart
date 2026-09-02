@@ -41,11 +41,11 @@ class WorkHoursTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _HeaderRow(),
+          _HeaderRow(),
           const Divider(height: 1),
           Expanded(
             child: entries.isEmpty
-                ? const _NoRows()
+                ? _NoRows()
                 : ListView.separated(
                     itemCount: entries.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
@@ -75,7 +75,7 @@ class _HeaderRow extends StatelessWidget {
               flex: column.flex,
               child: Text(
                 column.label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
@@ -125,7 +125,7 @@ class _EntryRow extends StatelessWidget {
               child: _Cell(formatHours(entry.totalHours), bold: true),
             ),
             Expanded(flex: _columns[6].flex, child: _StatusChip(status: entry.status)),
-            const SizedBox(
+            SizedBox(
               width: 32,
               child: Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
             ),
@@ -155,7 +155,7 @@ class _Worker extends StatelessWidget {
           ),
           child: Text(
             entry.workerInitials,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AppColors.accent,
@@ -196,7 +196,7 @@ class _Cell extends StatelessWidget {
           Text(
             caption!,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
       ],
     );
@@ -238,7 +238,7 @@ class _NoRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Text(
         'No work hours match the current filters.',
         style: TextStyle(fontSize: 13, color: AppColors.textSecondary),

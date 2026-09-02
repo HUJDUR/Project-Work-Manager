@@ -49,7 +49,7 @@ class TablePager extends StatelessWidget {
           ),
           for (final slot in _slots)
             slot == null
-                ? const Padding(
+                ? Padding(
                     padding: EdgeInsets.symmetric(horizontal: 8),
                     child: Text('…', style: TextStyle(color: AppColors.textMuted)),
                   )
@@ -132,7 +132,7 @@ class _ArrowButton extends StatelessWidget {
           style: OutlinedButton.styleFrom(
             padding: EdgeInsets.zero,
             foregroundColor: AppColors.textSecondary,
-            side: const BorderSide(color: AppColors.border),
+            side: BorderSide(color: AppColors.border),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
           ),
           child: Tooltip(message: tooltip, child: Icon(icon, size: 18)),

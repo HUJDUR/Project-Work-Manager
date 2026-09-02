@@ -17,6 +17,8 @@ export 'project_category.dart';
 export 'project_priority.dart';
 export 'project_row.dart';
 export 'project_status_type.dart';
+export 'recent_report.dart';
+export 'transport_row.dart';
 export 'truck_load.dart';
 export 'truck_load_detail.dart';
 export 'truck_load_status_type.dart';

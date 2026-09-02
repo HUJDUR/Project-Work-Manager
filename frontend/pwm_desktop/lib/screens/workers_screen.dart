@@ -120,7 +120,7 @@ class _Header extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -229,7 +229,7 @@ class _FilterBarState extends State<_FilterBar> {
           label: const Text('Add Worker'),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.accent,
-            side: const BorderSide(color: AppColors.accent),
+            side: BorderSide(color: AppColors.accent),
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
           ),
         ),
@@ -254,7 +254,7 @@ class _FilterMenu extends StatelessWidget {
         color: provider.hasFilters ? AppColors.accent : AppColors.textSecondary,
       ),
       style: IconButton.styleFrom(
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       ),
       itemBuilder: (context) => [
@@ -292,7 +292,7 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off_outlined, size: 40, color: AppColors.textMuted),
+            Icon(Icons.cloud_off_outlined, size: 40, color: AppColors.textMuted),
             const SizedBox(height: 12),
             const Text(
               'Workers could not be loaded',
@@ -302,7 +302,7 @@ class _ErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../layouts/master_screen.dart';
+import '../layouts/window_chrome.dart';
 import '../providers/auth_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
@@ -62,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MasterScreen()),
+        MaterialPageRoute(builder: (_) => MasterScreen()),
       );
     } on ApiClientException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -77,7 +78,29 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: LayoutBuilder(
+      // Sign-in has no top bar to hang the caption buttons off, and the OS one
+      // is hidden, so the window would otherwise be impossible to move or close
+      // before signing in.
+      body: Column(
+        children: [
+          const SizedBox(
+            height: 36,
+            child: DraggableBar(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [WindowControls(height: 36)],
+              ),
+            ),
+          ),
+          Expanded(child: _card()),
+        ],
+      ),
+    );
+  }
+
+  /// The sign-in card itself, below the caption strip.
+  Widget _card() {
+    return LayoutBuilder(
         builder: (context, constraints) {
           // Room left for the card once the page padding is taken off both sides
           final available = constraints.maxWidth - AppSpacing.pagePadding * 2;
@@ -107,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (isWide) const _BrandPanel(),
+                        if (isWide) _BrandPanel(),
                         Expanded(child: _form()),
                       ],
                     ),
@@ -117,7 +140,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         },
-      ),
     );
   }
 
@@ -137,12 +159,12 @@ class _LoginScreenState extends State<LoginScreen> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Use your Project Work Manager account.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 28),
-            const _FieldLabel('Email'),
+            _FieldLabel('Email'),
             TextFormField(
               controller: _emailController,
               autofocus: true,
@@ -165,7 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
               },
             ),
             const SizedBox(height: 18),
-            const _FieldLabel('Password'),
+            _FieldLabel('Password'),
             TextFormField(
               controller: _passwordController,
               enabled: !isBusy,
@@ -224,7 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            const Center(
+            Center(
               child: Text(
                 'Forgotten your password? Ask an administrator to reset it.',
                 style: TextStyle(fontSize: 12, color: AppColors.textMuted),
@@ -248,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+      hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted),
       prefixIcon: Icon(icon, size: 19, color: AppColors.textMuted),
       suffixIcon: suffix,
       filled: true,
@@ -260,7 +282,7 @@ class _LoginScreenState extends State<LoginScreen> {
       focusedBorder: border(AppColors.accent),
       errorBorder: border(AppColors.dangerBorder),
       focusedErrorBorder: border(AppColors.danger),
-      errorStyle: const TextStyle(fontSize: 12, color: AppColors.danger),
+      errorStyle: TextStyle(fontSize: 12, color: AppColors.danger),
     );
   }
 }
@@ -276,7 +298,7 @@ class _FieldLabel extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
           color: AppColors.textSecondary,
@@ -303,12 +325,12 @@ class _ErrorBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline, size: 18, color: AppColors.danger),
+          Icon(Icons.error_outline, size: 18, color: AppColors.danger),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(fontSize: 13, color: AppColors.danger),
+              style: TextStyle(fontSize: 13, color: AppColors.danger),
             ),
           ),
         ],
@@ -360,7 +382,7 @@ class _BrandPanel extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Metal fabrication shop',
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
           ),
@@ -375,7 +397,7 @@ class _BrandPanel extends StatelessWidget {
                   Expanded(
                     child: Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         color: AppColors.textPrimary,
                       ),

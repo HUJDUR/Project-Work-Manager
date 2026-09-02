@@ -368,4 +368,89 @@ void main() {
     ));
     expect(surname.controller?.text, 'Kovacevic');
   });
+
+  group('the password pair on a new account', () {
+    Finder field(String label) => find.byWidgetPredicate((widget) =>
+        widget is TextField && widget.decoration?.labelText == label);
+
+    Future<void> openBlankForm(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1600, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: WorkersScreen(providerFactory: _fakeWorkers)),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Add Worker'));
+      await tester.pumpAndSettle();
+
+      // The other required fields, so only the password can hold a save back.
+      await tester.enterText(field('First name'), 'Amina');
+      await tester.enterText(field('Surname'), 'Hodzic');
+      await tester.enterText(field('E-mail'), 'amina@pwm.ba');
+    }
+
+    testWidgets('states the rules before they are broken', (tester) async {
+      await openBlankForm(tester);
+
+      expect(field('Confirm password'), findsOneWidget);
+      expect(
+        find.text('At least 8 characters, with an upper-case letter, a '
+            'lower-case letter and a number.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('refuses a password that is too weak', (tester) async {
+      await openBlankForm(tester);
+
+      await tester.enterText(field('Password'), 'short1A');
+      await tester.enterText(field('Confirm password'), 'short1A');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('At least 8 characters.'), findsOneWidget);
+      expect(_userRows.inserted, isEmpty);
+    });
+
+    testWidgets('refuses a confirmation that does not match', (tester) async {
+      await openBlankForm(tester);
+
+      await tester.enterText(field('Password'), 'Fabrika22');
+      await tester.enterText(field('Confirm password'), 'Fabrika23');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('The two passwords do not match.'), findsOneWidget);
+      expect(_userRows.inserted, isEmpty);
+    });
+
+    testWidgets('refuses a new account with no password at all', (tester) async {
+      await openBlankForm(tester);
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('A new account needs a password.'), findsOneWidget);
+      expect(_userRows.inserted, isEmpty);
+    });
+
+    testWidgets('posts once the pair agree and the rules are met',
+        (tester) async {
+      await openBlankForm(tester);
+
+      await tester.enterText(field('Password'), 'Fabrika22');
+      await tester.enterText(field('Confirm password'), 'Fabrika22');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      final body = _userRows.inserted.single;
+      expect(body['email'], 'amina@pwm.ba');
+      expect(body['password'], 'Fabrika22');
+      // The confirmation is a form field, not something the API knows about.
+      expect(body.containsKey('confirmPassword'), isFalse);
+    });
+  });
 }

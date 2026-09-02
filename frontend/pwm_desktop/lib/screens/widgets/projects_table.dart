@@ -15,6 +15,9 @@ const _columns = <_Column>[
   _Column('End Date', 2),
 ];
 
+/// A state with no colour of its own.
+const Color _neutral = Color(0xFF6B7280);
+
 class _Column {
   const _Column(this.label, this.flex);
 
@@ -52,11 +55,11 @@ class ProjectsTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _HeaderRow(),
+          _HeaderRow(),
           const Divider(height: 1),
           Expanded(
             child: rows.isEmpty
-                ? const _NoRows()
+                ? _NoRows()
                 : ListView.separated(
                     itemCount: rows.length,
                     separatorBuilder: (_, _) => const Divider(height: 1),
@@ -66,7 +69,7 @@ class ProjectsTable extends StatelessWidget {
                     ),
                   ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           TablePager(page: page, pageCount: pageCount, onPageChanged: onPageChanged),
         ],
       ),
@@ -80,7 +83,7 @@ class _HeaderRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
           for (final column in _columns)
@@ -88,14 +91,14 @@ class _HeaderRow extends StatelessWidget {
               flex: column.flex,
               child: Text(
                 column.label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
                 ),
               ),
             ),
-          const SizedBox(width: 32),
+          SizedBox(width: 32),
         ],
       ),
     );
@@ -113,7 +116,7 @@ class _ProjectRowTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
           children: [
             Expanded(flex: _columns[0].flex, child: _Project(row: row)),
@@ -135,7 +138,7 @@ class _ProjectRowTile extends StatelessWidget {
               flex: _columns[6].flex,
               child: _Cell(row.endDate == null ? '—' : formatFullDate(row.endDate!)),
             ),
-            const SizedBox(
+            SizedBox(
               width: 32,
               child: Icon(Icons.chevron_right, size: 18, color: AppColors.textMuted),
             ),
@@ -163,9 +166,9 @@ class _Project extends StatelessWidget {
             color: AppColors.accentSoft,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Icon(Icons.folder_outlined, size: 17, color: AppColors.accent),
+          child: Icon(Icons.folder_outlined, size: 17, color: AppColors.accent),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _Cell(
             row.name,
@@ -192,7 +195,7 @@ class _Cell extends StatelessWidget {
         Text(
           value,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: AppColors.textPrimary,
@@ -202,7 +205,7 @@ class _Cell extends StatelessWidget {
           Text(
             caption!,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
       ],
     );
@@ -214,13 +217,15 @@ class _Cell extends StatelessWidget {
 class ProjectStatusChip extends StatelessWidget {
   const ProjectStatusChip({super.key, required this.status});
 
-  static const _palette = <String, (Color, Color)>{
-    'new': (Color(0xFFF1F3F6), Color(0xFF4B5563)),
-    'in preparation': (Color(0xFFFDF3E3), Color(0xFF9A6212)),
-    'in production': (AppColors.accentSoft, AppColors.accent),
-    'ready for delivery': (Color(0xFFEDE9FE), Color(0xFF6D3EDB)),
-    'delivered': (Color(0xFFEAF7F0), Color(0xFF107A4D)),
-    'cancelled': (AppColors.dangerSoft, AppColors.danger),
+  /// One colour per state; the background is derived from it so the chip works
+  /// on a white card and a dark one alike.
+  static const _palette = <String, Color>{
+    'new': _neutral,
+    'in preparation': Color(0xFF9A6212),
+    'in production': Color(0xFF2563EB),
+    'ready for delivery': Color(0xFF6D3EDB),
+    'delivered': Color(0xFF107A4D),
+    'cancelled': Color(0xFFB91C1C),
   };
 
   final String status;
@@ -228,12 +233,12 @@ class ProjectStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (background, foreground) =
-        _palette[status.toLowerCase()] ?? _palette['new']!;
+        AppColors.chip(_palette[status.toLowerCase()] ?? _neutral);
 
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: background,
           borderRadius: BorderRadius.circular(20),
@@ -255,18 +260,18 @@ class ProjectStatusChip extends StatelessWidget {
 class ProjectPriorityChip extends StatelessWidget {
   const ProjectPriorityChip({super.key, required this.priority});
 
-  static const _palette = <ProjectPriority, (Color, Color)>{
-    ProjectPriority.low: (Color(0xFFF1F3F6), Color(0xFF4B5563)),
-    ProjectPriority.medium: (AppColors.accentSoft, AppColors.accent),
-    ProjectPriority.high: (Color(0xFFFDF3E3), Color(0xFF9A6212)),
-    ProjectPriority.veryHigh: (AppColors.dangerSoft, AppColors.danger),
+  static const _palette = <ProjectPriority, Color>{
+    ProjectPriority.low: _neutral,
+    ProjectPriority.medium: Color(0xFF2563EB),
+    ProjectPriority.high: Color(0xFF9A6212),
+    ProjectPriority.veryHigh: Color(0xFFB91C1C),
   };
 
   final ProjectPriority priority;
 
   @override
   Widget build(BuildContext context) {
-    final (background, foreground) = _palette[priority]!;
+    final (background, foreground) = AppColors.chip(_palette[priority]!);
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -294,7 +299,7 @@ class _NoRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Text(
         'No projects match the current filters.',
         style: TextStyle(fontSize: 13, color: AppColors.textSecondary),

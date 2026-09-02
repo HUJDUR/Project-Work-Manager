@@ -9,7 +9,8 @@ Project Work Manager (PWM) — a work-tracking system for a metal fabrication sh
 Monorepo layout:
 
 - `backend/pwm/` — .NET 10 solution (`pwm.slnx`), four projects
-- `frontend/pwm_desktop` — Flutter desktop app; the dashboard, projects, work hours and workers screens are built, the other modules are placeholders
+- `frontend/pwm_desktop` — Flutter desktop app; every screen in the navigation is built. The Recommendations screen is the one
+  shell without a working body - the estimator behind it does not exist yet
 - `frontend/pwm_mobile` — Flutter mobile app (scaffolding only, one `main.dart`)
 - `docs/mockups/` — UI mockups that define the intended screens (gitignored)
 - `docs/PWM - prijava seminarskog rada v3.md` - defines the projects scope and needed funcionality
@@ -123,16 +124,18 @@ pwm.WebAPI/Controllers/XController.cs           : BaseReadController<> or BaseCR
 
 Register new services in `pwm.Services/ServiceRegistration.cs` (`AddPwmServices`), which `Program.cs` calls once.
 
-`ProjectSearchObject` and `UserSearchObject` each carry a free-text `Search` alongside their
-single-field filters — that is what the desktop's one search box sends. `Search` on a project matches
-the project name **or** its customer's, which is why `ProjectService` overrides
+`ProjectSearchObject`, `UserSearchObject` and `TruckLoadSearchObject` each carry a free-text `Search`
+alongside their single-field filters — that is what the desktop's one search box sends. `Search` on a
+project matches the project name **or** its customer's, which is why `ProjectService` overrides
 `IncludeRelatedEntitiesAsync` to load `Customer`; on a user it matches name, surname, e-mail or job
-title. Adding a search box to a new screen means adding the same pair: a `Search` property and one
-`Where` over the columns the box should reach.
+title; on a truck load it matches the driver's name or surname, the vehicle registration **or** the
+carrier's name, so `TruckLoadService` overrides the same method to load `TransportCompany`. Adding a
+search box to a new screen means adding the same pair: a `Search` property and one `Where` over the
+columns the box should reach.
 
 Mapping is Mapster by property name — a `Response`/`Request` property only maps if it matches the entity property. `UserService` overrides `MapInsertRequestToEntity`/`MapUpdateRequestToEntity` because the request carries a plain `Password` while the entity stores `PasswordHash`/`PasswordSalt`.
 
-`BaseCRUDService` demands an `IValidator<TInsert>` and `IValidator<TUpdate>` in its constructor. `Validators/DefaultValidator<T>` is registered as the open-generic fallback so any request type resolves; register a concrete `AbstractValidator<T>` after it to take over for that type — `ProjectInsertRequestValidator` and `ProjectUpdateRequestValidator` are the two that do.
+`BaseCRUDService` demands an `IValidator<TInsert>` and `IValidator<TUpdate>` in its constructor. `Validators/DefaultValidator<T>` is registered as the open-generic fallback so any request type resolves; register a concrete `AbstractValidator<T>` after it to take over for that type — the project, truck-load, notification and user request validators are the ones that do.
 
 **A `[Required]` string column is not a required field.** `NOT NULL` is satisfied by `""`, so anything the
 UI marks as mandatory needs a `NotEmpty()` rule in a validator as well. `Project.Name` and `Project.Code`
@@ -177,9 +180,32 @@ the most derived one.
 Deliberate split — do not add write endpoints to the read-only set without asking:
 
 - **CRUD**: Company, User, OperationType, UserOperation, Project, ProjectCategory, WorkLog, WorkLogDetail, TruckLoad, TruckLoadDetail
-- **Read-only**: Country, City, UserType, CompanyType, ProjectStatusType, TruckLoadStatusType, ActivityLogType, ActivityLog, Notification, MonthlyHourReport, MonthlyHourReportDetail, GeneratedReport
+- **Read-only**: Country, City, UserType, CompanyType, ProjectStatusType, TruckLoadStatusType, ActivityLogType, ActivityLog, MonthlyHourReport, MonthlyHourReportDetail, GeneratedReport
+- **Read plus one write**: Notification — reading is the generic list, and `POST /Notification/Send` is the only way in. See below.
+- **CRUD plus one self-service write**: User — the three CRUD writes stay administrator-only, and `PUT /User/Me` lets anyone edit their own row. See below.
 
-The rule: user-entered data gets CRUD; enum-like values the C# branches on (`ProjectStatusTypes.Name`, `TruckLoadStatusTypes.Name`, `UserTypes.Type`, `CompanyTypes.Name`) stay read-only so business logic can't be broken from Swagger; system-generated rows (activity logs, notifications, monthly reports) stay read-only and are written by services, not controllers.
+The rule: user-entered data gets CRUD; enum-like values the C# branches on (`ProjectStatusTypes.Name`, `TruckLoadStatusTypes.Name`, `UserTypes.Type`, `CompanyTypes.Name`) stay read-only so business logic can't be broken from Swagger; system-generated rows (activity logs, monthly reports) stay read-only and are written by services, not controllers.
+
+`Notification` is the one deliberate exception, and it is a narrow one. The office has to be able to
+write to the shop floor, so `NotificationController` adds **one** action — `POST /Notification/Send`,
+`[Authorization(Roles.Administrator, Roles.Manager)]`, taking `{ title, message, userIds? }`. It fans
+the message out into one `Notifications` row per recipient inside `NotificationService.SendAsync`;
+an empty or missing `userIds` means every account with `IsActive`, resolved **on the server** so the
+list cannot go stale between the screen loading and the message being sent. An id naming nobody is a
+`ClinetException` rather than a silent drop. There is still no update or delete: a notification that
+was sent stays sent.
+
+**`Notifications` has no type column**, so the mockup's "Notification type" dropdown is not built.
+Adding it means an enum plus a migration, which is a schema change rather than a screen change.
+
+`PUT /User/Me` is the other exception, and it is narrow for a specific reason. `UserUpdateRequest`
+carries `UserTypeId` and `IsActive`, so letting a worker put their own record would let them make
+themselves an administrator — which is why the account settings screen does **not** use it.
+`UserProfileUpdateRequest` cannot express a role or an active flag at all, the id it applies to comes
+from `ICurrentUser` rather than the route or the body, and changing a password means proving the current
+one through `ICryptoService.Verify` first. `UserService.UpdateProfileAsync` also refuses an e-mail
+another account already holds. Adding a field to that request means asking whether a worker should be
+able to set it on themselves.
 
 A lookup table is for values the office might one day add to. Values fixed by the business get a C# enum
 instead — `ProjectPriority` (Low/Medium/High/VeryHigh in `pwm.Model/Enums`) is the one of those, stored as
@@ -211,6 +237,7 @@ Entities mirror the ER diagram in `docs/`:
 ```
 main.dart                     MultiProvider over every entity provider, MaterialApp + theme, opens LoginScreen
 layouts/master_screen.dart    top bar + left navigation, the frame every screen renders into
+layouts/window_chrome.dart    the app's own title bar: drag area + minimise/maximise/close
 models/                       one class per backend table, plus PageResult and the dashboard view model
 providers/base_provider.dart  transport: get / getById / insert / update / remove, auth headers, baseUrl
 providers/auth_provider.dart  sign in / refresh / sign out, and the token those headers carry
@@ -221,16 +248,77 @@ screens/<name>_details_screen.dart  its add/edit form, pushed from the list
 screens/widgets/              the pieces those screens are built from
 screens/widgets/details_scaffold.dart  back button + title + Save/Delete, the frame every form uses
 screens/widgets/form_fields.dart  appInputDecoration + the form's spacing and date format
-utils/app_theme.dart          AppColors / AppSpacing / AppCard — the mockup's design tokens
+utils/app_theme.dart          AppPalette / AppColors / ThemeController / AppSpacing / AppCard
+utils/password_rules.dart     what a password has to satisfy, mirrored on the API
 utils/formatters.dart         hours, tonnes, dates, "3 d ago"
 utils/dialogs.dart            confirmDialog / showErrorDialog / showSavedSnackBar
 utils/api_client_exception.dart  ApiClientException + the parser that reads the API's error bodies
 ```
 
-State management is `provider`; charts are `fl_chart`; forms are `flutter_form_builder` +
+State management is `provider`; charts are `fl_chart`; PDFs are rendered, printed and saved with
+`printing`; the window frame is `window_manager`; forms are `flutter_form_builder` +
 `form_builder_validators`. A screen owns its own `ChangeNotifier` through a `ChangeNotifierProvider`
 rather than a global store, and takes an optional factory parameter so tests can inject a provider fed
 by fakes (see `test/dashboard_test.dart`).
+
+### Theming
+
+Two palettes, one set of names. `AppPalette` holds every colour a theme needs and has a `light` and a
+`dark` instance; `AppColors.x` are **static getters** over `AppColors.palette`, which `ThemeController`
+swaps *before* it notifies, so by the time the tree rebuilds every `AppColors.x` already answers the new
+theme. `MaterialApp` takes `theme`, `darkTheme` and `themeMode` from the same controller. The toggle is
+the icon next to the bell in the top bar. **The app opens dark** (`ThemeController.defaultMode`), and the
+choice is not persisted — it lasts as long as the window does; storing it needs `shared_preferences` or
+the like.
+
+Two consequences follow from the palette being global mutable state, and both bite:
+
+- **A colour is no longer a compile-time constant**, so a widget that uses one cannot be `const`. Adding
+  `const` back in front of something that reads `AppColors` will not compile. `AppSpacing` is untouched
+  and still const.
+- **Nothing in this project may be `const`-constructed**, even a widget that holds no colour itself. A
+  `const` instance is canonically identical across rebuilds, so Flutter skips its whole subtree — and the
+  colours in that subtree come from the palette the toggle has just changed. Const-constructing one
+  leaves part of the window in the old theme until something else forces a rebuild. Constructor
+  *declarations* keep their `const`, which is what keeps `prefer_const_constructors_in_immutables`
+  satisfied; only the call sites give it up. `test/theme_test.dart` scans `lib/` and fails on any
+  `const <ProjectWidget>(`, so this cannot quietly come back.
+
+Status chips do **not** store a colour pair. They store the one colour that names the state, and
+`AppColors.chip(accent)` builds the (background, foreground) pair for whichever theme is on — tinting in
+light, and lifting the accent towards white in dark so it stays legible on a dark card. In light this
+lands within a shade of the pastels the mockups use. The four palettes are in `projects_table.dart`
+(status and priority), `transports_table.dart` and `workers_table.dart`; each keeps a local `_neutral`
+for a state with no colour of its own.
+
+### The window frame
+
+The OS title bar is **off**: `main` calls `windowManager.ensureInitialized()` and shows the window with
+`titleBarStyle: TitleBarStyle.hidden`, so there is no second bar above the app's own. What replaces it
+lives in `layouts/window_chrome.dart`:
+
+- `AppDragArea` moves the window on a drag and maximises it on a double click, the way a native caption
+  does. **Never wrap a bar's contents in it** — use `DraggableBar`, which lays the contents over a drag
+  layer instead. An `AppDragArea` *around* the contents puts its `onDoubleTap` recogniser above every
+  button in the bar, and the gesture arena then holds each tap until the double-click timeout expires,
+  so Save, the bell and the account chip answer a beat late or not at all. Text and icons do not absorb
+  pointers, so almost all of the bar still drags.
+- `WindowControls` is minimise / maximise-restore / close at Windows' own 46x32, close going red on
+  hover. It reads `isMaximized()` back through `WindowListener` rather than toggling a flag, because the
+  window can be maximised by a snap or a double click without a button being pressed.
+
+`WindowControls` takes the height of the bar hosting it and runs the full height at the right edge,
+behind a hairline — the bar reads as one row rather than a strip with a hole punched in the corner. A row
+holding it needs `crossAxisAlignment: CrossAxisAlignment.stretch`.
+
+They are used in four places, and all four are needed: `MasterScreen`'s top bar, `LoginScreen` (which has
+no top bar — without it the window could not be closed before signing in), and the two full-window
+screens, `FullScreenReport` and `AccountSettingsScreen`, which cover the top bar and so carry the buttons
+themselves. `AppWindowBar` is the shared bar those two wear.
+
+**Every call into `window_manager` is wrapped in a try/catch** (`window_chrome.dart`'s `_window`), because
+a widget test has no window behind the platform channel and `login_test.dart` builds `LoginScreen` for
+real. Do not unwrap them.
 
 ### List and details
 
@@ -384,6 +472,46 @@ API has no endpoint that creates both — and on an edit puts both back. Deletin
 shift too when nothing else was booked against it. Because `ClockedOut` and `FinishedAt` are `NOT NULL`,
 the form always sends a finished block; an open shift still cannot be recorded.
 
+### Transports
+
+A row is one `TruckLoad` joined to its carrier and status by id. Two of the mockup's labels are not
+columns and must not become them — **Transport No** is the load's `Id`, written out as `TR-0001` by
+`TransportRow.transportNo`, and **net weight** is `FullWeight - EmptyWeight`. Search, status, the date
+range and paging are the API's job: `TransportsProvider.filter` builds the `TruckLoadSearchObject`
+(`search`, `truckLoadStatusId`, `dateFrom`, `dateTo`, `page`, `pageSize`, `includeTotalCount`,
+`sortBy: 'LoadDate desc'`) and one page of eight rows comes back. `DateTo` is compared against a
+`LoadDate` that carries a time of day, so the range closes on the last second of its final day rather
+than at midnight. The mockup has no header counters, so this screen has none.
+
+Cargo is rows in `TruckLoadDetails` and the table does not show it, so `TransportsProvider.linesOf`
+fetches the lines for **one** load when its row is opened — a page of eight loads would otherwise cost
+eight more requests. `TransportDetailsScreen` edits them as a list under the load and saving **diffs**
+them: a line with `id == 0` has no row behind it and is inserted, a line that is gone is deleted, the
+rest are put back. Deleting a load does not touch them — `TruckLoadDetails` cascades from `TruckLoads`
+in the schema, so the database drops them itself. `UnloadColor` is free text; the colours the form
+offers are the `unloadColors` map in `transport_details_screen.dart`, not something the database
+enforces. Statuses are coloured by name in `TruckLoadStatusChip`, which falls back to neutral for a
+status it does not know.
+
+### Account settings and passwords
+
+`account_settings_screen.dart` is reached from the account chip in the top bar and pushed on the **root**
+navigator, because the top bar sits outside the per-destination navigator `MasterScreen` hands out. It
+writes through `UserProvider.updateProfile` (`PUT /User/Me`) and then calls `AuthProvider.updateCurrentUser`,
+so the chip shows the new name without signing in again. Role and whether the account is active are shown
+but not editable — that is an administrator's job on the Workers screen, and the API agrees.
+
+`utils/password_rules.dart` is the one place the rules live on the desktop: eight characters, an
+upper-case letter, a lower-case letter and a number. `PasswordRules` is **mirrored on the API** by
+`Validators/UserRequestValidators.cs`, so a password the form refuses is refused there too and a client
+that skips the form gains nothing. Changing one means changing the other.
+
+Both the worker form and account settings check their password fields **explicitly**, in `_save`, through
+`PasswordRules.validateChange` — not through per-field `validator:` callbacks. Three fields that check
+each other need one place that sees all three, and a sibling field's value read back out of
+`FormBuilderState.fields` is not reliably current while the form is validating. The password inputs are
+therefore plain `TextField`s over controllers the screen owns, with one complaint shown beneath them.
+
 ### Reports
 
 Two PDFs, built on demand by `ReportService` with **QuestPDF** (Community licence, registered once in
@@ -408,6 +536,39 @@ formats, and one `*Document` class per report.
 straddles the boundary is split across both. The rule is `ReportService.RegularHoursPerDay`; the seeder
 mirrors it, `MonthlyHourReportDetail` stores the result as `RegularHours`/`OvertimeHours`, and
 `WorkHoursProvider.regularHoursPerDay` is the desktop's copy of the same number. All four have to agree.
+
+The desktop half is `reports_screen.dart` over `ReportsProvider`. The two report types are picked as
+cards, and the parameter row is built per type — Period/Worker/Project for the monthly one, Project plus
+a date range for transports; the range closes on the last second of its final day, the same rule the
+transports screen uses. Generating is one POST that answers PDF **bytes**, which is why `ReportProvider`
+exists: it subclasses `BaseProvider` purely to borrow the auth header, the one-shot refresh after a 401
+and `validateResponse`, and its type parameter is never used because these endpoints never answer JSON.
+`printing`'s `PdfPreview` renders those same bytes in the preview pane, so what is on screen is what
+prints and what saves. The expand button in the preview header opens `FullScreenReport` over the whole
+window — pushed on the **root** navigator, not the per-destination one `MasterScreen` hands out, or it
+would only cover the content area. Escape closes it, and `printReport`/`saveReport` are top-level so
+the panel and the full-screen view act on the same bytes. Recent Reports reads `GeneratedReports` newest-first and its rows are described by
+parsing the stored `Parameters` — `JsonSerializer.Serialize` writes property names as declared, so those
+keys are **PascalCase** and `ReportsProvider._describe` reads them case-insensitively.
+
+### Notifications
+
+`notifications_screen.dart` is the mockup's Send Notification form over `NotificationsProvider`: the
+message on the left, the recipients on the right. The two radios and the tick list are one control —
+ticking somebody while "All workers" is set flips to picking by hand and pre-ticks everyone, so the
+first untick means "everyone except them". Sending to everyone posts **no ids at all**, leaving the API
+to resolve the list; only a hand-picked selection sends ids. The recipient list is active accounts only,
+asked for with `isActive` and `sortBy: 'Surname, Name'` — a closed account cannot be written to.
+
+### Recommendations
+
+`recommendations_screen.dart` is the Project Resource Estimation layout — project type, expected tonnage
+and deadline, the four metric cards and the work-type table — and **nothing behind it**. There is no
+estimator: no endpoint, and nothing client-side that derives one. `RecommendationsProvider.hasEstimate`
+is hardcoded false and every card reads an em dash; pressing Estimate says the estimator is not built
+rather than showing invented numbers. The provider is the seam — `estimate()` is what will call the model,
+and the only real work it does today is loading `ProjectCategory` for the dropdown and checking that all
+three inputs are filled in.
 
 ## Configuration
 

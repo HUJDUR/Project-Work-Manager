@@ -18,7 +18,7 @@ class HoursByProjectChart extends StatelessWidget {
       title: 'Hours by project',
       subtitle: 'Booked work over the last $windowDays days',
       child: slices.isEmpty
-          ? const EmptyPanelMessage(message: 'No work has been booked in this period.')
+          ? EmptyPanelMessage(message: 'No work has been booked in this period.')
           : _buildChart(),
     );
   }
@@ -53,7 +53,7 @@ class HoursByProjectChart extends StatelessWidget {
           drawVerticalLine: false,
           horizontalInterval: interval,
           getDrawingHorizontalLine: (_) =>
-              const FlLine(color: AppColors.border, strokeWidth: 1),
+              FlLine(color: AppColors.border, strokeWidth: 1),
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
@@ -66,7 +66,7 @@ class HoursByProjectChart extends StatelessWidget {
               interval: interval,
               getTitlesWidget: (value, meta) => Text(
                 value.round().toString(),
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
             ),
           ),
@@ -117,7 +117,7 @@ class _BarLabel extends StatelessWidget {
           short,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
       ),
     );

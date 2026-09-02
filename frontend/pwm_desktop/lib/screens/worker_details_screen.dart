@@ -7,6 +7,7 @@ import '../providers/workers_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
+import '../utils/password_rules.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
 
@@ -30,6 +31,34 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
 
   bool _saving = false;
   String? _error;
+
+  /// The two password fields are driven by controllers this state owns: the
+  /// confirmation is checked against the password, and a field's value read back
+  /// out of the form is not reliably current while the form is validating.
+  final _password = TextEditingController();
+  final _confirmPassword = TextEditingController();
+
+  /// What is wrong with the pair, shown under them. Null until a save has been
+  /// refused, then kept in step as they are corrected.
+  String? _passwordError;
+
+  /// A new account must have a password; an edit keeps the current one when the
+  /// field is left alone.
+  String? _checkPasswords() {
+    if (_isNew && _password.text.isEmpty) {
+      return 'A new account needs a password.';
+    }
+
+    return PasswordRules.validateChange(
+      newPassword: _password.text,
+      confirmation: _confirmPassword.text,
+    );
+  }
+
+  void _recheckPasswords() {
+    if (_passwordError == null) return;
+    setState(() => _passwordError = _checkPasswords());
+  }
 
   bool get _isNew => widget.row == null;
 
@@ -157,22 +186,45 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
               ],
             ),
             const SizedBox(height: formFieldGap),
-            FormBuilderTextField(
-              name: 'password',
-              obscureText: true,
-              decoration: appInputDecoration(
-                'Password',
-                hintText: _isNew ? null : 'Leave blank to keep the current one',
+            // The pair check each other, so they are plain fields with one
+            // complaint worked out in _checkPasswords rather than two validators.
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _password,
+                    obscureText: true,
+                    onChanged: (_) => _recheckPasswords(),
+                    decoration: appInputDecoration(
+                      'Password',
+                      hintText:
+                          _isNew ? null : 'Leave blank to keep the current one',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: formFieldGap),
+                Expanded(
+                  child: TextField(
+                    controller: _confirmPassword,
+                    obscureText: true,
+                    onChanged: (_) => _recheckPasswords(),
+                    decoration: appInputDecoration(
+                      'Confirm password',
+                      hintText: _isNew ? null : 'Only if you are changing it',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _passwordError ?? PasswordRules.describe,
+              style: TextStyle(
+                fontSize: 12,
+                color: _passwordError == null
+                    ? AppColors.textSecondary
+                    : AppColors.danger,
               ),
-              validator: _isNew
-                  ? FormBuilderValidators.compose([
-                      FormBuilderValidators.required(
-                        errorText: 'A new account needs a password.',
-                      ),
-                      FormBuilderValidators.minLength(4,
-                          errorText: 'At least four characters.'),
-                    ])
-                  : null,
             ),
             const SizedBox(height: formFieldGap),
             // The switch is a ListTile, which paints its ink on the nearest
@@ -182,7 +234,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
               child: FormBuilderSwitch(
                 name: 'isActive',
                 title: const Text('Currently employed'),
-                subtitle: const Text(
+                subtitle: Text(
                   'An account is deactivated rather than deleted when someone leaves.',
                   style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
@@ -195,7 +247,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Which operations this person may book hours against. Office staff need none.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
@@ -220,7 +272,13 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
   }
 
   Future<void> _save() async {
-    if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
+    final passwordError = _checkPasswords();
+    final detailsValid = _formKey.currentState?.saveAndValidate() ?? false;
+
+    if (!detailsValid || passwordError != null) {
+      setState(() => _passwordError = passwordError);
+      return;
+    }
 
     final values = _formKey.currentState!.value;
 
@@ -239,7 +297,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
         isActive: values['isActive'] as bool? ?? true,
         phoneNumber: _trimToNull(values['phoneNumber']),
         jobTitle: _trimToNull(values['jobTitle']),
-        password: _trimToNull(values['password']),
+        password: _password.text.isEmpty ? null : _password.text,
         operationIds: (values['operationIds'] as List<int>?) ?? const [],
       );
 

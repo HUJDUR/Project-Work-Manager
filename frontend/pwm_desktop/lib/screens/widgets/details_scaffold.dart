@@ -107,7 +107,7 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -119,7 +119,7 @@ class _Header extends StatelessWidget {
             label: const Text('Delete'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.danger,
-              side: const BorderSide(color: AppColors.dangerBorder),
+              side: BorderSide(color: AppColors.dangerBorder),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
             ),
           ),
@@ -158,12 +158,12 @@ class _ErrorBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 18, color: AppColors.danger),
+          Icon(Icons.error_outline, size: 18, color: AppColors.danger),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(fontSize: 13, color: AppColors.danger),
+              style: TextStyle(fontSize: 13, color: AppColors.danger),
             ),
           ),
         ],

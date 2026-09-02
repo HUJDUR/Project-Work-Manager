@@ -288,7 +288,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
               const SizedBox(height: 6),
               Text(
                 'Delivering to $location',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
             ],
             const SizedBox(height: formFieldGap),

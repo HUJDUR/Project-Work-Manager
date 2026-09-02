@@ -27,6 +27,13 @@ namespace pwm.Services
             // Registered after the fallback, so these take over for their types
             services.AddTransient<IValidator<ProjectInsertRequest>, ProjectInsertRequestValidator>();
             services.AddTransient<IValidator<ProjectUpdateRequest>, ProjectUpdateRequestValidator>();
+            services.AddTransient<IValidator<TruckLoadInsertRequest>, TruckLoadInsertRequestValidator>();
+            services.AddTransient<IValidator<TruckLoadUpdateRequest>, TruckLoadUpdateRequestValidator>();
+            services.AddTransient<IValidator<NotificationSendRequest>, NotificationSendRequestValidator>();
+            services.AddTransient<IValidator<UserInsertRequest>, UserInsertRequestValidator>();
+            services.AddTransient<IValidator<UserUpdateRequest>, UserUpdateRequestValidator>();
+            services.AddTransient<IValidator<UserProfileUpdateRequest>,
+                UserProfileUpdateRequestValidator>();
 
             services.AddScoped<ICountryService, CountryService>();
             services.AddScoped<ICityService, CityService>();

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'layouts/master_screen.dart';
 import 'providers/providers.dart';
@@ -14,13 +17,35 @@ const bool bypassLogin = true;
 const String _devEmail = 'admin@pwm.ba';
 const String _devPassword = 'test';
 
-void main() {
+/// The window the app opens in. The OS title bar is hidden because the app draws
+/// its own into the top bar - see `layouts/window_chrome.dart`.
+const _windowOptions = WindowOptions(
+  size: Size(1440, 900),
+  minimumSize: Size(1100, 700),
+  center: true,
+  title: 'Project Work Manager',
+  backgroundColor: Colors.transparent,
+  titleBarStyle: TitleBarStyle.hidden,
+);
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  // Shown only once it is sized and stripped of its title bar, so the frame is
+  // never on screen.
+  unawaited(windowManager.waitUntilReadyToShow(_windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  }));
+
   runApp(
     MultiProvider(
       // One instance per API resource, created on first use. Screens that do their
       // own joining (dashboard, work hours) still build their provider locally.
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
         ChangeNotifierProvider(create: (_) => ActivityLogProvider()),
         ChangeNotifierProvider(create: (_) => ActivityLogTypeProvider()),
         ChangeNotifierProvider(create: (_) => CityProvider()),
@@ -42,7 +67,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => WorkLogProvider()),
         ChangeNotifierProvider(create: (_) => WorkLogDetailProvider()),
       ],
-      child: const PwmDesktopApp(),
+      child: PwmDesktopApp(),
     ),
   );
 }
@@ -52,11 +77,17 @@ class PwmDesktopApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The controller swaps AppColors.palette before it notifies, so by the time
+    // this rebuilds every AppColors.x already answers the new theme.
+    final mode = context.watch<ThemeController>().mode;
+
     return MaterialApp(
       title: 'Project Work Manager',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: bypassLogin ? const _SignedInAsAdmin() : const LoginScreen(),
+      darkTheme: AppTheme.dark(),
+      themeMode: mode,
+      home: bypassLogin ? _SignedInAsAdmin() : LoginScreen(),
     );
   }
 }
@@ -89,7 +120,7 @@ class _SignedInAsAdminState extends State<_SignedInAsAdmin> {
       future: _signIn,
       builder: (context, snapshot) =>
           snapshot.connectionState == ConnectionState.done
-              ? const MasterScreen()
+              ? MasterScreen()
               : const Scaffold(body: Center(child: CircularProgressIndicator())),
     );
   }
