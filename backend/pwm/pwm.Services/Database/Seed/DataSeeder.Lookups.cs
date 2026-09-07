@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.Services.Database.Seed
 {
@@ -35,79 +36,103 @@ namespace pwm.Services.Database.Seed
 
             _companyTypes =
             [
-                new CompanyType { Name = "Customer" },
                 new CompanyType { Name = "Transport" },
-                new CompanyType { Name = "Supplier" },
+                new CompanyType { Name = "Customer" },
+                new CompanyType { Name = "Unload address for customer" },
             ];
             await AddRangeAsync(_companyTypes);
 
             _userTypes =
             [
-                new UserType { Type = "Administrator" },
-                new UserType { Type = "Manager" },
-                new UserType { Type = "Worker" },
+                new UserType { Type = "Admin" },
+                new UserType { Type = "Work preparation" },
+                new UserType { Type = "Finances" },
+                new UserType { Type = "Project manager" },
+                new UserType { Type = "Production worker" },
             ];
             await AddRangeAsync(_userTypes);
 
             _operationTypes =
             [
-                new OperationType { Name = "Cutting" },
-                new OperationType { Name = "Bending" },
-                new OperationType { Name = "Drilling" },
-                new OperationType { Name = "Welding" },
+                new OperationType { Name = "CNC operator" },
+                new OperationType { Name = "CNC helper" },
+                new OperationType { Name = "Logistics" },
                 new OperationType { Name = "Grinding" },
-                new OperationType { Name = "Painting" },
                 new OperationType { Name = "Assembly" },
-                new OperationType { Name = "Quality control" },
+                new OperationType { Name = "Welding" },
+                new OperationType { Name = "Straightening" },
+                new OperationType { Name = "Kid on practice" },
+                new OperationType { Name = "Painting" },
+                new OperationType { Name = "Shotblasting" },
                 new OperationType { Name = "Packing" },
+                new OperationType { Name = "Unloading" },
+                new OperationType { Name = "Loading" },
+                new OperationType { Name = "QC" },
+                new OperationType { Name = "Drilling" },
+                new OperationType { Name = "Plate bending" },
+                new OperationType { Name = "Profile bending" },
+                new OperationType { Name = "Profile cutting" },
+                new OperationType { Name = "Technical preparation" },
+                new OperationType { Name = "Preparation" },
+                new OperationType { Name = "Office work" },
             ];
             await AddRangeAsync(_operationTypes);
 
             _projectCategories =
             [
-                new ProjectCategory { Name = "Steel construction" },
-                new ProjectCategory { Name = "Sheet metal parts" },
-                new ProjectCategory { Name = "Welded assemblies" },
-                new ProjectCategory { Name = "Machined parts" },
-                new ProjectCategory { Name = "Handrails and stairs" },
+                new ProjectCategory { Name = "Sections" },
+                new ProjectCategory { Name = "Foundations - steel" },
+                new ProjectCategory { Name = "Foundations - aluminum" },
+                new ProjectCategory { Name = "Heavy ducting - stainless steel" },
+                new ProjectCategory { Name = "Heavy ducting - aluminum" },
+                new ProjectCategory { Name = "Driptrays - aluminum" },
+                new ProjectCategory { Name = "Driptrays - stainless steel" },
+                new ProjectCategory { Name = "General steel construction" },
             ];
             await AddRangeAsync(_projectCategories);
 
             _projectStatuses =
             [
-                new ProjectStatusType { Name = "New" },
-                new ProjectStatusType { Name = "In preparation" },
-                new ProjectStatusType { Name = "In production" },
-                new ProjectStatusType { Name = "Ready for delivery" },
                 new ProjectStatusType { Name = "Delivered" },
-                new ProjectStatusType { Name = "Cancelled" },
+                new ProjectStatusType { Name = "In production" },
+                new ProjectStatusType { Name = "On hold" },
+                new ProjectStatusType { Name = "Rejected" },
             ];
             await AddRangeAsync(_projectStatuses);
 
             _truckLoadStatuses =
             [
-                new TruckLoadStatusType { Name = "Planned" },
-                new TruckLoadStatusType { Name = "Loading" },
-                new TruckLoadStatusType { Name = "Loaded" },
+                new TruckLoadStatusType { Name = "Ordered" },
                 new TruckLoadStatusType { Name = "In transit" },
                 new TruckLoadStatusType { Name = "Delivered" },
-                new TruckLoadStatusType { Name = "Cancelled" },
+                new TruckLoadStatusType { Name = "Finished" },
             ];
             await AddRangeAsync(_truckLoadStatuses);
 
+            // Ids have to match pwm.Model.Enums.ReportType - that is what ReportService branches on.
+            _reportTypes =
+            [
+                new ReportType { Id = (int)ReportKind.MonthlyWorkHours, Description = "Monthly Work Hours" },
+                new ReportType { Id = (int)ReportKind.TransportLoads, Description = "Transport & Loads" },
+            ];
+            await AddRangeAsync(_reportTypes);
+
+            // One "Generated report" type per report, so the log says which one was run.
             _activityLogTypes =
             [
-                new ActivityLogType { Name = "Login" },
-                new ActivityLogType { Name = "Logout" },
-                new ActivityLogType { Name = "Clock in" },
-                new ActivityLogType { Name = "Clock out" },
-                new ActivityLogType { Name = "Project created" },
-                new ActivityLogType { Name = "Project status changed" },
-                new ActivityLogType { Name = "Truck load created" },
-                new ActivityLogType { Name = "Report generated" },
+                new ActivityLogType { Name = "Log In" },
+                new ActivityLogType { Name = "Log out" },
+                new ActivityLogType { Name = "Message sent" },
+                new ActivityLogType { Name = ReportLogTypeName("Monthly Work Hours") },
+                new ActivityLogType { Name = ReportLogTypeName("Transport & Loads") },
+                new ActivityLogType { Name = "Marked messages as read" },
             ];
             await AddRangeAsync(_activityLogTypes);
         }
+
+        /// <summary>Mirrors the name <c>ReportService</c> looks up when it records a run.</summary>
+        private static string ReportLogTypeName(string reportDescription) =>
+            $"Generated report - {reportDescription}";
 
         private Country FindCountry(string code) => _countries.First(x => x.Code == code);
 

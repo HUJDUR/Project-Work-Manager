@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using pwm.Model.Enums;
+using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.Services.Database.Seed
 {
@@ -72,104 +72,122 @@ namespace pwm.Services.Database.Seed
         /// <summary>Mirrors <c>ReportService.RegularHoursPerDay</c>: over eight is overtime.</summary>
         private const double RegularHoursPerDay = 8;
 
+        /// <summary>
+        /// Who ran a report and when is not on the report row any more - it is the
+        /// ActivityLog entry pointing at it, which <see cref="SeedActivityLogsAsync"/> writes.
+        /// </summary>
+        private readonly List<(GeneratedReport Report, int UserId, DateTime At)> _reportRuns = [];
+
         private async Task SeedGeneratedReportsAsync()
         {
             // A short history for the Reports screen's "Recent Reports" list. The PDFs
             // are not stored - each row is rebuilt from these parameters on download.
-            var admin = FindUser("admin@pwm.ba").Id;
-            var manager = FindUser("amar.begic@pwm.ba").Id;
             var lastMonth = _today.AddMonths(-1);
 
-            var reports = new[]
+            _generatedReports =
+            [
+                new GeneratedReport
+                {
+                    ReportTypeId = (int)ReportKind.MonthlyWorkHours,
+                    Parameters = $$"""{"Year":{{lastMonth.Year}},"Month":{{lastMonth.Month}},"UserId":null,"ProjectId":null}""",
+                },
+                new GeneratedReport
+                {
+                    ReportTypeId = (int)ReportKind.TransportLoads,
+                    Parameters = """{"ProjectId":null,"DateFrom":null,"DateTo":null}""",
+                },
+                new GeneratedReport
+                {
+                    ReportTypeId = (int)ReportKind.MonthlyWorkHours,
+                    Parameters = $$"""{"Year":{{_today.Year}},"Month":{{_today.Month}},"UserId":null,"ProjectId":null}""",
+                },
+            ];
+
+            await AddRangeAsync(_generatedReports);
+
+            // Monthly hours is Admin or Finances; a project manager only runs transports.
+            var runners = new[]
             {
-                CreateGeneratedReport(ReportType.MonthlyWorkHours, admin, daysAgo: 21,
-                    parameters: $$"""{"Year":{{lastMonth.Year}},"Month":{{lastMonth.Month}},"UserId":null,"ProjectId":null}"""),
-
-                CreateGeneratedReport(ReportType.TransportLoads, manager, daysAgo: 12,
-                    parameters: """{"ProjectId":null,"DateFrom":null,"DateTo":null}"""),
-
-                CreateGeneratedReport(ReportType.MonthlyWorkHours, manager, daysAgo: 3,
-                    parameters: $$"""{"Year":{{_today.Year}},"Month":{{_today.Month}},"UserId":null,"ProjectId":null}"""),
+                FindUser("nadira.stupar@pwm.ba").Id,
+                FindUser("kenan.fajic@pwm.ba").Id,
+                FindUser("nadir.hujdur@pwm.ba").Id,
             };
 
-            await AddRangeAsync(reports);
+            var daysAgo = new[] { 21, 12, 3 };
+
+            for (var i = 0; i < _generatedReports.Length; i++)
+            {
+                _reportRuns.Add((_generatedReports[i], runners[i], _today.AddDays(-daysAgo[i]).AddHours(10)));
+            }
         }
 
-        private GeneratedReport CreateGeneratedReport(
-            ReportType type, int generatedById, int daysAgo, string parameters)
-        {
-            return new GeneratedReport
-            {
-                Type = type,
-                Parameters = parameters,
-                GeneratedAt = _today.AddDays(-daysAgo).AddHours(10),
-                GeneratedById = generatedById,
-            };
-        }
+        /// <summary>
+        /// Notifications carry no sender column, so who sent one is only ever the
+        /// "Message sent" activity log entry - kept here until those are written.
+        /// </summary>
+        private readonly List<(int SenderId, DateTime At)> _messagesSent = [];
 
         private async Task SeedNotificationsAsync()
         {
-            var notifications = new[]
+            var office = OfficeUsers;
+            var recipients = _users.Where(u => u.IsActive).ToArray();
+
+            var messages = new (string Title, string Message)[]
             {
-                CreateNotification("amar.begic@pwm.ba", "Project ready for delivery",
-                    "Staircase module WM-45 has been moved to Ready for delivery.", hoursAgo: 30, isRead: true),
-
-                CreateNotification("amar.begic@pwm.ba", "New project created",
-                    "Silo segments AK-88 was created for Adria Konstrukcije d.o.o.", hoursAgo: 20, isRead: false),
-
-                CreateNotification("selma.delic@pwm.ba", "Delivery date approaching",
-                    "Staircase module WM-45 is due for delivery in 3 days.", hoursAgo: 14, isRead: false),
-
-                CreateNotification("selma.delic@pwm.ba", "Truck load registered",
-                    "A load for Euro Spedicija d.o.o. was registered this morning.", hoursAgo: 6, isRead: false),
-
-                CreateNotification("emir.kovacevic@pwm.ba", "Assigned to project",
-                    "You have been assigned welding work on Platform railing MU-2311.", hoursAgo: 48, isRead: true),
-
-                CreateNotification("emir.kovacevic@pwm.ba", "Missing clock out",
-                    "Please check your work log, one shift was closed automatically.", hoursAgo: 26, isRead: false),
-
-                CreateNotification("damir.softic@pwm.ba", "Assigned to project",
-                    "Cutting work on Support brackets NM-204 is waiting for you.", hoursAgo: 22, isRead: false),
-
-                CreateNotification("lejla.hodzic@pwm.ba", "Quality check requested",
-                    "Machine base plates AK-77 need a quality check before packing.", hoursAgo: 9, isRead: false),
-
-                CreateNotification("admin@pwm.ba", "Monthly report generated",
-                    "The monthly hour report has been generated and is ready for review.", hoursAgo: 3, isRead: false),
+                ("Project ready for delivery", "Staircase module WM-45 has been loaded and is ready to leave."),
+                ("New project created", "Silo foundations AK-88 was created for Adria Konstrukcije d.o.o."),
+                ("Delivery date approaching", "Staircase module WM-45 is due for delivery in 3 days."),
+                ("Truck load registered", "A load for Euro Spedicija d.o.o. was registered this morning."),
+                ("Assigned to project", "You have been assigned welding work on Platform driptrays MU-2311."),
+                ("Missing clock out", "Please check your work log, one shift was closed automatically."),
+                ("Quality check requested", "Machine base plates AK-77 need a quality check before packing."),
+                ("Shift change", "Next week the early shift starts at 06:00."),
+                ("Monthly report generated", "The monthly hour report has been generated and is ready for review."),
+                ("Material delivered", "The plate delivery for AK-77 has arrived at the yard."),
             };
 
-            await AddRangeAsync(notifications);
-        }
+            var notifications = new List<Notification>();
 
-        private Notification CreateNotification(string email, string title, string message, int hoursAgo, bool isRead)
-        {
-            return new Notification
+            for (var i = 0; i < 40; i++)
             {
-                UserId = FindUser(email).Id,
-                Title = title,
-                Message = message,
-                IsRead = isRead,
-                CreatedAt = DateTime.UtcNow.AddHours(-hoursAgo),
-            };
+                var (title, message) = messages[i % messages.Length];
+                var hoursAgo = _random.Next(1, 72);
+
+                var sentBy = Pick(office).Id;
+                var createdAt = DateTime.UtcNow.AddHours(-hoursAgo);
+
+                _messagesSent.Add((sentBy, createdAt));
+
+                notifications.Add(new Notification
+                {
+                    UserId = Pick(recipients).Id,
+                    Title = title,
+                    Message = message,
+                    IsRead = _random.Next(3) != 0,
+                    CreatedAt = createdAt,
+                });
+            }
+
+            _notifications = notifications.ToArray();
+            await AddRangeAsync(_notifications);
         }
 
         private async Task SeedActivityLogsAsync()
         {
             var logs = new List<ActivityLog>();
 
-            var login = FindLogType("Login").Id;
-            var logout = FindLogType("Logout").Id;
-            var clockIn = FindLogType("Clock in").Id;
-            var clockOut = FindLogType("Clock out").Id;
+            var login = FindLogType("Log In").Id;
+            var logout = FindLogType("Log out").Id;
+            var messageSent = FindLogType("Message sent").Id;
+            var markedRead = FindLogType("Marked messages as read").Id;
 
-            // Every seeded shift leaves a clock in / clock out trail
+            // A shift is a day on the shop floor, so it opens and closes a session
             foreach (var workLog in _workLogs)
             {
                 logs.Add(new ActivityLog
                 {
                     UserId = workLog.UserId,
-                    ActivityLogTypeId = clockIn,
+                    ActivityLogTypeId = login,
                     Date = workLog.ClockedIn,
                 });
 
@@ -178,53 +196,57 @@ namespace pwm.Services.Database.Seed
                     logs.Add(new ActivityLog
                     {
                         UserId = workLog.UserId,
-                        ActivityLogTypeId = clockOut,
+                        ActivityLogTypeId = logout,
                         Date = workLog.ClockedOut.Value,
                     });
                 }
             }
 
-            // Plus a few office sessions
-            var officeUsers = new[] { "admin@pwm.ba", "amar.begic@pwm.ba", "selma.delic@pwm.ba" };
-
+            // Plus the office sessions
             foreach (var day in WorkingDays(10))
             {
-                foreach (var email in officeUsers)
+                foreach (var user in OfficeUsers)
                 {
-                    var userId = FindUser(email).Id;
-
-                    logs.Add(new ActivityLog { UserId = userId, ActivityLogTypeId = login, Date = day.AddHours(8) });
-                    logs.Add(new ActivityLog { UserId = userId, ActivityLogTypeId = logout, Date = day.AddHours(16) });
+                    logs.Add(new ActivityLog { UserId = user.Id, ActivityLogTypeId = login, Date = day.AddHours(8) });
+                    logs.Add(new ActivityLog { UserId = user.Id, ActivityLogTypeId = logout, Date = day.AddHours(16) });
                 }
             }
 
-            logs.Add(new ActivityLog
+            // One entry per message that went out
+            foreach (var (senderId, at) in _messagesSent)
             {
-                UserId = FindUser("selma.delic@pwm.ba").Id,
-                ActivityLogTypeId = FindLogType("Project created").Id,
-                Date = _today.AddDays(-4).AddHours(8),
-            });
+                logs.Add(new ActivityLog
+                {
+                    UserId = senderId,
+                    ActivityLogTypeId = messageSent,
+                    Date = at,
+                });
+            }
 
-            logs.Add(new ActivityLog
+            // ... and one per recipient who has read theirs
+            foreach (var notification in _notifications.Where(x => x.IsRead))
             {
-                UserId = FindUser("amar.begic@pwm.ba").Id,
-                ActivityLogTypeId = FindLogType("Project status changed").Id,
-                Date = _today.AddDays(-2).AddHours(11),
-            });
+                logs.Add(new ActivityLog
+                {
+                    UserId = notification.UserId,
+                    ActivityLogTypeId = markedRead,
+                    Date = notification.CreatedAt.AddMinutes(_random.Next(5, 600)),
+                });
+            }
 
-            logs.Add(new ActivityLog
+            // This is what records who generated a report and when
+            foreach (var (report, userId, at) in _reportRuns)
             {
-                UserId = FindUser("selma.delic@pwm.ba").Id,
-                ActivityLogTypeId = FindLogType("Truck load created").Id,
-                Date = _today.AddHours(9),
-            });
+                var description = _reportTypes.First(x => x.Id == report.ReportTypeId).Description;
 
-            logs.Add(new ActivityLog
-            {
-                UserId = FindUser("admin@pwm.ba").Id,
-                ActivityLogTypeId = FindLogType("Report generated").Id,
-                Date = _today.AddHours(7),
-            });
+                logs.Add(new ActivityLog
+                {
+                    UserId = userId,
+                    ActivityLogTypeId = FindLogType(ReportLogTypeName(description)).Id,
+                    GeneratedReportId = report.Id,
+                    Date = at,
+                });
+            }
 
             await AddRangeAsync(logs.ToArray());
         }

@@ -12,6 +12,7 @@ import '../screens/reports_screen.dart';
 import '../screens/transport_screen.dart';
 import '../screens/work_hours_screen.dart';
 import '../screens/workers_screen.dart';
+import '../utils/app_roles.dart';
 import '../utils/app_theme.dart';
 import 'window_chrome.dart';
 
@@ -40,7 +41,13 @@ class _MasterScreenState extends State<MasterScreen> {
 
   int _selectedIndex = 0;
 
-  static const List<AppDestination> _destinations = [
+  /// What this role may open. The sidebar is built from it, so an index always
+  /// points at a screen the signed-in user is allowed to see.
+  late final List<AppDestination> _destinations = _all
+      .where((d) => AppRoles.canOpen(AuthProvider.role, d.label))
+      .toList();
+
+  static const List<AppDestination> _all = [
     AppDestination(
       label: 'Dashboard',
       icon: Icons.home_outlined,

@@ -125,8 +125,8 @@ final _projects = [
   _project(code: 'AK-3', id: 3, name: 'Silo AK-3', customerId: 2, statusId: 5, createdDaysAgo: 3),
   _project(code: 'NM-4', id: 4, name: 'Frame NM-4', customerId: 2, statusId: 6, createdDaysAgo: 4),
   _project(code: 'AS-5', id: 5, name: 'Panels AS-5', customerId: 1, statusId: 1, createdDaysAgo: 5),
-  _project(code: 'NM-6', id: 6, name: 'Brackets NM-6', customerId: 2, statusId: 2, createdDaysAgo: 6),
-  _project(code: 'WM-7', id: 7, name: 'Stairs WM-7', customerId: 1, statusId: 4, createdDaysAgo: 7),
+  _project(code: 'NM-6', id: 6, name: 'Brackets NM-6', customerId: 2, statusId: 1, createdDaysAgo: 6),
+  _project(code: 'WM-7', id: 7, name: 'Stairs WM-7', customerId: 1, statusId: 1, createdDaysAgo: 7),
   _project(code: 'AK-8', id: 8, name: 'Plates AK-8', customerId: 2, statusId: 3, createdDaysAgo: 8),
   _project(code: 'MU-9', id: 9, name: 'Beams MU-9', customerId: 1, statusId: 5, createdDaysAgo: 9),
   _project(code: 'AS-10', id: 10, name: 'Covers AS-10', customerId: 2, statusId: 5, createdDaysAgo: 10),
@@ -189,12 +189,10 @@ ProjectsProvider _fakeProjects() {
       ProjectCategory(id: 2, name: 'Sheet metal parts'),
     ]),
     statusTypes: _FakeProvider(const [
-      ProjectStatusType(id: 1, name: 'New'),
-      ProjectStatusType(id: 2, name: 'In preparation'),
+      ProjectStatusType(id: 1, name: 'On hold'),
       ProjectStatusType(id: 3, name: 'In production'),
-      ProjectStatusType(id: 4, name: 'Ready for delivery'),
       ProjectStatusType(id: 5, name: 'Delivered'),
-      ProjectStatusType(id: 6, name: 'Cancelled'),
+      ProjectStatusType(id: 6, name: 'Rejected'),
     ]),
   );
 }
@@ -262,7 +260,7 @@ void main() {
     });
 
     test('counts active, in production and delivered over every project', () {
-      // Delivered (3) and Cancelled (1) are not active.
+      // Delivered (3) and Rejected (1) are not active.
       expect(provider.totalCount, 10);
       expect(provider.activeCount, 6);
       expect(provider.inProductionCount, 3);

@@ -24,14 +24,9 @@ namespace pwm.Services.Implementations
                 return query;
             }
 
-            if (search.Type.HasValue)
+            if (search.ReportTypeId.HasValue)
             {
-                query = query.Where(x => x.Type == search.Type.Value);
-            }
-
-            if (search.GeneratedById.HasValue)
-            {
-                query = query.Where(x => x.GeneratedById == search.GeneratedById.Value);
+                query = query.Where(x => x.ReportTypeId == search.ReportTypeId.Value);
             }
 
             return query;

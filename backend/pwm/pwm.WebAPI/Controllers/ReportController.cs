@@ -5,6 +5,7 @@ using pwm.Model.Requests;
 using pwm.Services.Interfaces;
 using pwm.WebAPI.Filters;
 using pwm.WebAPI.Services.CurrentUser;
+using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.WebAPI.Controllers
 {
@@ -25,8 +26,9 @@ namespace pwm.WebAPI.Controllers
             _currentUser = currentUser;
         }
 
+        // A project manager reads transports only - the monthly hours report is not theirs.
         [HttpPost("MonthlyWorkHours")]
-        [Authorization(Roles.Administrator, Roles.Manager)]
+        [Authorization(Roles.Admin, Roles.Finances)]
         public async Task<IActionResult> MonthlyWorkHours(
             [FromBody] MonthlyWorkHoursReportRequest request)
         {
@@ -37,7 +39,7 @@ namespace pwm.WebAPI.Controllers
         }
 
         [HttpPost("TransportLoads")]
-        [Authorization(Roles.Administrator, Roles.Manager)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
         public async Task<IActionResult> TransportLoads(
             [FromBody] TransportLoadsReportRequest request)
         {
@@ -48,9 +50,17 @@ namespace pwm.WebAPI.Controllers
 
         /// <summary>Re-downloads a report from the parameters it was first run with.</summary>
         [HttpGet("{generatedReportId}/Download")]
-        [Authorization(Roles.Administrator, Roles.Manager)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
         public async Task<IActionResult> Download(int generatedReportId)
         {
+            // The attribute cannot see which report this is, so the narrowing that
+            // keeps MonthlyWorkHours away from a project manager is repeated here.
+            if (_currentUser.Role == Roles.ProjectManager
+                && await _reportService.TypeOfAsync(generatedReportId) == (int)ReportKind.MonthlyWorkHours)
+            {
+                throw new ForbiddenException("You cannot download the monthly work hours report.");
+            }
+
             var (content, fileName) = await _reportService.RerunAsync(generatedReportId);
 
             return File(content, "application/pdf", fileName);

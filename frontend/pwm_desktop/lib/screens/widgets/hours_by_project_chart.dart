@@ -36,14 +36,36 @@ class HoursByProjectChart extends StatelessWidget {
         alignment: BarChartAlignment.spaceAround,
         barTouchData: BarTouchData(
           touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => AppColors.textPrimary,
+            // The tooltip floats over the card, so it takes the palette's own
+            // pair rather than textPrimary: that is near-white in dark, which
+            // left white text on a white bubble.
+            getTooltipColor: (_) => AppColors.tooltipSurface,
+            // A rim of the text colour, not AppColors.border: in dark the
+            // border is darker than the bubble and would not lift it off the card.
+            tooltipBorder:
+                BorderSide(color: AppColors.tooltipText.withValues(alpha: 0.18)),
+            tooltipBorderRadius: BorderRadius.circular(8),
+            tooltipPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            maxContentWidth: 220,
+            fitInsideHorizontally: true,
+            fitInsideVertically: true,
             getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
               '${slices[group.x].label}\n',
-              const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              TextStyle(
+                color: AppColors.tooltipText,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              ),
               children: [
                 TextSpan(
                   text: formatHours(rod.toY),
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: TextStyle(
+                    color: AppColors.tooltipText.withValues(alpha: 0.75),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                  ),
                 ),
               ],
             ),
@@ -74,7 +96,7 @@ class HoursByProjectChart extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 42,
-              getTitlesWidget: (value, meta) => _BarLabel(label: slices[value.toInt()].label),
+              getTitlesWidget: (value, meta) => _BarLabel(slice: slices[value.toInt()]),
             ),
           ),
         ),
@@ -97,26 +119,25 @@ class HoursByProjectChart extends StatelessWidget {
   }
 }
 
-/// Project names are long ("Hall roof structure MU-2201"), so the axis shows the
-/// trailing code and the full name stays in the tooltip.
+/// Project names are long ("Hall roof structure"), so the axis shows the
+/// project's code and the full name stays in the tooltip. Splitting the name on
+/// spaces used to stand in for the code, which turned "Purlin sets" into "sets".
 class _BarLabel extends StatelessWidget {
-  const _BarLabel({required this.label});
+  const _BarLabel({required this.slice});
 
-  final String label;
+  final ChartSlice slice;
 
   @override
   Widget build(BuildContext context) {
-    final parts = label.split(' ');
-    final short = parts.length > 1 ? parts.last : label;
-
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Tooltip(
-        message: label,
+        message: slice.label,
         child: Text(
-          short,
+          slice.axisLabel,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
       ),

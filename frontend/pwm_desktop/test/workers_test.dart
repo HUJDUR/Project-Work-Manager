@@ -131,9 +131,9 @@ WorkersProvider _fakeWorkers() {
   return WorkersProvider(
     users: _userRows,
     userTypes: _FakeProvider(const [
-      UserType(id: 1, type: 'Administrator'),
-      UserType(id: 2, type: 'Manager'),
-      UserType(id: 3, type: 'Worker'),
+      UserType(id: 1, type: 'Admin'),
+      UserType(id: 2, type: 'Project manager'),
+      UserType(id: 3, type: 'Production worker'),
     ]),
     userOperations: _qualificationRows,
     operationTypes: _FakeProvider(const [
@@ -163,7 +163,7 @@ void main() {
 
       final row = provider.rows.firstWhere((row) => row.id == 4);
       expect(row.fullName, 'Emir Kovacevic');
-      expect(row.roleName, 'Worker');
+      expect(row.roleName, 'Production worker');
       expect(row.jobTitle, 'Welder');
       expect(row.initials, 'EK');
       // The ids ride along so the details form can prefill.

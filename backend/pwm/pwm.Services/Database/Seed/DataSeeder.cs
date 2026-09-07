@@ -34,6 +34,9 @@ namespace pwm.Services.Database.Seed
         private ProjectCategory[] _projectCategories = [];
         private ProjectStatusType[] _projectStatuses = [];
         private TruckLoadStatusType[] _truckLoadStatuses = [];
+        private ReportType[] _reportTypes = [];
+        private GeneratedReport[] _generatedReports = [];
+        private Notification[] _notifications = [];
         private Project[] _projects = [];
         private WorkLog[] _workLogs = [];
         private WorkLogDetail[] _workLogDetails = [];
@@ -82,6 +85,7 @@ namespace pwm.Services.Database.Seed
             await _db.ActivityLogs.ExecuteDeleteAsync();
             await _db.Notifications.ExecuteDeleteAsync();
             await _db.GeneratedReports.ExecuteDeleteAsync();
+            await _db.ReportTypes.ExecuteDeleteAsync();
             await _db.MonthlyHourReportDetails.ExecuteDeleteAsync();
             await _db.MonthlyHourReports.ExecuteDeleteAsync();
             await _db.TruckLoadDetails.ExecuteDeleteAsync();
@@ -143,6 +147,14 @@ namespace pwm.Services.Database.Seed
             days.Reverse();
             return days.ToArray();
         }
+
+        /// <summary>
+        /// One deterministic source of randomness for everything the seeder makes up,
+        /// so a reseeded database always holds the same numbers.
+        /// </summary>
+        private readonly Random _random = new(20260826);
+
+        private T Pick<T>(IReadOnlyList<T> items) => items[_random.Next(items.Count)];
 
         // Same hashing the UserService uses, so seeded logins verify
         private (string Hash, string Salt) HashPassword(string password)

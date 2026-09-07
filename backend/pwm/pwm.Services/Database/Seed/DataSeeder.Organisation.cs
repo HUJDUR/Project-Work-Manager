@@ -11,7 +11,7 @@ namespace pwm.Services.Database.Seed
         {
             var customer = FindCompanyType("Customer").Id;
             var transport = FindCompanyType("Transport").Id;
-            var supplier = FindCompanyType("Supplier").Id;
+            var unloadAddress = FindCompanyType("Unload address for customer").Id;
 
             _companies =
             [
@@ -80,62 +80,165 @@ namespace pwm.Services.Database.Seed
                 },
                 new Company
                 {
-                    Name = "Metalprom d.o.o.",
-                    CityId = FindCity("Zenica").Id,
-                    Address = "Bulevar Kralja Tvrtka 5",
-                    VAT = "BA200345670003",
+                    Name = "Meyer Baustelle Nord",
+                    CityId = FindCity("Hamburg").Id,
+                    Address = "Billbrookdeich 210",
+                    VAT = "DE844567890",
                     EORI = null,
-                    CompanyTypeId = supplier,
+                    CompanyTypeId = unloadAddress,
+                },
+                new Company
+                {
+                    Name = "Nordmetall Montageplatz",
+                    CityId = FindCity("Munich").Id,
+                    Address = "Lerchenauer Strasse 76",
+                    VAT = "DE855678901",
+                    EORI = null,
+                    CompanyTypeId = unloadAddress,
+                },
+                new Company
+                {
+                    Name = "Adria Gradiliste Jug",
+                    CityId = FindCity("Ljubljana").Id,
+                    Address = "Letaliska cesta 33",
+                    VAT = "SI66778899",
+                    EORI = null,
+                    CompanyTypeId = unloadAddress,
                 },
             ];
 
             await AddRangeAsync(_companies);
         }
 
+        /// <summary>The office, by name; the shop floor below is generated.</summary>
+        private static readonly (string Name, string Surname, string Role, string JobTitle)[] NamedStaff =
+        [
+            // Nadir runs projects as well, but Admin already reaches everything a
+            // project manager can, and an account holds exactly one type.
+            ("Nadir", "Hujdur", "Admin", "System administrator"),
+            ("Nadira", "Stupar", "Finances", "Head of finances"),
+            ("Kenan", "Fajic", "Project manager", "Project manager"),
+            ("Zuhdija", "Delic", "Project manager", "Project manager"),
+            ("Vedad", "Kahrimanovic", "Work preparation", "Work preparation engineer"),
+            ("Nevres", "Smajlovic", "Work preparation", "Work preparation engineer"),
+            ("Ismail", "Brkic", "Work preparation", "Technical preparation"),
+        ];
+
+        private const int ProductionWorkerCount = 30;
+
+        private static readonly string[] WorkerFirstNames =
+        [
+            "Adnan", "Amar", "Amir", "Armin", "Benjamin", "Damir", "Dario", "Denis",
+            "Edin", "Elvis", "Emir", "Faruk", "Haris", "Igor", "Jasmin", "Kemal",
+            "Mirza", "Muhamed", "Nedim", "Nermin", "Rijad", "Samir", "Sead", "Senad",
+            "Tarik", "Vahid", "Zlatan", "Almir", "Bakir", "Dino",
+        ];
+
+        private static readonly string[] WorkerSurnames =
+        [
+            "Alispahic", "Begic", "Causevic", "Cengic", "Dedic", "Duric", "Ferhatovic",
+            "Halilovic", "Hodzic", "Imamovic", "Jahic", "Karic", "Kovacevic", "Latic",
+            "Mehmedovic", "Mujic", "Muratovic", "Nuhanovic", "Omerovic", "Pasic",
+            "Ramic", "Salihovic", "Sarajlic", "Softic", "Suljic", "Tufekcic",
+            "Vehabovic", "Zahirovic", "Zulic", "Beganovic",
+        ];
+
+        private static readonly string[] ShopFloorTitles =
+        [
+            "Welder", "CNC operator", "Locksmith", "Painter", "Assembler",
+            "Grinder", "Warehouse operator", "Quality controller", "Fitter",
+        ];
+
         private async Task SeedUsersAsync()
         {
-            var administrator = FindUserType("Administrator").Id;
-            var manager = FindUserType("Manager").Id;
-            var worker = FindUserType("Worker").Id;
+            var users = new List<User>();
+            var phone = 100;
 
-            _users =
-            [
-                CreateUser("Nadir", "Hujdur", "admin@pwm.ba", "+38761100100", "System administrator", administrator),
-                CreateUser("Amar", "Begic", "amar.begic@pwm.ba", "+38761100101", "Production manager", manager),
-                CreateUser("Selma", "Delic", "selma.delic@pwm.ba", "+38761100102", "Project manager", manager),
-                CreateUser("Emir", "Kovacevic", "emir.kovacevic@pwm.ba", "+38761100103", "Welder", worker),
-                CreateUser("Damir", "Softic", "damir.softic@pwm.ba", "+38761100104", "CNC operator", worker),
-                CreateUser("Adnan", "Mujic", "adnan.mujic@pwm.ba", "+38761100105", "Locksmith", worker),
-                CreateUser("Haris", "Zulic", "haris.zulic@pwm.ba", "+38761100106", "Painter", worker),
-                CreateUser("Vedad", "Imamovic", "vedad.imamovic@pwm.ba", "+38761100107", "Assembler", worker),
-                CreateUser("Lejla", "Hodzic", "lejla.hodzic@pwm.ba", "+38761100108", "Quality controller", worker),
-                CreateUser("Mirza", "Tufekcic", "mirza.tufekcic@pwm.ba", "+38761100109", "Warehouse operator", worker, isActive: false),
-            ];
+            foreach (var (name, surname, role, jobTitle) in NamedStaff)
+            {
+                users.Add(CreateUser(name, surname, Email(name, surname),
+                    $"+3876110{phone++}", jobTitle, FindUserType(role).Id));
+            }
 
+            var productionWorker = FindUserType("Production worker").Id;
+            var taken = new HashSet<string>(users.Select(u => u.Email));
+
+            while (users.Count < NamedStaff.Length + ProductionWorkerCount)
+            {
+                var name = Pick(WorkerFirstNames);
+                var surname = Pick(WorkerSurnames);
+                var email = Email(name, surname);
+
+                if (!taken.Add(email))
+                {
+                    continue;
+                }
+
+                users.Add(CreateUser(name, surname, email, $"+3876110{phone++}",
+                    Pick(ShopFloorTitles), productionWorker,
+                    // Roughly one in ten has left the shop
+                    isActive: _random.Next(10) != 0));
+            }
+
+            _users = users.ToArray();
             await AddRangeAsync(_users);
 
-            // Which operations each worker is qualified for
-            var qualifications = new Dictionary<string, string[]>
-            {
-                ["emir.kovacevic@pwm.ba"] = ["Welding", "Grinding", "Assembly"],
-                ["damir.softic@pwm.ba"] = ["Cutting", "Bending", "Drilling"],
-                ["adnan.mujic@pwm.ba"] = ["Cutting", "Drilling", "Assembly", "Grinding"],
-                ["haris.zulic@pwm.ba"] = ["Painting", "Packing"],
-                ["vedad.imamovic@pwm.ba"] = ["Assembly", "Welding", "Packing"],
-                ["lejla.hodzic@pwm.ba"] = ["Quality control", "Packing"],
-                ["mirza.tufekcic@pwm.ba"] = ["Packing"],
-            };
+            await SeedUserOperationsAsync();
+        }
 
-            var userOperations = qualifications
-                .SelectMany(entry => entry.Value.Select(operation => new UserOperation
-                {
-                    UserId = FindUser(entry.Key).Id,
-                    OperationTypeId = FindOperation(operation).Id,
-                }))
+        /// <summary>
+        /// Every production worker is qualified for two to five operations; the office
+        /// books its time against office work and technical preparation.
+        /// </summary>
+        private async Task SeedUserOperationsAsync()
+        {
+            var productionWorker = FindUserType("Production worker").Id;
+
+            var shopFloorOperations = _operationTypes
+                .Where(o => o.Name != "Office work")
                 .ToArray();
 
-            await AddRangeAsync(userOperations);
+            var officeOperations = new[]
+            {
+                FindOperation("Office work").Id,
+                FindOperation("Technical preparation").Id,
+            };
+
+            var qualifications = new List<UserOperation>();
+
+            foreach (var user in _users)
+            {
+                if (user.UserTypeId != productionWorker)
+                {
+                    qualifications.AddRange(officeOperations.Select(id => new UserOperation
+                    {
+                        UserId = user.Id,
+                        OperationTypeId = id,
+                    }));
+
+                    continue;
+                }
+
+                var wanted = _random.Next(2, 6);
+                var chosen = new HashSet<int>();
+
+                while (chosen.Count < wanted)
+                {
+                    chosen.Add(Pick(shopFloorOperations).Id);
+                }
+
+                qualifications.AddRange(chosen.Select(id => new UserOperation
+                {
+                    UserId = user.Id,
+                    OperationTypeId = id,
+                }));
+            }
+
+            await AddRangeAsync(qualifications.ToArray());
         }
+
+        private static string Email(string name, string surname) =>
+            $"{name.ToLowerInvariant()}.{surname.ToLowerInvariant()}@pwm.ba";
 
         private User CreateUser(
             string name,

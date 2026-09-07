@@ -17,6 +17,8 @@ class AppPalette {
     required this.danger,
     required this.dangerSoft,
     required this.dangerBorder,
+    required this.tooltipSurface,
+    required this.tooltipText,
     required this.chipTint,
   });
 
@@ -33,6 +35,12 @@ class AppPalette {
   final Color danger;
   final Color dangerSoft;
   final Color dangerBorder;
+
+  /// A tooltip floats over the chart, so it cannot borrow the card's colours:
+  /// in light it inverts to a dark slate, and in dark it lifts clear of the
+  /// card rather than going near-white the way `textPrimary` would.
+  final Color tooltipSurface;
+  final Color tooltipText;
 
   /// How strongly a status chip's own colour washes its background. Dark needs
   /// more of it to read against a dark card.
@@ -53,6 +61,8 @@ class AppPalette {
     danger: Color(0xFFB91C1C),
     dangerSoft: Color(0xFFFEF2F2),
     dangerBorder: Color(0xFFFECACA),
+    tooltipSurface: Color(0xFF1F2937),
+    tooltipText: Color(0xFFF9FAFB),
     chipTint: 0.12,
   );
 
@@ -70,6 +80,8 @@ class AppPalette {
     danger: Color(0xFFF87171),
     dangerSoft: Color(0xFF2E1A1A),
     dangerBorder: Color(0xFF5B2A2A),
+    tooltipSurface: Color(0xFF333B47),
+    tooltipText: Color(0xFFF2F4F7),
     chipTint: 0.20,
   );
 }
@@ -95,6 +107,8 @@ abstract final class AppColors {
   static Color get textPrimary => palette.textPrimary;
   static Color get textSecondary => palette.textSecondary;
   static Color get textMuted => palette.textMuted;
+  static Color get tooltipSurface => palette.tooltipSurface;
+  static Color get tooltipText => palette.tooltipText;
   static Color get accent => palette.accent;
   static Color get accentSoft => palette.accentSoft;
   static Color get danger => palette.danger;

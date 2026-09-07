@@ -9,12 +9,17 @@ class ActivityLog {
     required this.userId,
     required this.activityLogTypeId,
     required this.date,
+    this.generatedReportId,
   });
 
   final int id;
   final int userId;
   final int activityLogTypeId;
   final DateTime date;
+
+  /// Set only on a "Generated report" entry — this table is what records who
+  /// ran a report and when.
+  final int? generatedReportId;
 
   factory ActivityLog.fromJson(Map<String, dynamic> json) => _$ActivityLogFromJson(json);
 

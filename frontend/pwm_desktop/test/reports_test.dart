@@ -8,6 +8,7 @@ import 'package:pwm_desktop/providers/base_provider.dart';
 import 'package:pwm_desktop/providers/report_provider.dart';
 import 'package:pwm_desktop/providers/reports_provider.dart';
 import 'package:pwm_desktop/screens/reports_screen.dart';
+import 'package:pwm_desktop/utils/app_roles.dart';
 
 /// Stands in for one controller, applying the search object the way the API
 /// would so the provider's paging and sorting stay pinned.
@@ -145,25 +146,51 @@ final _projects = [
 final _generated = [
   GeneratedReport(
     id: 9,
-    type: 1,
+    reportTypeId: 1,
     parameters: '{"Year":2026,"Month":6,"UserId":2,"ProjectId":null}',
-    generatedAt: DateTime(2026, 7, 1, 9, 30),
-    generatedById: 1,
   ),
   GeneratedReport(
     id: 8,
-    type: 2,
+    reportTypeId: 2,
     parameters:
         '{"ProjectId":1,"DateFrom":"2026-06-01T00:00:00","DateTo":"2026-06-30T23:59:59"}',
-    generatedAt: DateTime(2026, 6, 30, 16, 0),
-    generatedById: 1,
   ),
   GeneratedReport(
     id: 7,
-    type: 2,
+    reportTypeId: 2,
     parameters: '{"ProjectId":null,"DateFrom":null,"DateTo":null}',
-    generatedAt: DateTime(2026, 6, 20, 11, 0),
-    generatedById: 2,
+  ),
+];
+
+/// Who ran each report and when. `GeneratedReports` holds neither any more —
+/// the activity log entry pointing back at the report is the record of the run.
+final _reportLogTypes = [
+  ActivityLogType(id: 20, name: 'Generated report - Monthly Work Hours'),
+  ActivityLogType(id: 21, name: 'Generated report - Transport & Loads'),
+  ActivityLogType(id: 1, name: 'Log In'),
+];
+
+final _reportRuns = [
+  ActivityLog(
+    id: 500,
+    userId: 1,
+    activityLogTypeId: 20,
+    generatedReportId: 9,
+    date: DateTime(2026, 7, 1, 9, 30),
+  ),
+  ActivityLog(
+    id: 501,
+    userId: 1,
+    activityLogTypeId: 21,
+    generatedReportId: 8,
+    date: DateTime(2026, 6, 30, 16, 0),
+  ),
+  ActivityLog(
+    id: 502,
+    userId: 2,
+    activityLogTypeId: 21,
+    generatedReportId: 7,
+    date: DateTime(2026, 6, 20, 11, 0),
   ),
 ];
 
@@ -177,9 +204,12 @@ ReportsProvider _fakeReports() {
   return ReportsProvider(
     reports: _reports,
     generatedReports: _generatedRows,
+    activityLogs: _FakeProvider(_reportRuns),
+    activityLogTypes: _FakeProvider(_reportLogTypes),
     users: _FakeProvider(_users),
     projects: _FakeProvider(_projects),
     today: _today,
+    role: AppRoles.admin,
   );
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../utils/app_roles.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/formatters.dart';
 import 'activity_log_provider.dart';
@@ -152,11 +153,11 @@ class DashboardProvider extends ChangeNotifier {
     final activityTypeById = {for (final type in activityTypes) type.id: type.name};
 
     final workerTypeId = userTypes
-        .where((type) => type.type.toLowerCase() == 'worker')
+        .where((type) => type.type == AppRoles.productionWorker)
         .map((type) => type.id)
         .firstOrNull;
 
-    const closedStatuses = {'delivered', 'cancelled'};
+    const closedStatuses = {'delivered', 'rejected'};
     final activeProjects = projects.where((project) {
       final status = (statusById[project.projectStatusId] ?? '').toLowerCase();
       return !closedStatuses.contains(status);
@@ -224,12 +225,15 @@ class DashboardProvider extends ChangeNotifier {
     return DashboardData(
       metrics: metrics,
       hoursByProject: _topSlices(
-        _sumHours(recentDetails, (detail) => projectById[detail.projectId]?.name),
+        _sumHours(recentDetails, (detail) => detail.projectId),
         _projectsInChart,
+        label: (id) => projectById[id]?.name ?? 'Unknown project',
+        shortLabel: (id) => projectById[id]?.code,
       ),
       hoursByOperation: _topSlicesWithRemainder(
         _sumHours(recentDetails, (detail) => operationById[detail.operationTypeId]),
         _operationsInChart,
+        label: (name) => name,
       ),
       recentWork: _buildWorkEntries(
           workLogDetails, workLogById, userById, projectById, operationById),
@@ -239,33 +243,51 @@ class DashboardProvider extends ChangeNotifier {
     );
   }
 
-  Map<String, double> _sumHours(
+  /// Hours per whatever [keyOf] answers - a project id, an operation name.
+  /// Keying on the id rather than the name is what lets the project chart put
+  /// the code on its axis and the full name in the tooltip.
+  Map<K, double> _sumHours<K>(
     List<WorkLogDetail> details,
-    String? Function(WorkLogDetail) keyOf,
+    K? Function(WorkLogDetail) keyOf,
   ) {
-    final totals = <String, double>{};
+    final totals = <K, double>{};
 
     for (final detail in details) {
       final key = keyOf(detail);
-      if (key == null || key.isEmpty) continue;
+      if (key == null || (key is String && key.isEmpty)) continue;
       totals[key] = (totals[key] ?? 0) + detail.hours;
     }
 
     return totals;
   }
 
-  List<ChartSlice> _topSlices(Map<String, double> totals, int limit) {
+  List<ChartSlice> _topSlices<K>(
+    Map<K, double> totals,
+    int limit, {
+    required String Function(K) label,
+    String? Function(K)? shortLabel,
+  }) {
     final entries = totals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     return entries
         .take(limit)
-        .map((entry) => ChartSlice(label: entry.key, value: entry.value))
+        .map((entry) => ChartSlice(
+              label: label(entry.key),
+              shortLabel: shortLabel?.call(entry.key),
+              value: entry.value,
+            ))
         .toList();
   }
 
-  List<ChartSlice> _topSlicesWithRemainder(Map<String, double> totals, int limit) {
-    final ranked = _topSlices(totals, totals.length);
+  List<ChartSlice> _topSlicesWithRemainder<K>(
+    Map<K, double> totals,
+    int limit, {
+    required String Function(K) label,
+    String? Function(K)? shortLabel,
+  }) {
+    final ranked =
+        _topSlices(totals, totals.length, label: label, shortLabel: shortLabel);
     if (ranked.length <= limit + 1) return ranked;
 
     final remainder = ranked

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../utils/app_roles.dart';
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
 import 'base_provider.dart';
@@ -30,10 +31,15 @@ class WorkersProvider extends ChangeNotifier {
   /// Surname then first name, ordered by the API.
   static const String sortBy = 'Surname, Name';
 
-  /// The role that works the shop floor; the other two run the office.
-  static const String workerRole = 'Worker';
-  static const String administratorRole = 'Administrator';
-  static const String managerRole = 'Manager';
+  /// The role that works the shop floor; the rest run the office.
+  static const String workerRole = AppRoles.productionWorker;
+
+  static const List<String> officeRoles = [
+    AppRoles.admin,
+    AppRoles.workPreparation,
+    AppRoles.finances,
+    AppRoles.projectManager,
+  ];
 
   /// Asks for the count; the API clamps a page to at least one row, so the one
   /// row that comes back is thrown away.
@@ -224,14 +230,13 @@ class WorkersProvider extends ChangeNotifier {
       _count(const {}),
       _count(const {'isActive': true}),
       _countActiveRole(workerRole),
-      _countActiveRole(administratorRole),
-      _countActiveRole(managerRole),
+      for (final role in officeRoles) _countActiveRole(role),
     ]);
 
     _headcount = counts[0];
     _currentCount = counts[1];
     _productionCount = counts[2];
-    _administrationCount = counts[3] + counts[4];
+    _administrationCount = counts.skip(3).reduce((a, b) => a + b);
   }
 
   Future<int> _count(Map<String, dynamic> extra) async {

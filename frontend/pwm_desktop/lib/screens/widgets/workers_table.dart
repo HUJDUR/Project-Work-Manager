@@ -229,14 +229,16 @@ class _Cell extends StatelessWidget {
   }
 }
 
-/// The three seeded `UserTypes`; an unknown role falls back to neutral.
+/// The five seeded `UserTypes`; an unknown role falls back to neutral.
 class _RoleChip extends StatelessWidget {
   const _RoleChip({required this.role});
 
   static const _palette = <String, Color>{
-    'administrator': Color(0xFF6D3EDB),
-    'manager': Color(0xFF9A6212),
-    'worker': Color(0xFF2563EB),
+    'admin': Color(0xFF6D3EDB),
+    'work preparation': Color(0xFF9A6212),
+    'finances': Color(0xFF107A4D),
+    'project manager': Color(0xFFB5306E),
+    'production worker': Color(0xFF2563EB),
   };
 
   final String role;

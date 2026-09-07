@@ -8,6 +8,8 @@ namespace pwm.Model.Responses
 
         public int WorkLogId { get; set; }
 
+        public int UserId { get; set; }
+
         public int OperationTypeId { get; set; }
 
         public int ProjectId { get; set; }

@@ -48,6 +48,7 @@ WorkLog _shift(int id, int userId, DateTime day) => WorkLog(
 WorkLogDetail _booking({
   required int id,
   required int workLogId,
+  required int userId,
   required int projectId,
   required DateTime start,
   required double hours,
@@ -55,6 +56,7 @@ WorkLogDetail _booking({
     WorkLogDetail(
       id: id,
       workLogId: workLogId,
+      userId: userId,
       operationTypeId: 1,
       projectId: projectId,
       startedAt: start,
@@ -75,24 +77,28 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
         _booking(
             id: 100,
             workLogId: 10,
+            userId: 1,
             projectId: 1,
             start: _today.add(const Duration(hours: 7)),
             hours: 5),
         _booking(
             id: 101,
             workLogId: 10,
+            userId: 1,
             projectId: 2,
             start: _today.add(const Duration(hours: 12)),
             hours: 4),
         _booking(
             id: 102,
             workLogId: 11,
+            userId: 2,
             projectId: 1,
             start: _today.add(const Duration(hours: 7)),
             hours: 6),
         _booking(
             id: 103,
             workLogId: 12,
+            userId: 1,
             projectId: 1,
             start: _lastWeek.add(const Duration(hours: 7)),
             hours: 3),
@@ -121,8 +127,8 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
             isActive: true),
       ]),
       userTypes: _FakeProvider(const [
-        UserType(id: 2, type: 'Manager'),
-        UserType(id: 3, type: 'Worker'),
+        UserType(id: 2, type: 'Project manager'),
+        UserType(id: 3, type: 'Production worker'),
       ]),
       projects: _FakeProvider([
         Project(

@@ -6,6 +6,8 @@ namespace pwm.Model.SearchObjects
     {
         public int? WorkLogId { get; set; }
 
+        public int? UserId { get; set; }
+
         public int? ProjectId { get; set; }
 
         public int? OperationTypeId { get; set; }

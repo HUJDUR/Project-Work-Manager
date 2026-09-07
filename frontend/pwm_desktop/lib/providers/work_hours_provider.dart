@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../utils/app_roles.dart';
 import '../utils/api_client_exception.dart';
 import 'base_provider.dart';
 import 'operation_type_provider.dart';
@@ -161,7 +162,7 @@ class WorkHoursProvider extends ChangeNotifier {
       _operationList = [...operations]..sort((a, b) => a.name.compareTo(b.name));
 
       final workerTypeId = userTypes
-          .where((type) => type.type.toLowerCase() == 'worker')
+          .where((type) => type.type == AppRoles.productionWorker)
           .map((type) => type.id)
           .firstOrNull;
       _workerList = users
@@ -207,9 +208,9 @@ class WorkHoursProvider extends ChangeNotifier {
     final entries = <WorkHoursEntry>[];
     for (final detail in ordered) {
       final workLog = workLogById[detail.workLogId];
-      final worker = userById[workLog?.userId];
+      final worker = userById[detail.userId];
       final day = DateUtils.dateOnly(detail.startedAt);
-      final key = '${workLog?.userId}-${day.toIso8601String()}';
+      final key = '${detail.userId}-${day.toIso8601String()}';
 
       final used = usedPerWorkerDay[key] ?? 0;
       final regular = (regularHoursPerDay - used).clamp(0, detail.hours).toDouble();
@@ -218,7 +219,7 @@ class WorkHoursProvider extends ChangeNotifier {
       entries.add(WorkHoursEntry(
         id: detail.id,
         workLogId: detail.workLogId,
-        userId: workLog?.userId ?? 0,
+        userId: detail.userId,
         projectId: detail.projectId,
         operationTypeId: detail.operationTypeId,
         workerName: worker?.fullName ?? 'Unknown worker',
@@ -266,6 +267,7 @@ class WorkHoursProvider extends ChangeNotifier {
 
     final block = {
       'workLogId': logId,
+      'userId': userId,
       'operationTypeId': operationTypeId,
       'projectId': projectId,
       'startedAt': startedAt.toIso8601String(),

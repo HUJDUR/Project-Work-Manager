@@ -62,7 +62,7 @@ All backend commands run from `backend/pwm/`:
 
 ```bash
 dotnet build                                     # whole solution
-dotnet run --project pwm.WebAPI                  # API on http://localhost:5094
+dotnet run --project pwm.WebAPI                  # API on http://localhost:7094
 dotnet run --project pwm.WebAPI -- --seed        # migrate + fill test data, then exit
 dotnet run --project pwm.WebAPI -- --seed --force  # wipe every table, reseed, reset identities
 ```
@@ -85,7 +85,7 @@ Flutter, from `frontend/pwm_desktop` or `frontend/pwm_mobile`:
 
 ```bash
 flutter run -d windows                                        # desktop app
-flutter run --dart-define=baseUrl=http://localhost:5094/       # point at a different API
+flutter run --dart-define=baseUrl=http://localhost:7094/       # point at a different API
 flutter test
 flutter test test/dashboard_test.dart --plain-name "<test name>"   # single test
 ```
@@ -148,14 +148,16 @@ JWT, issued by `AccessController` (`/Access/Login`, `/Access/LoginWithRefreshTok
 through `ICryptoService.Verify` and answers an `AuthenticatedUser` (the `UserResponse` plus the role name,
 which `UserResponse` itself does not carry). Tokens are signed from the `JwtToken` section of
 `appsettings.json`; the claim types are the constants in `ClaimNames`, and `Roles` in `pwm.Model/Access`
-holds the three seeded `UserTypes.Type` values.
+holds the five seeded `UserTypes.Type` values — `Admin`, `Work preparation`, `Finances`,
+`Project manager` and `Production worker`, with `Roles.Office` naming the four that are not the
+shop floor. `AppRoles` on the desktop mirrors the same five and the screens each one may open.
 
 Refresh tokens are rows in `RefreshTokens`, rotated on every use — one live token per user, deleted on
 sign-out. That table has no controller and no DTOs; `IRefreshTokenService` is its only door.
 
 `ICurrentUser` (`pwm.WebAPI/Services/CurrentUser`) is where "who is calling" comes from — the `Id` and
 `Role` claims on the token, never the route or the body. `WorkLogController` and `WorkLogDetailController`
-use it so a Worker writes only their own shifts: the controller overwrites `request.UserId` with the id
+use it so a production worker writes only their own shifts: the controller overwrites `request.UserId` with the id
 from the token, and checks ownership before an update or a delete. A block of work has no user of its
 own, so its owner is the shift it hangs off. Violations throw `ForbiddenException`, which `ExceptionFilter`
 answers as 403 under the `forbidden` key. While `DevSettings.BypassAuthentication` is true there is no
@@ -167,10 +169,14 @@ unless it says `[AllowAnonymous]` (only sign-in, refresh and the API docs do). R
 action by `Filters/AuthorizationAttribute`, which reads the `Role` claim and answers 403:
 
 - reading is open to every signed-in user;
-- writing is `[Authorization(Roles.Administrator, Roles.Manager)]` on `BaseCRUDController`;
-- `WorkLogController` and `WorkLogDetailController` override insert/update to admit `Roles.Worker` — that
-  is the mobile clock-in path;
-- `UserController` narrows all three writes to `Roles.Administrator`.
+- writing is the four office roles on `BaseCRUDController`;
+- `WorkLogController` and `WorkLogDetailController` override insert/update to admit
+  `Roles.ProductionWorker` — that is the mobile clock-in path — and drop `Roles.WorkPreparation`,
+  which has no business with hours;
+- `UserController` narrows all three writes to `Roles.Admin`;
+- `ReportController` splits: monthly hours is `Admin` and `Finances`, transports adds
+  `ProjectManager`, and `Download` re-checks the stored report's type so a project manager cannot
+  pull a monthly hours PDF the attribute could not see.
 
 Changing an action's roles means overriding the base method purely to re-declare the attribute; MVC honours
 the most derived one.
@@ -180,7 +186,7 @@ the most derived one.
 Deliberate split — do not add write endpoints to the read-only set without asking:
 
 - **CRUD**: Company, User, OperationType, UserOperation, Project, ProjectCategory, WorkLog, WorkLogDetail, TruckLoad, TruckLoadDetail
-- **Read-only**: Country, City, UserType, CompanyType, ProjectStatusType, TruckLoadStatusType, ActivityLogType, ActivityLog, MonthlyHourReport, MonthlyHourReportDetail, GeneratedReport
+- **Read-only**: Country, City, UserType, CompanyType, ProjectStatusType, TruckLoadStatusType, ActivityLogType, ActivityLog, ReportType, MonthlyHourReport, MonthlyHourReportDetail, GeneratedReport
 - **Read plus one write**: Notification — reading is the generic list, and `POST /Notification/Send` is the only way in. See below.
 - **CRUD plus one self-service write**: User — the three CRUD writes stay administrator-only, and `PUT /User/Me` lets anyone edit their own row. See below.
 
@@ -188,7 +194,7 @@ The rule: user-entered data gets CRUD; enum-like values the C# branches on (`Pro
 
 `Notification` is the one deliberate exception, and it is a narrow one. The office has to be able to
 write to the shop floor, so `NotificationController` adds **one** action — `POST /Notification/Send`,
-`[Authorization(Roles.Administrator, Roles.Manager)]`, taking `{ title, message, userIds? }`. It fans
+`[Authorization]` over the four office roles, taking `{ title, message, userIds? }`. It fans
 the message out into one `Notifications` row per recipient inside `NotificationService.SendAsync`;
 an empty or missing `userIds` means every account with `IsActive`, resolved **on the server** so the
 list cannot go stale between the screen loading and the message being sent. An id naming nobody is a
@@ -222,11 +228,25 @@ Entities mirror the ER diagram in `docs/`:
 - `ToTable` pins every table name to the diagram; the DbSet name would otherwise decide it.
 - Delete behavior is `Cascade` only where a row is meaningless without its parent and exactly one such path reaches it (detail tables, a user's own logs); everything else is `Restrict`. This is not cosmetic — SQL Server rejects the schema with error 1785 if multiple cascade paths reach a table such as `WorkLogDetails`.
 - Fluent API beats data annotations, and `Project.DeliveryCompany` declares `.IsRequired(false)` so the optional carrier is explicit at both ends.
+- `WorkLogDetail` carries its own `UserId` as well as its `WorkLogId`. A work log is one day of
+  work and its details are the individual operations that worker did that day, so the owner is
+  always the shift's owner — but having it on the row is what lets the hours screens group by
+  worker without joining back through the shift. Its delete behaviour is `Restrict`: `WorkLogs`
+  already cascades from `Users`, and a second cascade path into `WorkLogDetails` is SQL Server
+  error 1785.
 - A `DateTime?` that is genuinely optional must **not** carry `[Required]`: the attribute wins and EF makes the column `NOT NULL`. `WorkLog.ClockedOut`, `WorkLogDetail.FinishedAt` and `Project.ProductionStartDate` are the three that matter — they are nullable so an open shift (clocked in, not yet out) can be stored, which is what the mobile app writes.
 
 ### Seeding
 
-`Database/Seed/DataSeeder` is one partial class split by area (Lookups, Organisation, Production, Logistics, Reporting). It runs in dependency order, saving after each stage so generated Ids are available to the next. Work logs are generated with a fixed `Random(20260826)` over the last 20 weekdays, and monthly reports are computed from those work logs rather than hardcoded, so a reseeded database always holds the same numbers. All seeded users share the password `test`.
+`Database/Seed/DataSeeder` is one partial class split by area (Lookups, Organisation, Production, Logistics, Reporting). It runs in dependency order, saving after each stage so generated Ids are available to the next. Everything the seeder makes up draws on one `Random(20260826)` field, so a reseeded database always
+holds the same numbers; monthly reports are computed from the work logs rather than hardcoded.
+
+The roster is seven named office accounts — Nadir Hujdur (Admin), Nadira Stupar (Finances), Kenan
+Fajic and Zuhdija Delic (Project manager), Vedad Kahrimanovic, Nevres Smajlovic and Ismail Brkic
+(Work preparation) — plus thirty generated production workers, each qualified for two to five
+operations. E-mails are `firstname.surname@pwm.ba` and all seeded users share the password `test`.
+Nadir runs projects as well as the system, but an account holds exactly one `UserTypeId` and Admin
+already reaches everything a project manager can, so he is seeded Admin.
 
 `SeedAsync` is a no-op if any users exist; `--force` calls `ClearAsync`, which deletes children first and reseeds identity counters via `DBCC CHECKIDENT`.
 
@@ -249,6 +269,7 @@ screens/widgets/              the pieces those screens are built from
 screens/widgets/details_scaffold.dart  back button + title + Save/Delete, the frame every form uses
 screens/widgets/form_fields.dart  appInputDecoration + the form's spacing and date format
 utils/app_theme.dart          AppPalette / AppColors / ThemeController / AppSpacing / AppCard
+utils/app_roles.dart          the five roles and which screens each one may open
 utils/password_rules.dart     what a password has to satisfy, mirrored on the API
 utils/formatters.dart         hours, tonnes, dates, "3 d ago"
 utils/dialogs.dart            confirmDialog / showErrorDialog / showSavedSnackBar
@@ -283,6 +304,15 @@ Two consequences follow from the palette being global mutable state, and both bi
   *declarations* keep their `const`, which is what keeps `prefer_const_constructors_in_immutables`
   satisfied; only the call sites give it up. `test/theme_test.dart` scans `lib/` and fails on any
   `const <ProjectWidget>(`, so this cannot quietly come back.
+
+A **tooltip is the one thing that cannot borrow the card's colours**, because it
+floats over the card rather than sitting on it. `AppPalette` therefore carries
+`tooltipSurface`/`tooltipText`: in light the bubble inverts to a dark slate with white
+text, and in dark it lifts *above* the card instead of going near-white. It used to take
+`AppColors.textPrimary` with hardcoded `Colors.white` text, which is 17.7:1 in light but
+**1.2:1 in dark** — the bubble and its text were both near-white. Its border is a rim of
+`tooltipText` at low alpha rather than `AppColors.border`, which in dark is darker than
+the bubble and so would not separate it from the card.
 
 Status chips do **not** store a colour pair. They store the one colour that names the state, and
 `AppColors.chip(accent)` builds the (background, foreground) pair for whichever theme is on — tinting in
@@ -337,12 +367,17 @@ changes and the Delete button is not built. `MasterScreen` gives each destinatio
 `DetailsScaffold` carries a `Scaffold` of its own because a pushed route cannot borrow the list's
 Material.
 
+`ChartSlice` carries a `shortLabel` beside its `label`, and `axisLabel` picks between
+them: the bar chart's axis has room for a project's **code**, the tooltip shows the full
+name. Before that the axis took the last word of the name — a heuristic from when seeded
+names carried their code inline, which turned a project called "Purlin sets" into "sets".
+
 Row models (`ProjectRow`, `WorkerRow`, `WorkHoursEntry`) carry the foreign-key **ids** as well as the
 resolved names, so opening a row prefills its form without a second fetch.
 
 The API base URL comes from `--dart-define=baseUrl` and **must end in a slash** — `BaseProvider` builds
 routes as `{baseUrl}{endpoint}`, so endpoints are written without a leading one (`super('Project')`).
-It defaults to `http://localhost:5094/`.
+It defaults to `http://localhost:7094/`.
 
 ### Models and code generation
 
@@ -393,6 +428,10 @@ builds exactly one instance, so the static and instance views never disagree. It
 (`Access/Login`, `Access/LoginWithRefreshToken`, `Access/Logout`) are the only HTTP outside `BaseProvider`,
 which is deliberate: they are what produces the token that provider's headers carry.
 
+A **production worker is turned away at sign-in**: they work from the mobile app, no desktop screen
+is theirs, and `AppRoles.usesDesktop` is what says so — `LoginScreen` signs the session straight back
+out and says which app to use, rather than opening an empty shell.
+
 `LoginScreen` takes an optional `onSignedIn` callback for the same reason `DashboardScreen` takes a
 provider factory — a test can sign in without the app then trying to load dashboards.
 
@@ -401,13 +440,27 @@ provider factory — a test can sign in without the app then trying to load dash
 Responses carry raw foreign keys and there is no aggregate endpoint, so `DashboardProvider` fetches the
 eleven tables it needs in one `Future.wait`, builds id→entity maps, and does every join and sum client-side.
 Metrics and both charts cover a rolling 30-day window (`DashboardProvider.windowDays`); "active project"
-means any status other than Delivered or Cancelled. This is the seam where a server-side `/Dashboard`
+means any status other than Delivered or Rejected. This is the seam where a server-side `/Dashboard`
 summary endpoint would replace the client-side aggregation if the data ever outgrows seed scale.
 
 Every table it reads is injected as a `BaseProvider<T>`, so the test suite substitutes one generic fake
 provider per table instead of stubbing HTTP.
 
-New screens plug into `MasterScreen._destinations`; the entries with no screen yet render a
+### Who sees which screen
+
+`utils/app_roles.dart` is the one place the access matrix lives on the desktop, and it is **mirrored
+on the API** by `pwm.Model.Access.Roles` and the `[Authorization]` attributes over it — hiding a
+screen only tidies the window, the endpoints refuse the call either way, so changing one means
+changing the other. `AppRoles._blocked` names what each role may *not* open: work preparation loses
+Work Hours, Workers and Reports; finances loses Workers and Recommendations; a project manager loses
+Workers; an admin loses nothing. `MasterScreen` filters `_all` through it into `_destinations`, so a
+selected index always points at a screen the signed-in user is allowed to see.
+
+A project manager may run the transports report but not monthly work hours, which is one level
+finer than a hidden screen: `AppRoles.reportsFor` builds `ReportsProvider.availableTypes`, the
+picker offers only those cards, and `_type` starts on the first of them.
+
+New screens plug into `MasterScreen._all`; the entries with no screen yet render a
 `PlaceholderBody`.
 
 ### Projects
@@ -444,7 +497,7 @@ No mockup for this one; it follows the projects screen, down to the shared `Tabl
 resolved and, for the shop floor, the operations from `UserOperations` it is qualified for. Search,
 role, the current-workers-only toggle and paging all go to the API as a `UserSearchObject`
 (`search`, `userTypeId`, `isActive`, `sortBy: 'Surname, Name'`); the counters — *current*, *in
-production* (role Worker) and *administration* (Administrator + Manager) — are five more count-only
+production* (role Production worker) and *administration* (the other four) — are more count-only
 calls. Sorting is the API's, so the list is by surname; the office no longer floats above the shop floor.
 
 `WorkerDetailsScreen` opens and edits accounts. Password is required when adding and left blank to keep
@@ -523,11 +576,25 @@ Two PDFs, built on demand by `ReportService` with **QuestPDF** (Community licenc
   vehicle, net weight and status.
 - `GET /Report/{id}/Download` — rebuilds a past report from the parameters it was first run with.
 
-**Nothing stores the PDF.** Each run writes a `GeneratedReport` row — `Type`, `Parameters` (the request as
-JSON), `GeneratedAt`, `GeneratedById`, all required — and that table is the mockup's "Recent Reports"
+**Nothing stores the PDF.** Each run writes a `GeneratedReport` row — `Parameters` (the request as
+JSON) and `ReportTypeId` — and that table is the mockup's "Recent Reports"
 list; its download button re-runs the endpoint. A report can therefore never disagree with the work logs
 it was drawn from, and the database holds no blobs. `GeneratedReportController` is read-only: rows are
 written by `ReportService`, never posted.
+
+**Who ran a report and when is not on the report row.** `GeneratedReports` carries no `GeneratedAt`
+or `GeneratedById`; `ReportService.RecordAsync` writes the row and then an `ActivityLog` entry whose
+`GeneratedReportId` points back at it, under the activity type
+`Generated report - <ReportTypes.Description>`. `ReportsProvider` on the desktop reads the recent
+list by `Id desc` — Ids are handed out in run order — and joins those log entries back for the
+author and the timestamp. `ReportTypes` is a two-row lookup (`Id`, `Description`) whose Ids are
+declared `ValueGeneratedNever()` because they mirror `pwm.Model.Enums.ReportType`, which is what
+`ReportService` still branches on; a file needing both names aliases the enum
+(`using ReportKind = pwm.Model.Enums.ReportType;`).
+
+The seeded `ActivityLogTypes` are Log In, Log out, Message sent, Marked messages as read and one
+`Generated report - …` per report type. Only the report entries are written by the running app so
+far — nothing yet logs a sent message or a read one, so those two arrive from the seeder alone.
 
 The documents live in `pwm.Services/Reporting/` — `ReportTheme` holds the shared page frame and number
 formats, and one `*Document` class per report.
@@ -585,4 +652,13 @@ Migrations are applied automatically on startup in Development only. Scalar API 
 - `BaseReadService.GetAllAsync` assigns the DbSet to an `IEnumerable<TEntity>`, so filtering, sorting and paging all happen **in memory after loading the whole table**. Fine at seed scale, not beyond it. Fixing it means changing `ApplyFilters` to take and return `IQueryable<TEntity>` in all 20 services. The desktop now sends its filters and paging down as search objects, so the *client* no longer holds whole tables — but the server still loads them, and that is where the remaining cost is.
 - `intl` is pinned to `^0.20.2` rather than `^0.20.3`: `form_builder_validators` pulls in `flutter_localizations`, which the Flutter SDK pins to `intl 0.20.2`.
 - `CryptoService` builds with `SYSLIB0060`/`SYSLIB0023` obsolescence warnings and its `Verify` uses ordinary string comparison rather than a fixed-time compare.
-- Killing a stray API process: `pkill` from Git Bash does not match native Windows processes. Use `Get-NetTCPConnection -LocalPort 5094 -State Listen` then `Stop-Process -Id <pid> -Force`.
+- Killing a stray API process: `pkill` from Git Bash does not match native Windows processes. Use `Get-NetTCPConnection -LocalPort 7094 -State Listen` then `Stop-Process -Id <pid> -Force`.
+- **The API listens on 7094, not 5094**, and moving it back will break it on this machine. Windows
+  reserves blocks of TCP ports for WinNAT/Hyper-V, and 5094 fell inside `5041-5140`; binding a port in
+  a reserved block fails with `SocketException 10013` ("access permissions"), which reads like a
+  permissions problem rather than a taken port — `Get-NetTCPConnection` shows nothing listening. The
+  blocks are rebuilt at boot and can move, so if 7094 is ever swallowed too, check
+  `netsh interface ipv4 show excludedportrange protocol=tcp` and pick a port outside every range
+  (an elevated `net stop winnat` / `net start winnat` frees them until the next reboot). The port is
+  written in three places: `pwm.WebAPI/Properties/launchSettings.json`, `BaseProvider.baseUrl` on the
+  desktop, and this file.

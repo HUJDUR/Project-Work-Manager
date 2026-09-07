@@ -53,8 +53,8 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
 
     _initialValue = {
       'transportCompanyId': row?.carrierId,
-      // A load starts life as Planned unless the seeded statuses say otherwise.
-      'truckLoadStatusId': row?.statusId ?? _statusIdOf('planned'),
+      // A load starts life as Ordered unless the seeded statuses say otherwise.
+      'truckLoadStatusId': row?.statusId ?? _statusIdOf('ordered'),
       'loadDate': row?.loadDate ?? DateUtils.dateOnly(DateTime.now()),
       'driverName': row?.driverName,
       'driverSurname': row?.driverSurname,

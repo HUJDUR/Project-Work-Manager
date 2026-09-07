@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using pwm.Model.Enums;
+using ReportKind = pwm.Model.Enums.ReportType;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Services.Database;
@@ -39,7 +39,7 @@ namespace pwm.Services.Implementations
 
             var document = await BuildMonthlyWorkHoursAsync(request);
 
-            await RecordAsync(ReportType.MonthlyWorkHours, request, generatedById);
+            await RecordAsync(ReportKind.MonthlyWorkHours, request, generatedById);
 
             return document;
         }
@@ -55,7 +55,7 @@ namespace pwm.Services.Implementations
 
             var document = await BuildTransportLoadsAsync(request);
 
-            await RecordAsync(ReportType.TransportLoads, request, generatedById);
+            await RecordAsync(ReportKind.TransportLoads, request, generatedById);
 
             return document;
         }
@@ -67,20 +67,29 @@ namespace pwm.Services.Implementations
                 ?? throw new ClinetException($"Report {generatedReportId} does not exist.");
 
             // A rerun is the same report, not a new one, so nothing is recorded.
-            return report.Type switch
+            return (ReportKind)report.ReportTypeId switch
             {
-                ReportType.MonthlyWorkHours => (
+                ReportKind.MonthlyWorkHours => (
                     await BuildMonthlyWorkHoursAsync(
                         Read<MonthlyWorkHoursReportRequest>(report.Parameters)),
                     $"monthly-work-hours-{report.Id}.pdf"),
 
-                ReportType.TransportLoads => (
+                ReportKind.TransportLoads => (
                     await BuildTransportLoadsAsync(
                         Read<TransportLoadsReportRequest>(report.Parameters)),
                     $"transport-loads-{report.Id}.pdf"),
 
                 _ => throw new ClinetException("That report type cannot be rebuilt."),
             };
+        }
+
+        public async Task<int> TypeOfAsync(int generatedReportId)
+        {
+            var report = await _dbContext.GeneratedReports
+                .FirstOrDefaultAsync(x => x.Id == generatedReportId)
+                ?? throw new ClinetException($"Report {generatedReportId} does not exist.");
+
+            return report.ReportTypeId;
         }
 
         private async Task<byte[]> BuildMonthlyWorkHoursAsync(MonthlyWorkHoursReportRequest request)
@@ -185,17 +194,41 @@ namespace pwm.Services.Implementations
             }
         }
 
-        private async Task RecordAsync(ReportType type, object request, int generatedById)
+        /// <summary>
+        /// Records the run. The report row holds only what it was asked for; who ran it
+        /// and when is the ActivityLog entry pointing back at it.
+        /// </summary>
+        private async Task RecordAsync(ReportKind type, object request, int generatedById)
         {
-            _dbContext.GeneratedReports.Add(new GeneratedReport
+            var report = new GeneratedReport
             {
-                Type = type,
+                ReportTypeId = (int)type,
                 Parameters = JsonSerializer.Serialize(request),
-                GeneratedAt = DateTime.UtcNow,
-                GeneratedById = generatedById,
-            });
+            };
 
+            _dbContext.GeneratedReports.Add(report);
             await _dbContext.SaveChangesAsync();
+
+            var reportType = await _dbContext.ReportTypes
+                .FirstOrDefaultAsync(x => x.Id == report.ReportTypeId);
+
+            var logTypeName = $"Generated report - {reportType?.Description ?? type.ToString()}";
+
+            var logType = await _dbContext.ActivityLogTypes
+                .FirstOrDefaultAsync(x => x.Name == logTypeName);
+
+            if (logType is not null)
+            {
+                _dbContext.ActivityLogs.Add(new ActivityLog
+                {
+                    UserId = generatedById,
+                    ActivityLogTypeId = logType.Id,
+                    GeneratedReportId = report.Id,
+                    Date = DateTime.UtcNow,
+                });
+
+                await _dbContext.SaveChangesAsync();
+            }
         }
 
         private static T Read<T>(string parameters) where T : new() =>

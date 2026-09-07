@@ -18,7 +18,8 @@ class RecentReport {
   /// What it was run for — the period, worker and project, or the date range.
   final String summary;
 
-  final DateTime generatedAt;
+  /// Null when no activity log entry could be found for the run.
+  final DateTime? generatedAt;
   final String generatedByName;
 
   String get title => type.label;

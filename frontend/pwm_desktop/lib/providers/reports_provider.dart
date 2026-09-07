@@ -6,6 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/app_roles.dart';
+import 'activity_log_provider.dart';
+import 'activity_log_type_provider.dart';
+import 'auth_provider.dart';
 import 'base_provider.dart';
 import 'generated_report_provider.dart';
 import 'project_provider.dart';
@@ -21,17 +25,27 @@ class ReportsProvider extends ChangeNotifier {
   ReportsProvider({
     ReportProvider? reports,
     BaseProvider<GeneratedReport>? generatedReports,
+    BaseProvider<ActivityLog>? activityLogs,
+    BaseProvider<ActivityLogType>? activityLogTypes,
     BaseProvider<User>? users,
     BaseProvider<Project>? projects,
     DateTime? today,
-  })  : _reports = reports ?? ReportProvider(),
+    String? role,
+  })  : availableTypes = AppRoles.reportsFor(role ?? AuthProvider.role),
+        _reports = reports ?? ReportProvider(),
         _generatedReports = generatedReports ?? GeneratedReportProvider(),
+        _activityLogs = activityLogs ?? ActivityLogProvider(),
+        _activityLogTypes = activityLogTypes ?? ActivityLogTypeProvider(),
         _users = users ?? UserProvider(),
         _projects = projects ?? ProjectProvider(),
         _today = today ?? DateTime.now() {
     _year = _today.year;
     _month = _today.month;
+    _type = availableTypes.first;
   }
+
+  /// The reports this role may run — a project manager gets transports only.
+  final List<ReportType> availableTypes;
 
   /// How many past runs the Recent Reports panel lists.
   static const int recentCount = 8;
@@ -39,12 +53,19 @@ class ReportsProvider extends ChangeNotifier {
   /// How far back the Period dropdown reaches.
   static const int periodMonths = 24;
 
-  static const String recentSortBy = 'GeneratedAt desc';
+  /// Newest first. `GeneratedReports` carries no timestamp of its own any more,
+  /// and its Ids are handed out in order, so the Id is the run order.
+  static const String recentSortBy = 'Id desc';
+
+  /// The prefix `ReportService` gives the activity log type it writes per run.
+  static const String reportLogTypePrefix = 'Generated report - ';
 
   static final DateFormat _monthLabel = DateFormat('MMMM yyyy');
 
   final ReportProvider _reports;
   final BaseProvider<GeneratedReport> _generatedReports;
+  final BaseProvider<ActivityLog> _activityLogs;
+  final BaseProvider<ActivityLogType> _activityLogTypes;
   final BaseProvider<User> _users;
   final BaseProvider<Project> _projects;
   final DateTime _today;
@@ -58,7 +79,7 @@ class ReportsProvider extends ChangeNotifier {
   Map<int, Project> _projectById = const {};
   List<RecentReport> _recent = const [];
 
-  ReportType _type = ReportType.monthlyWorkHours;
+  late ReportType _type;
   late int _year;
   late int _month;
   int? _userId;
@@ -233,15 +254,45 @@ class ReportsProvider extends ChangeNotifier {
       'sortBy': recentSortBy,
     });
 
-    _recent = result.items.map(_toRecent).toList();
+    final runs = await _fetchRuns();
+
+    _recent = [
+      for (final report in result.items) _toRecent(report, runs[report.id]),
+    ];
   }
 
-  RecentReport _toRecent(GeneratedReport report) => RecentReport(
+  /// Who ran a report and when. `GeneratedReports` does not hold that any more —
+  /// the ActivityLog entry pointing back at the report is the record of the run.
+  Future<Map<int, ActivityLog>> _fetchRuns() async {
+    final types = await _all(_activityLogTypes);
+
+    final reportTypes = types.where(
+      (type) => type.name.startsWith(reportLogTypePrefix),
+    );
+
+    final pages = await Future.wait([
+      for (final type in reportTypes)
+        _activityLogs.get(filter: {
+          'activityLogTypeId': type.id,
+          'page': 1,
+          'pageSize': 100,
+          'includeTotalCount': false,
+          'sortBy': 'Date desc',
+        }),
+    ]);
+
+    return {
+      for (final page in pages)
+        for (final log in page.items) ?log.generatedReportId: log,
+    };
+  }
+
+  RecentReport _toRecent(GeneratedReport report, ActivityLog? run) => RecentReport(
         id: report.id,
         type: report.reportType,
         summary: _describe(report),
-        generatedAt: report.generatedAt,
-        generatedByName: _userById[report.generatedById]?.fullName ?? 'Unknown user',
+        generatedAt: run?.date,
+        generatedByName: _userById[run?.userId]?.fullName ?? 'Unknown user',
       );
 
   /// Reads the request the run was made with back out of its stored JSON.

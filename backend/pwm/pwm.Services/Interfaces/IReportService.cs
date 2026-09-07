@@ -15,5 +15,8 @@ namespace pwm.Services.Interfaces
 
         /// <summary>Rebuilds a report from the parameters it was first run with.</summary>
         Task<(byte[] Content, string FileName)> RerunAsync(int generatedReportId);
+
+        /// <summary>Which report a past run was, so a caller can check it against their role.</summary>
+        Task<int> TypeOfAsync(int generatedReportId);
     }
 }

@@ -22,6 +22,12 @@ namespace pwm.Services.Database
         [Required]
         public ActivityLogType ActivityLogType { get; set; } = null!;
 
+        /// <summary>Set only on a "Generated report" entry - this table is what records who ran it and when.</summary>
+        public int? GeneratedReportId { get; set; }
+
+        [ForeignKey(nameof(GeneratedReportId))]
+        public GeneratedReport? GeneratedReport { get; set; }
+
         [Required]
         public DateTime Date { get; set; } = DateTime.UtcNow;
     }

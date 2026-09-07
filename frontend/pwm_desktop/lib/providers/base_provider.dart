@@ -12,7 +12,7 @@ abstract class BaseProvider<T> with ChangeNotifier {
   /// Must end in a slash: routes are built as `{baseUrl}{endpoint}`.
   static const String baseUrl = String.fromEnvironment(
     "baseUrl",
-    defaultValue: "http://localhost:5094/",
+    defaultValue: "http://localhost:7094/",
   );
 
   /// The largest page the API will serve: `BaseSearchObject.MaxPageSize` clamps

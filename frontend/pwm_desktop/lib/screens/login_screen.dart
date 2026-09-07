@@ -7,6 +7,7 @@ import '../layouts/master_screen.dart';
 import '../layouts/window_chrome.dart';
 import '../providers/auth_provider.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/app_roles.dart';
 import '../utils/app_theme.dart';
 
 /// Sign-in. Every other screen needs the token this one fetches, so it is what
@@ -54,6 +55,18 @@ class _LoginScreenState extends State<LoginScreen> {
       await auth.login(_emailController.text, _passwordController.text);
 
       if (!mounted) {
+        return;
+      }
+
+      // The shop floor books its hours from the mobile app; there is no desktop
+      // screen a production worker may open, so the session is dropped again.
+      if (!AppRoles.usesDesktop(auth.currentRole)) {
+        await auth.signOut();
+
+        if (!mounted) return;
+
+        setState(() => _errorMessage =
+            'This account works from the mobile app, not the desktop one.');
         return;
       }
 

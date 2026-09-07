@@ -212,7 +212,7 @@ class _Cell extends StatelessWidget {
   }
 }
 
-/// Colours the six seeded `ProjectStatusTypes` by how far along a project is;
+/// Colours the seeded `ProjectStatusTypes` by how far along a project is;
 /// an unknown name falls back to neutral rather than guessing.
 class ProjectStatusChip extends StatelessWidget {
   const ProjectStatusChip({super.key, required this.status});
@@ -220,12 +220,10 @@ class ProjectStatusChip extends StatelessWidget {
   /// One colour per state; the background is derived from it so the chip works
   /// on a white card and a dark one alike.
   static const _palette = <String, Color>{
-    'new': _neutral,
-    'in preparation': Color(0xFF9A6212),
     'in production': Color(0xFF2563EB),
-    'ready for delivery': Color(0xFF6D3EDB),
+    'on hold': Color(0xFF9A6212),
     'delivered': Color(0xFF107A4D),
-    'cancelled': Color(0xFFB91C1C),
+    'rejected': Color(0xFFB91C1C),
   };
 
   final String status;

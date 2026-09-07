@@ -211,7 +211,7 @@ class _Cell extends StatelessWidget {
   }
 }
 
-/// Colours the six seeded `TruckLoadStatusTypes` by how far along a load is; an
+/// Colours the seeded `TruckLoadStatusTypes` by how far along a load is; an
 /// unknown name falls back to neutral rather than guessing.
 class TruckLoadStatusChip extends StatelessWidget {
   const TruckLoadStatusChip({super.key, required this.status});
@@ -219,12 +219,10 @@ class TruckLoadStatusChip extends StatelessWidget {
   /// One colour per state; the background is derived from it so the chip works
   /// on a white card and a dark one alike.
   static const _palette = <String, Color>{
-    'planned': _neutral,
-    'loading': Color(0xFF9A6212),
-    'loaded': Color(0xFF6D3EDB),
+    'ordered': _neutral,
     'in transit': Color(0xFF2563EB),
-    'delivered': Color(0xFF107A4D),
-    'cancelled': Color(0xFFB91C1C),
+    'delivered': Color(0xFF6D3EDB),
+    'finished': Color(0xFF107A4D),
   };
 
   final String status;

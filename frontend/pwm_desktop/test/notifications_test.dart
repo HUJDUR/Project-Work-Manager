@@ -108,9 +108,9 @@ NotificationsProvider _fakeNotifications() {
     notifications: _notifications,
     users: _userRows,
     userTypes: _FakeProvider(const [
-      UserType(id: 1, type: 'Administrator'),
-      UserType(id: 2, type: 'Manager'),
-      UserType(id: 3, type: 'Worker'),
+      UserType(id: 1, type: 'Admin'),
+      UserType(id: 2, type: 'Project manager'),
+      UserType(id: 3, type: 'Production worker'),
     ]),
   );
 }
@@ -137,11 +137,11 @@ void main() {
     });
 
     test('resolves each recipient role for the list', () {
-      expect(provider.roleOf(provider.allRecipients.first), 'Worker');
+      expect(provider.roleOf(provider.allRecipients.first), 'Production worker');
       expect(
           provider.roleOf(
               provider.allRecipients.firstWhere((user) => user.id == 2)),
-          'Manager');
+          'Project manager');
     });
 
     test('starts addressed to everyone', () {
