@@ -41,17 +41,17 @@ namespace pwm.WebAPI.Controllers
 
         // Accounts carry the roles everything else is authorized by, so only an administrator edits them
         [HttpPost]
-        [Authorization(Roles.Administrator)]
+        [Authorization(Roles.Admin)]
         public override Task<UserResponse> Insert([FromBody] UserInsertRequest request)
             => base.Insert(request);
 
         [HttpPut("{id}")]
-        [Authorization(Roles.Administrator)]
+        [Authorization(Roles.Admin)]
         public override Task<UserResponse> Update(int id, [FromBody] UserUpdateRequest request)
             => base.Update(id, request);
 
         [HttpDelete("{id}")]
-        [Authorization(Roles.Administrator)]
+        [Authorization(Roles.Admin)]
         public override Task<IActionResult> Delete(int id)
             => base.Delete(id);
     }

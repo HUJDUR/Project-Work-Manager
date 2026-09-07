@@ -26,21 +26,21 @@ namespace pwm.WebAPI.Controllers
         }
 
         [HttpPost]
-        [Authorization(Roles.Administrator, Roles.Manager)]
+        [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
         public virtual async Task<TResponse> Insert([FromBody] TInsertRequest request)
         {
             return await _crudService.InsertAsync(request);
         }
 
         [HttpPut("{id}")]
-        [Authorization(Roles.Administrator, Roles.Manager)]
+        [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
         public virtual async Task<TResponse> Update(int id, [FromBody] TUpdateRequest request)
         {
             return await _crudService.UpdateAsync(id, request);
         }
 
         [HttpDelete("{id}")]
-        [Authorization(Roles.Administrator, Roles.Manager)]
+        [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
         public virtual async Task<IActionResult> Delete(int id)
         {
             await _crudService.DeleteAsync(id);

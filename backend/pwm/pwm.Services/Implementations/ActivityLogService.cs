@@ -36,6 +36,11 @@ namespace pwm.Services.Implementations
                 query = query.Where(x => x.ActivityLogTypeId == search.ActivityLogTypeId.Value);
             }
 
+            if (search.GeneratedReportId.HasValue)
+            {
+                query = query.Where(x => x.GeneratedReportId == search.GeneratedReportId.Value);
+            }
+
             if (search.DateFrom.HasValue)
             {
                 query = query.Where(x => x.Date >= search.DateFrom.Value);

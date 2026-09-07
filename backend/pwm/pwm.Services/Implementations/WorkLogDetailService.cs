@@ -35,6 +35,11 @@ namespace pwm.Services.Implementations
                 query = query.Where(x => x.WorkLogId == search.WorkLogId.Value);
             }
 
+            if (search.UserId.HasValue)
+            {
+                query = query.Where(x => x.UserId == search.UserId.Value);
+            }
+
             if (search.ProjectId.HasValue)
             {
                 query = query.Where(x => x.ProjectId == search.ProjectId.Value);

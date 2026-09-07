@@ -118,7 +118,7 @@ class _TypeCards extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        for (final type in ReportType.values) ...[
+        for (final type in provider.availableTypes) ...[
           Expanded(
             child: _TypeCard(
               type: type,
@@ -128,7 +128,8 @@ class _TypeCards extends StatelessWidget {
               onTap: () => provider.setType(type),
             ),
           ),
-          if (type != ReportType.values.last) const SizedBox(width: AppSpacing.gap),
+          if (type != provider.availableTypes.last)
+            const SizedBox(width: AppSpacing.gap),
         ],
       ],
     );
@@ -788,8 +789,10 @@ class _RecentTile extends StatelessWidget {
                         fontSize: 12, color: AppColors.textSecondary),
                   ),
                   Text(
-                    '${report.generatedByName} · '
-                    '${formatRelative(report.generatedAt.toLocal())}',
+                    report.generatedAt == null
+                        ? report.generatedByName
+                        : '${report.generatedByName} · '
+                            '${formatRelative(report.generatedAt!.toLocal())}',
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
                   ),

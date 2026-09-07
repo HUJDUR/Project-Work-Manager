@@ -50,6 +50,7 @@ namespace pwm.Services
             services.AddScoped<IProjectCategoryService, ProjectCategoryService>();
             services.AddScoped<IProjectStatusTypeService, ProjectStatusTypeService>();
             services.AddScoped<ITruckLoadStatusTypeService, TruckLoadStatusTypeService>();
+            services.AddScoped<IReportTypeService, ReportTypeService>();
             services.AddScoped<IGeneratedReportService, GeneratedReportService>();
             services.AddScoped<IReportService, ReportService>();
             services.AddScoped<IProjectService, ProjectService>();

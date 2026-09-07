@@ -1,5 +1,4 @@
 using System;
-using pwm.Model.Enums;
 
 namespace pwm.Model.Responses
 {
@@ -7,12 +6,8 @@ namespace pwm.Model.Responses
     {
         public int Id { get; set; }
 
-        public ReportType Type { get; set; }
+        public int ReportTypeId { get; set; }
 
         public string Parameters { get; set; } = string.Empty;
-
-        public DateTime GeneratedAt { get; set; }
-
-        public int GeneratedById { get; set; }
     }
 }

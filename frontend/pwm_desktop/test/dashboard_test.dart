@@ -94,6 +94,7 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
         WorkLogDetail(
             id: 100,
             workLogId: 10,
+            userId: 1,
             operationTypeId: 4,
             projectId: 1,
             startedAt: _yesterday,
@@ -101,6 +102,7 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
         WorkLogDetail(
             id: 101,
             workLogId: 10,
+            userId: 1,
             operationTypeId: 1,
             projectId: 2,
             startedAt: _yesterday,
@@ -108,6 +110,7 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
         WorkLogDetail(
             id: 102,
             workLogId: 11,
+            userId: 2,
             operationTypeId: 4,
             projectId: 1,
             startedAt: _twoDaysAgo,
@@ -116,6 +119,7 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
         WorkLogDetail(
             id: 103,
             workLogId: 11,
+            userId: 2,
             operationTypeId: 1,
             projectId: 1,
             startedAt: _now.subtract(const Duration(days: 90)),
@@ -141,7 +145,7 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
       projectStatusTypes: _FakeProvider(const [
         ProjectStatusType(id: 3, name: 'In production'),
         ProjectStatusType(id: 5, name: 'Delivered'),
-        ProjectStatusType(id: 6, name: 'Cancelled'),
+        ProjectStatusType(id: 6, name: 'Rejected'),
       ]),
       operationTypes: _FakeProvider(const [
         OperationType(id: 1, name: 'Cutting'),
@@ -152,8 +156,8 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
         ActivityLogType(id: 5, name: 'Project created'),
       ]),
       userTypes: _FakeProvider(const [
-        UserType(id: 2, type: 'Manager'),
-        UserType(id: 3, type: 'Worker'),
+        UserType(id: 2, type: 'Project manager'),
+        UserType(id: 3, type: 'Production worker'),
       ]),
     );
 
@@ -192,6 +196,27 @@ void main() {
       final byProject = controller.data!.hoursByProject;
       expect(byProject.map((slice) => slice.label), ['Hall roof MU-1', 'Railing MU-2']);
       expect(byProject.first.value, 7);
+    });
+
+    test('puts the project code on the axis and the full name in the tooltip', () async {
+      await controller.load();
+
+      final slice = controller.data!.hoursByProject.first;
+
+      // The axis used to show the last word of the name, so a project called
+      // "Purlin sets" was labelled "sets".
+      expect(slice.label, 'Hall roof MU-1');
+      expect(slice.shortLabel, 'P-1');
+      expect(slice.axisLabel, 'P-1');
+    });
+
+    test('an operation has no code, so its axis label is its name', () async {
+      await controller.load();
+
+      final slice = controller.data!.hoursByOperation.first;
+
+      expect(slice.shortLabel, isNull);
+      expect(slice.axisLabel, 'Welding');
     });
 
     test('groups hours by operation type, largest share first', () async {

@@ -59,7 +59,7 @@ namespace pwm.Services.Database.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     Year = table.Column<int>(type: "int", nullable: false),
                     Month = table.Column<int>(type: "int", nullable: false),
-                    TotalHours = table.Column<int>(type: "int", nullable: false)
+                    TotalHours = table.Column<double>(type: "float", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -106,6 +106,31 @@ namespace pwm.Services.Database.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ReportTypes",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ReportTypes", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TruckLoadStatusTypes",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TruckLoadStatusTypes", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "UserTypes",
                 columns: table => new
                 {
@@ -135,6 +160,26 @@ namespace pwm.Services.Database.Migrations
                         name: "FK_Cities_Countries_CountryId",
                         column: x => x.CountryId,
                         principalTable: "Countries",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "GeneratedReports",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ReportTypeId = table.Column<int>(type: "int", nullable: false),
+                    Parameters = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_GeneratedReports", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_GeneratedReports_ReportTypes_ReportTypeId",
+                        column: x => x.ReportTypeId,
+                        principalTable: "ReportTypes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -204,6 +249,7 @@ namespace pwm.Services.Database.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     UserId = table.Column<int>(type: "int", nullable: false),
                     ActivityLogTypeId = table.Column<int>(type: "int", nullable: false),
+                    GeneratedReportId = table.Column<int>(type: "int", nullable: true),
                     Date = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -213,6 +259,12 @@ namespace pwm.Services.Database.Migrations
                         name: "FK_ActivityLogs_ActivityLogTypes_ActivityLogTypeId",
                         column: x => x.ActivityLogTypeId,
                         principalTable: "ActivityLogTypes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_ActivityLogs_GeneratedReports_GeneratedReportId",
+                        column: x => x.GeneratedReportId,
+                        principalTable: "GeneratedReports",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -231,7 +283,9 @@ namespace pwm.Services.Database.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     MonthlyHourReportId = table.Column<int>(type: "int", nullable: false),
                     UserId = table.Column<int>(type: "int", nullable: false),
-                    TotalHours = table.Column<int>(type: "int", nullable: false)
+                    TotalHours = table.Column<double>(type: "float", nullable: false),
+                    RegularHours = table.Column<double>(type: "float", nullable: false),
+                    OvertimeHours = table.Column<double>(type: "float", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -274,6 +328,28 @@ namespace pwm.Services.Database.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "RefreshTokens",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    Token = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RefreshTokens", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RefreshTokens_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "UserOperations",
                 columns: table => new
                 {
@@ -307,7 +383,7 @@ namespace pwm.Services.Database.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     UserId = table.Column<int>(type: "int", nullable: false),
                     ClockedIn = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ClockedOut = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ClockedOut = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Hours = table.Column<double>(type: "float", nullable: false)
                 },
                 constraints: table =>
@@ -329,13 +405,18 @@ namespace pwm.Services.Database.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     CustomerId = table.Column<int>(type: "int", nullable: false),
                     Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    Priority = table.Column<int>(type: "int", nullable: false),
                     Weight = table.Column<double>(type: "float", nullable: false),
                     ProjectCategoryId = table.Column<int>(type: "int", nullable: false),
                     DeliveryDate = table.Column<DateTime>(type: "datetime2", nullable: true),
                     DeliveryCompanyId = table.Column<int>(type: "int", nullable: true),
                     CreationDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ProductionStartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ProjectStatusId = table.Column<int>(type: "int", nullable: false)
+                    ProductionStartDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ProjectStatusId = table.Column<int>(type: "int", nullable: false),
+                    CreatedByUserId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -364,6 +445,12 @@ namespace pwm.Services.Database.Migrations
                         principalTable: "ProjectStatusTypes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Projects_Users_CreatedByUserId",
+                        column: x => x.CreatedByUserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -373,6 +460,7 @@ namespace pwm.Services.Database.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     TransportCompanyId = table.Column<int>(type: "int", nullable: false),
+                    TruckLoadStatusId = table.Column<int>(type: "int", nullable: false),
                     LoadDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     DriverName = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
                     DriverSurname = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
@@ -390,6 +478,12 @@ namespace pwm.Services.Database.Migrations
                         principalTable: "Companies",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_TruckLoads_TruckLoadStatusTypes_TruckLoadStatusId",
+                        column: x => x.TruckLoadStatusId,
+                        principalTable: "TruckLoadStatusTypes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -399,10 +493,11 @@ namespace pwm.Services.Database.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     WorkLogId = table.Column<int>(type: "int", nullable: false),
+                    UserId = table.Column<int>(type: "int", nullable: false),
                     OperationTypeId = table.Column<int>(type: "int", nullable: false),
                     ProjectId = table.Column<int>(type: "int", nullable: false),
                     StartedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    FinishedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    FinishedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     Hours = table.Column<double>(type: "float", nullable: false)
                 },
                 constraints: table =>
@@ -418,6 +513,12 @@ namespace pwm.Services.Database.Migrations
                         name: "FK_WorkLogDetails_Projects_ProjectId",
                         column: x => x.ProjectId,
                         principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_WorkLogDetails_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
@@ -439,7 +540,7 @@ namespace pwm.Services.Database.Migrations
                     BrutoWeight = table.Column<double>(type: "float", nullable: false),
                     NetoWeight = table.Column<double>(type: "float", nullable: false),
                     UnloadPriority = table.Column<int>(type: "int", nullable: false),
-                    UnloadColor = table.Column<string>(type: "nvarchar(max)", nullable: false)
+                    UnloadColor = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -462,6 +563,11 @@ namespace pwm.Services.Database.Migrations
                 name: "IX_ActivityLogs_ActivityLogTypeId",
                 table: "ActivityLogs",
                 column: "ActivityLogTypeId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ActivityLogs_GeneratedReportId",
+                table: "ActivityLogs",
+                column: "GeneratedReportId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ActivityLogs_UserId",
@@ -502,6 +608,11 @@ namespace pwm.Services.Database.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_GeneratedReports_ReportTypeId",
+                table: "GeneratedReports",
+                column: "ReportTypeId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MonthlyHourReportDetails_MonthlyHourReportId_UserId",
                 table: "MonthlyHourReportDetails",
                 columns: new[] { "MonthlyHourReportId", "UserId" },
@@ -536,6 +647,11 @@ namespace pwm.Services.Database.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Projects_CreatedByUserId",
+                table: "Projects",
+                column: "CreatedByUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Projects_CustomerId",
                 table: "Projects",
                 column: "CustomerId");
@@ -562,6 +678,23 @@ namespace pwm.Services.Database.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_RefreshTokens_Token",
+                table: "RefreshTokens",
+                column: "Token",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefreshTokens_UserId",
+                table: "RefreshTokens",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ReportTypes_Description",
+                table: "ReportTypes",
+                column: "Description",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TruckLoadDetails_ProjectId",
                 table: "TruckLoadDetails",
                 column: "ProjectId");
@@ -580,6 +713,17 @@ namespace pwm.Services.Database.Migrations
                 name: "IX_TruckLoads_TransportCompanyId",
                 table: "TruckLoads",
                 column: "TransportCompanyId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TruckLoads_TruckLoadStatusId",
+                table: "TruckLoads",
+                column: "TruckLoadStatusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TruckLoadStatusTypes_Name",
+                table: "TruckLoadStatusTypes",
+                column: "Name",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserOperations_OperationTypeId",
@@ -620,6 +764,11 @@ namespace pwm.Services.Database.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_WorkLogDetails_UserId",
+                table: "WorkLogDetails",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_WorkLogDetails_WorkLogId",
                 table: "WorkLogDetails",
                 column: "WorkLogId");
@@ -643,6 +792,9 @@ namespace pwm.Services.Database.Migrations
                 name: "Notifications");
 
             migrationBuilder.DropTable(
+                name: "RefreshTokens");
+
+            migrationBuilder.DropTable(
                 name: "TruckLoadDetails");
 
             migrationBuilder.DropTable(
@@ -653,6 +805,9 @@ namespace pwm.Services.Database.Migrations
 
             migrationBuilder.DropTable(
                 name: "ActivityLogTypes");
+
+            migrationBuilder.DropTable(
+                name: "GeneratedReports");
 
             migrationBuilder.DropTable(
                 name: "MonthlyHourReports");
@@ -668,6 +823,12 @@ namespace pwm.Services.Database.Migrations
 
             migrationBuilder.DropTable(
                 name: "WorkLogs");
+
+            migrationBuilder.DropTable(
+                name: "ReportTypes");
+
+            migrationBuilder.DropTable(
+                name: "TruckLoadStatusTypes");
 
             migrationBuilder.DropTable(
                 name: "Companies");

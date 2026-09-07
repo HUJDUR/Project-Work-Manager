@@ -15,10 +15,18 @@ class SummaryMetric {
 }
 
 class ChartSlice {
-  const ChartSlice({required this.label, required this.value});
+  const ChartSlice({required this.label, required this.value, this.shortLabel});
 
   final String label;
   final double value;
+
+  /// A stand-in for [label] where there is no room for it — a project's code.
+  final String? shortLabel;
+
+  /// What a cramped axis shows: the short form when there is one, else the
+  /// full label. The tooltip always shows [label].
+  String get axisLabel =>
+      shortLabel == null || shortLabel!.isEmpty ? label : shortLabel!;
 }
 
 class WorkEntry {

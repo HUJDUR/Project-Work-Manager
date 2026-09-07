@@ -113,7 +113,7 @@ final _loads = [
   _load(
       id: 2,
       carrierId: 3,
-      statusId: 5,
+      statusId: 2,
       driverName: 'Ivica',
       driverSurname: 'Maric',
       registration: 'ZG-4417-BK',
@@ -129,7 +129,7 @@ final _loads = [
   _load(
       id: 4,
       carrierId: 3,
-      statusId: 5,
+      statusId: 2,
       driverName: 'Fahrudin',
       driverSurname: 'Salkic',
       registration: 'E31-M-119',
@@ -161,7 +161,7 @@ final _loads = [
   _load(
       id: 8,
       carrierId: 3,
-      statusId: 5,
+      statusId: 2,
       driverName: 'Nedim',
       driverSurname: 'Hodzic',
       registration: 'J77-D-345',
@@ -169,7 +169,7 @@ final _loads = [
   _load(
       id: 9,
       carrierId: 2,
-      statusId: 6,
+      statusId: 3,
       driverName: 'Vlado',
       driverSurname: 'Simic',
       registration: 'B04-E-512',
@@ -281,12 +281,10 @@ TransportsProvider _fakeTransports() {
       CompanyType(id: 2, name: 'Transport'),
     ]),
     statusTypes: _FakeProvider(const [
-      TruckLoadStatusType(id: 1, name: 'Planned'),
-      TruckLoadStatusType(id: 2, name: 'Loading'),
-      TruckLoadStatusType(id: 3, name: 'Loaded'),
+      TruckLoadStatusType(id: 1, name: 'Ordered'),
+      TruckLoadStatusType(id: 2, name: 'Delivered'),
+      TruckLoadStatusType(id: 3, name: 'Finished'),
       TruckLoadStatusType(id: 4, name: 'In transit'),
-      TruckLoadStatusType(id: 5, name: 'Delivered'),
-      TruckLoadStatusType(id: 6, name: 'Cancelled'),
     ]),
     projects: _FakeProvider(_projects),
   );
@@ -353,10 +351,10 @@ void main() {
     });
 
     test('sends the status filter down as truckLoadStatusId', () async {
-      await provider.setStatus(5);
+      await provider.setStatus(2);
 
-      expect(_lastPageRequest()['truckLoadStatusId'], 5);
-      expect(provider.rows.map((row) => row.id), [2, 4, 8]);
+      expect(_lastPageRequest()['truckLoadStatusId'], 2);
+      expect(provider.rows.map((row) => row.id), [2, 4, 5, 8]);
     });
 
     test('closes the date range on the last second of its final day', () async {
@@ -390,7 +388,7 @@ void main() {
 
     test('clears every filter at once', () async {
       await provider.setSearch('maric');
-      await provider.setStatus(5);
+      await provider.setStatus(2);
       await provider.setDateRange(DateTimeRange(start: _day(5), end: _day(1)));
       expect(provider.hasFilters, isTrue);
 

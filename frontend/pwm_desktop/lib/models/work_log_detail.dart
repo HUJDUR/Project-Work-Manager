@@ -7,6 +7,7 @@ class WorkLogDetail {
   const WorkLogDetail({
     required this.id,
     required this.workLogId,
+    required this.userId,
     required this.operationTypeId,
     required this.projectId,
     required this.startedAt,
@@ -16,6 +17,9 @@ class WorkLogDetail {
 
   final int id;
   final int workLogId;
+
+  /// Whose block of work this is — always the owner of the shift it hangs off.
+  final int userId;
   final int operationTypeId;
   final int projectId;
   final DateTime startedAt;

@@ -46,7 +46,7 @@ class ProjectsProvider extends ChangeNotifier {
 
   /// The statuses a project ends in — everything else counts as active.
   static const String deliveredStatus = 'Delivered';
-  static const String cancelledStatus = 'Cancelled';
+  static const String rejectedStatus = 'Rejected';
   static const String inProductionStatus = 'In production';
 
   /// Asks for the count; the API clamps a page to at least one row, so the one
@@ -286,7 +286,7 @@ class ProjectsProvider extends ChangeNotifier {
     final counts = await Future.wait([
       _countAll(),
       _countByStatus(_statusIdOf(deliveredStatus)),
-      _countByStatus(_statusIdOf(cancelledStatus)),
+      _countByStatus(_statusIdOf(rejectedStatus)),
       _countByStatus(_statusIdOf(inProductionStatus)),
     ]);
 

@@ -7,12 +7,29 @@ namespace pwm.Services.Database.Seed
 {
     public partial class DataSeeder
     {
+        private static readonly string[] DriverNames =
+        [
+            "Senad", "Ivica", "Mladen", "Fahrudin", "Goran", "Nedzad", "Stipe",
+            "Zoran", "Alen", "Josip",
+        ];
+
+        private static readonly string[] DriverSurnames =
+        [
+            "Alispahic", "Maric", "Peric", "Salkic", "Juric", "Bajric", "Kovac",
+            "Novak", "Horvat", "Delibasic",
+        ];
+
+        private static readonly string[] UnloadColors =
+        [
+            "Red", "Blue", "Green", "Yellow", "Orange", "Purple", "White",
+        ];
+
         private async Task SeedTruckLoadsAsync()
         {
-            _truckLoads =
-            [
+            var loads = new List<TruckLoad>
+            {
                 CreateTruckLoad("TransBalkan Logistika d.o.o.", "Senad", "Alispahic", "A12-K-345",
-                    daysAgo: 13, emptyWeight: 14200, fullWeight: 26650.5, status: "Delivered",
+                    daysAgo: 13, emptyWeight: 14200, fullWeight: 26650.5, status: "Finished",
                     note: "Loaded through the north gate, customs cleared in Tuzla."),
 
                 CreateTruckLoad("Euro Spedicija d.o.o.", "Ivica", "Maric", "ZG-4417-BK",
@@ -24,22 +41,66 @@ namespace pwm.Services.Database.Seed
                     note: "Partial load, second truck follows on Monday."),
 
                 CreateTruckLoad("Euro Spedicija d.o.o.", "Fahrudin", "Salkic", "E31-M-119",
-                    daysAgo: 0, emptyWeight: 13950, fullWeight: 16160, status: "Loaded",
+                    daysAgo: 0, emptyWeight: 13950, fullWeight: 16160, status: "Ordered",
                     note: "Waiting for the delivery note to be signed."),
-            ];
+            };
 
+            var carriers = _companies
+                .Where(c => c.CompanyTypeId == FindCompanyType("Transport").Id)
+                .ToArray();
+
+            var statuses = new[] { "Ordered", "In transit", "Delivered", "Finished" };
+
+            for (var i = 0; i < 16; i++)
+            {
+                var emptyWeight = _random.Next(13500, 14500);
+
+                loads.Add(CreateTruckLoad(
+                    Pick(carriers).Name,
+                    Pick(DriverNames),
+                    Pick(DriverSurnames),
+                    $"{(char)('A' + _random.Next(26))}{_random.Next(10, 100)}-{(char)('A' + _random.Next(26))}-{_random.Next(100, 1000)}",
+                    daysAgo: _random.Next(1, 60),
+                    emptyWeight: emptyWeight,
+                    fullWeight: emptyWeight + _random.Next(800, 12000) + Math.Round(_random.NextDouble(), 2),
+                    status: statuses[i % statuses.Length],
+                    note: null));
+            }
+
+            _truckLoads = loads.ToArray();
             await AddRangeAsync(_truckLoads);
 
-            var details = new[]
+            var details = new List<TruckLoadDetail>
             {
                 CreateTruckLoadDetail(0, "Hall roof structure", 12450.5, 12300.0, 1, "Red"),
                 CreateTruckLoadDetail(1, "Conveyor frame", 3820.0, 3760.5, 1, "Blue"),
                 CreateTruckLoadDetail(2, "Staircase module", 1640.75, 1610.0, 1, "Green"),
                 CreateTruckLoadDetail(3, "Machine base plates", 1230.0, 1205.5, 1, "Yellow"),
-                CreateTruckLoadDetail(3, "Cladding panels", 980.25, 962.0, 2, "Orange"),
+                CreateTruckLoadDetail(3, "Extraction ducting", 980.25, 962.0, 2, "Orange"),
             };
 
-            await AddRangeAsync(details);
+            // One to three project lines under each generated load
+            for (var index = 4; index < _truckLoads.Length; index++)
+            {
+                var lines = _random.Next(1, 4);
+
+                for (var line = 1; line <= lines; line++)
+                {
+                    var bruto = Math.Round(_random.Next(200, 9000) + _random.NextDouble(), 2);
+
+                    details.Add(new TruckLoadDetail
+                    {
+                        TruckLoadId = _truckLoads[index].Id,
+                        ProjectId = Pick(_projects).Id,
+                        BrutoWeight = bruto,
+                        NetoWeight = Math.Round(bruto * 0.98, 2),
+                        UnloadPriority = line,
+                        UnloadColor = Pick(UnloadColors),
+                    });
+                }
+            }
+
+            await AddRangeAsync(details.ToArray());
         }
 
         private TruckLoad CreateTruckLoad(

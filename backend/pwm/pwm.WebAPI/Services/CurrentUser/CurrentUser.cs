@@ -34,7 +34,7 @@ namespace pwm.WebAPI.Services.CurrentUser
 
         // With authentication bypassed there is no token to read, so nothing is
         // narrowed to an owner - the same escape hatch AuthorizationFilter takes.
-        public bool IsWorker => !DevSettings.BypassAuthentication && Role == Roles.Worker;
+        public bool IsWorker => !DevSettings.BypassAuthentication && Role == Roles.ProductionWorker;
 
         private string? Claim(string type) => _httpContextAccessor.HttpContext?.User?.Claims
             .FirstOrDefault(claim => claim.Type == type)?.Value;

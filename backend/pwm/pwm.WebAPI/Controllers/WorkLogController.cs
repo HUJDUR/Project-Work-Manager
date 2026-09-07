@@ -24,7 +24,7 @@ namespace pwm.WebAPI.Controllers
         // Clocking in and out is what the mobile app does, so workers write these two -
         // but only for themselves, and the id comes from the token, never from the body.
         [HttpPost]
-        [Authorization(Roles.Administrator, Roles.Manager, Roles.Worker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
         public override Task<WorkLogResponse> Insert([FromBody] WorkLogInsertRequest request)
         {
             request.UserId = OwnerFor(request.UserId);
@@ -33,7 +33,7 @@ namespace pwm.WebAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorization(Roles.Administrator, Roles.Manager, Roles.Worker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
         public override async Task<WorkLogResponse> Update(int id, [FromBody] WorkLogUpdateRequest request)
         {
             await EnsureOwnShiftAsync(id);
@@ -43,7 +43,7 @@ namespace pwm.WebAPI.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorization(Roles.Administrator, Roles.Manager, Roles.Worker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
         public override async Task<IActionResult> Delete(int id)
         {
             await EnsureOwnShiftAsync(id);

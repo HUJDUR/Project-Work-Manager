@@ -29,7 +29,7 @@ namespace pwm.WebAPI.Controllers
         // A worker books their own hours against an operation from the mobile app. The block
         // carries no user of its own, so ownership is the shift it hangs off.
         [HttpPost]
-        [Authorization(Roles.Administrator, Roles.Manager, Roles.Worker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
         public override async Task<WorkLogDetailResponse> Insert([FromBody] WorkLogDetailInsertRequest request)
         {
             await EnsureOwnShiftAsync(request.WorkLogId);
@@ -38,7 +38,7 @@ namespace pwm.WebAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorization(Roles.Administrator, Roles.Manager, Roles.Worker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
         public override async Task<WorkLogDetailResponse> Update(int id, [FromBody] WorkLogDetailUpdateRequest request)
         {
             // Both the block being changed and the shift it is being moved onto.
@@ -49,7 +49,7 @@ namespace pwm.WebAPI.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorization(Roles.Administrator, Roles.Manager, Roles.Worker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
         public override async Task<IActionResult> Delete(int id)
         {
             await EnsureOwnBlockAsync(id);

@@ -15,6 +15,13 @@ namespace pwm.Services.Database
         [Required]
         public WorkLog WorkLog { get; set; } = null!;
 
+        /// <summary>Whose block of work this is. Always the owner of <see cref="WorkLog"/>.</summary>
+        public int UserId { get; set; }
+
+        [ForeignKey(nameof(UserId))]
+        [Required]
+        public User User { get; set; } = null!;
+
         public int OperationTypeId { get; set; }
 
         [ForeignKey(nameof(OperationTypeId))]

@@ -23,7 +23,7 @@ namespace pwm.WebAPI.Controllers
         }
 
         [HttpPost("Send")]
-        [Authorization(Roles.Administrator, Roles.Manager)]
+        [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
         public async Task<NotificationSendResponse> Send([FromBody] NotificationSendRequest request)
         {
             return await _notifications.SendAsync(request);

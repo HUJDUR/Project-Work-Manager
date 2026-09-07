@@ -29,6 +29,7 @@ namespace pwm.Services.Database
         public DbSet<WorkLogDetail> WorkLogDetails { get; set; }
         public DbSet<TruckLoad> TruckLoads { get; set; }
         public DbSet<TruckLoadDetail> TruckLoadDetails { get; set; }
+        public DbSet<ReportType> ReportTypes { get; set; }
         public DbSet<GeneratedReport> GeneratedReports { get; set; }
         public DbSet<MonthlyHourReport> MonthlyHourReports { get; set; }
         public DbSet<MonthlyHourReportDetail> MonthlyHourReportDetails { get; set; }
@@ -70,6 +71,7 @@ namespace pwm.Services.Database
             modelBuilder.Entity<TruckLoad>().ToTable("TruckLoads");
             modelBuilder.Entity<TruckLoadDetail>().ToTable("TruckLoadDetails");
 
+            modelBuilder.Entity<ReportType>().ToTable("ReportTypes");
             modelBuilder.Entity<GeneratedReport>().ToTable("GeneratedReports");
             modelBuilder.Entity<MonthlyHourReport>().ToTable("MonthlyHourReports");
             modelBuilder.Entity<MonthlyHourReportDetail>().ToTable("MonthlyHourReportDetails");
@@ -95,7 +97,11 @@ namespace pwm.Services.Database
             modelBuilder.Entity<TruckLoadStatusType>().HasIndex(x => x.Name).IsUnique();
 
             modelBuilder.Entity<TruckLoad>().HasIndex(x => x.LoadDate);
-            modelBuilder.Entity<GeneratedReport>().HasIndex(x => x.GeneratedAt);
+            modelBuilder.Entity<ReportType>().HasIndex(x => x.Description).IsUnique();
+
+            // Fixed rows whose Ids mirror pwm.Model.Enums.ReportType, so they are
+            // written as given rather than handed out by an identity column.
+            modelBuilder.Entity<ReportType>().Property(x => x.Id).ValueGeneratedNever();
             modelBuilder.Entity<WorkLog>().HasIndex(x => new { x.UserId, x.ClockedIn });
 
             modelBuilder.Entity<MonthlyHourReport>()
@@ -163,6 +169,13 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.ActivityLogTypeId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<ActivityLog>()
+                .HasOne(x => x.GeneratedReport)
+                .WithMany()
+                .HasForeignKey(x => x.GeneratedReportId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<Notification>()
                 .HasOne(x => x.User)
                 .WithMany()
@@ -212,6 +225,14 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.WorkLogId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Restrict, not Cascade: WorkLogs already cascades from Users, and a second
+            // cascade path into WorkLogDetails is SQL Server error 1785.
+            modelBuilder.Entity<WorkLogDetail>()
+                .HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<WorkLogDetail>()
                 .HasOne(x => x.OperationType)
                 .WithMany()
@@ -225,9 +246,9 @@ namespace pwm.Services.Database
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<GeneratedReport>()
-                .HasOne(x => x.GeneratedBy)
+                .HasOne(x => x.ReportType)
                 .WithMany()
-                .HasForeignKey(x => x.GeneratedById)
+                .HasForeignKey(x => x.ReportTypeId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TruckLoad>()
