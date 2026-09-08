@@ -18,63 +18,63 @@ namespace pwm.Services.Database.Seed
         {
             var projects = new List<Project>
             {
-                CreateProject("Hall roof structure", "MU-2201", "Stahlbau Meyer GmbH", "General steel construction",
+                CreateProject("Hall roof structure", "Stahlbau Meyer GmbH", "General steel construction",
                     weight: 12450.5, createdDaysAgo: 96, startedDaysAgo: 88, deliveryInDays: -12,
                     status: "Delivered", carrier: "TransBalkan Logistika d.o.o.",
                     priority: ProjectPriority.High, createdBy: "kenan.fajic@pwm.ba",
                     description: "Primary roof structure for the new production hall, hot-dip galvanised.",
                     notes: "Customer collected the galvanising certificates on delivery."),
 
-                CreateProject("Conveyor frame", "NM-118", "Nordmetall AG", "Sections",
+                CreateProject("Conveyor frame", "Nordmetall AG", "Sections",
                     weight: 3820.0, createdDaysAgo: 74, startedDaysAgo: 66, deliveryInDays: -4,
                     status: "Delivered", carrier: "Euro Spedicija d.o.o.",
                     priority: ProjectPriority.Medium, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Welded support frame for a belt conveyor, delivered in four sections.",
                     notes: null),
 
-                CreateProject("Staircase module", "WM-45", "Wiener Metallwerke GmbH", "General steel construction",
+                CreateProject("Staircase module", "Wiener Metallwerke GmbH", "General steel construction",
                     weight: 1640.75, createdDaysAgo: 52, startedDaysAgo: 44, deliveryInDays: 3,
                     status: "In production", carrier: "TransBalkan Logistika d.o.o.",
                     priority: ProjectPriority.VeryHigh, createdBy: "kenan.fajic@pwm.ba",
                     description: "Two-flight staircase with landing and powder-coated handrail.",
                     notes: "Delivery window is tight - the site crane is booked for one morning only."),
 
-                CreateProject("Machine base plates", "AK-77", "Adria Konstrukcije d.o.o.", "Foundations - steel",
+                CreateProject("Machine base plates", "Adria Konstrukcije d.o.o.", "Foundations - steel",
                     weight: 2210.0, createdDaysAgo: 40, startedDaysAgo: 31, deliveryInDays: 9,
                     status: "In production", carrier: "Euro Spedicija d.o.o.",
                     priority: ProjectPriority.High, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Machined and drilled base plates for four press foundations.",
                     notes: "Flatness has to be checked before packing."),
 
-                CreateProject("Extraction ducting", "AS-903", "Alpina Systems GmbH", "Heavy ducting - stainless steel",
+                CreateProject("Extraction ducting", "Alpina Systems GmbH", "Heavy ducting - stainless steel",
                     weight: 980.25, createdDaysAgo: 27, startedDaysAgo: 19, deliveryInDays: 16,
                     status: "In production", carrier: null,
                     priority: ProjectPriority.Low, createdBy: "kenan.fajic@pwm.ba",
                     description: "Rolled and welded extraction ducting with flanged joints.",
                     notes: null),
 
-                CreateProject("Platform driptrays", "MU-2311", "Stahlbau Meyer GmbH", "Driptrays - aluminum",
+                CreateProject("Platform driptrays", "Stahlbau Meyer GmbH", "Driptrays - aluminum",
                     weight: 745.5, createdDaysAgo: 18, startedDaysAgo: 10, deliveryInDays: 24,
                     status: "In production", carrier: null,
                     priority: ProjectPriority.Medium, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Folded aluminium driptrays for a maintenance platform.",
                     notes: null),
 
-                CreateProject("Support brackets", "NM-204", "Nordmetall AG", "Sections",
+                CreateProject("Support brackets", "Nordmetall AG", "Sections",
                     weight: 1310.0, createdDaysAgo: 9, startedDaysAgo: 2, deliveryInDays: 33,
                     status: "On hold", carrier: null,
                     priority: ProjectPriority.Medium, createdBy: "kenan.fajic@pwm.ba",
-                    description: "Repeat order of welded pipe brackets, same drawing as NM-118.",
+                    description: "Repeat order of welded pipe brackets, same drawing as the conveyor frame.",
                     notes: "On hold until the customer confirms the revised drawing."),
 
-                CreateProject("Silo foundations", "AK-88", "Adria Konstrukcije d.o.o.", "Foundations - steel",
+                CreateProject("Silo foundations", "Adria Konstrukcije d.o.o.", "Foundations - steel",
                     weight: 8600.0, createdDaysAgo: 4, startedDaysAgo: 1, deliveryInDays: 47,
                     status: "On hold", carrier: null,
                     priority: ProjectPriority.High, createdBy: "nadir.hujdur@pwm.ba",
                     description: "Anchor cages and base frames for four silo legs.",
                     notes: "Waiting on the customer to confirm the plate grade."),
 
-                CreateProject("Trial batch", "WM-51", "Wiener Metallwerke GmbH", "Driptrays - stainless steel",
+                CreateProject("Trial batch", "Wiener Metallwerke GmbH", "Driptrays - stainless steel",
                     weight: 320.0, createdDaysAgo: 60, startedDaysAgo: 55, deliveryInDays: -20,
                     status: "Rejected", carrier: null,
                     priority: ProjectPriority.Low, createdBy: "zuhdija.delic@pwm.ba",
@@ -84,8 +84,27 @@ namespace pwm.Services.Database.Seed
 
             projects.AddRange(RandomProjects(15, startingAt: projects.Count));
 
+            AssignCodes(projects);
+
             _projects = projects.ToArray();
             await AddRangeAsync(_projects);
+        }
+
+        /// <summary>
+        /// The shop's own reference, handed out in creation order and restarting
+        /// each year: 26-001, 26-002, ... 27-001.
+        /// </summary>
+        private static void AssignCodes(List<Project> projects)
+        {
+            var nextInYear = new Dictionary<int, int>();
+
+            foreach (var project in projects.OrderBy(p => p.CreationDate).ThenBy(p => p.Name))
+            {
+                var year = project.CreationDate.Year;
+                nextInYear[year] = nextInYear.GetValueOrDefault(year) + 1;
+
+                project.Code = $"{year % 100:00}-{nextInYear[year]:000}";
+            }
         }
 
         /// <summary>Fills the book out beyond the handful written by hand.</summary>
@@ -122,7 +141,7 @@ namespace pwm.Services.Database.Seed
                 yield return new Project
                 {
                     Name = subjects[(startingAt + i) % subjects.Length],
-                    Code = $"{customer.Name[..2].ToUpperInvariant()}-{2400 + startingAt + i}",
+                    Code = string.Empty,
                     Description = null,
                     Notes = null,
                     Priority = Pick(priorities),
@@ -141,7 +160,6 @@ namespace pwm.Services.Database.Seed
 
         private Project CreateProject(
             string name,
-            string code,
             string customer,
             string category,
             double weight,
@@ -158,7 +176,7 @@ namespace pwm.Services.Database.Seed
             return new Project
             {
                 Name = name,
-                Code = code,
+                Code = string.Empty,
                 Description = description,
                 Notes = notes,
                 Priority = priority,

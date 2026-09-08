@@ -58,6 +58,8 @@ class ProjectsProvider extends ChangeNotifier {
   };
 
   final BaseProvider<Project> _projects;
+
+  String _nextCode = '';
   final BaseProvider<Company> _companies;
   final BaseProvider<CompanyType> _companyTypes;
   final BaseProvider<ProjectCategory> _categories;
@@ -107,6 +109,10 @@ class ProjectsProvider extends ChangeNotifier {
 
   /// The signed-in user, so a new project defaults to its author.
   int? get signedInUserId => AuthProvider.user?.id;
+
+  /// What a new project's code box opens with: the next number in this year's
+  /// run. Refreshed with the counters, so it follows a project being saved.
+  String get nextCode => _nextCode;
 
   String get search => _search;
   int? get statusId => _statusId;
@@ -294,12 +300,48 @@ class ProjectsProvider extends ChangeNotifier {
     _deliveredCount = counts[1];
     _cancelledCount = counts[2];
     _inProductionCount = counts[3];
+
+    await _loadNextCode();
+  }
+
+  /// The shop numbers projects `yy-nnn`, restarting each year — the same rule
+  /// the seeder follows. Codes are zero-padded, so sorting them as text puts
+  /// the highest first; a page of them is read rather than one row because a
+  /// hand-typed code in another shape would otherwise sit above the real ones.
+  Future<void> _loadNextCode() async {
+    final year = DateTime.now().year;
+    final prefix = (year % 100).toString().padLeft(2, '0');
+    final pattern = RegExp('^$prefix-(\\d+)\$');
+
+    var highest = 0;
+
+    try {
+      final page = await _projects.get(filter: {
+        'page': 1,
+        'pageSize': codeScanSize,
+        'includeTotalCount': false,
+        'sortBy': 'Code desc',
+      });
+
+      for (final project in page.items) {
+        final match = pattern.firstMatch(project.code.trim());
+        final number = match == null ? 0 : int.tryParse(match.group(1)!) ?? 0;
+        if (number > highest) highest = number;
+      }
+    } catch (_) {
+      // A code the office can still type over is better than a failed screen.
+    }
+
+    _nextCode = '$prefix-${(highest + 1).toString().padLeft(3, '0')}';
   }
 
   Future<int> _countAll() async {
     final result = await _projects.get(filter: _countOnly);
     return result.totalCount ?? 0;
   }
+
+  /// How many of the newest codes `_loadNextCode` reads before deciding.
+  static const int codeScanSize = 50;
 
   /// A status this database does not have counts as none of them.
   Future<int> _countByStatus(int? statusId) async {

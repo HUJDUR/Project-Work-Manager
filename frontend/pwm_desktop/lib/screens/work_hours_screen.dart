@@ -207,7 +207,7 @@ class _FilterBarState extends State<_FilterBar> {
               prefixIcon: Icon(Icons.search, size: 20),
               border: OutlineInputBorder(),
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             ),
           ),
         ),
@@ -220,7 +220,7 @@ class _FilterBarState extends State<_FilterBar> {
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             ),
             items: [
               const DropdownMenuItem(value: null, child: Text('All Projects')),
@@ -268,7 +268,7 @@ class _DateRangeField extends StatelessWidget {
                   icon: const Icon(Icons.close, size: 16),
                   onPressed: () => provider.setDateRange(null),
                 ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         ),
         child: Text(
           label,

@@ -44,13 +44,17 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
 
     _initialValue = {
       'name': row?.name,
-      'code': row?.code,
+      // A new project opens on the next number in this year's run.
+      'code': row?.code ?? widget.provider.nextCode,
       'description': row?.description,
       'notes': row?.notes,
       'customerId': row?.customerId,
       'projectCategoryId': row?.categoryId,
-      // A project starts life as New unless the seeded statuses say otherwise.
-      'projectStatusId': row?.statusId ?? _statusIdOf('new'),
+      // A project starts life in production; the first seeded status stands in
+      // if the shop ever renames that one.
+      'projectStatusId': row?.statusId ??
+          _statusIdOf('in production') ??
+          widget.provider.statusTypes.firstOrNull?.id,
       'priority': row?.priority ?? ProjectPriority.medium,
       // Whoever is signed in raised it, unless it was raised before.
       'createdByUserId': row?.createdByUserId ?? widget.provider.signedInUserId,
@@ -102,7 +106,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'code',
-                    decoration: appInputDecoration('Project code', hintText: 'MU-2201'),
+                    decoration: appInputDecoration('Project code', hintText: '26-001'),
                     validator: FormBuilderValidators.required(
                       errorText: 'Every project has a code.',
                     ),
@@ -111,33 +115,19 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
               ],
             ),
             const SizedBox(height: formFieldGap),
-            FormBuilderTextField(
-              name: 'description',
-              minLines: 2,
-              maxLines: 3,
-              decoration: appInputDecoration(
-                'Description',
-                hintText: 'What is being built',
-              ),
-            ),
-            const SizedBox(height: formFieldGap),
             Row(
               children: [
                 Expanded(
-                  child: FormBuilderDropdown<int>(
-                    name: 'customerId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Customer'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Pick the customer this is built for.',
-                    ),
-                    items: [
-                      for (final Company customer in provider.customers)
-                        DropdownMenuItem(
-                          value: customer.id,
-                          child: Text(customer.name, overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
+                  child: FormBuilderTextField(
+                    name: 'weight',
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: appInputDecoration('Weight', suffixText: 'kg'),
+                    valueTransformer: (value) => value?.replaceAll(',', '.'),
+                    validator: FormBuilderValidators.compose([
+                      FormBuilderValidators.required(errorText: 'Weight is required.'),
+                      FormBuilderValidators.numeric(errorText: 'Weight must be a number.'),
+                      FormBuilderValidators.min(0, errorText: 'Weight cannot be negative.'),
+                    ]),
                   ),
                 ),
                 const SizedBox(width: formFieldGap),
@@ -154,82 +144,6 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                         DropdownMenuItem(
                           value: category.id,
                           child: Text(category.name, overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: formFieldGap),
-            Row(
-              children: [
-                Expanded(
-                  child: FormBuilderDropdown<int>(
-                    name: 'projectStatusId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Status'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Pick a status.',
-                    ),
-                    items: [
-                      for (final ProjectStatusType status in provider.statusTypes)
-                        DropdownMenuItem(
-                          value: status.id,
-                          child: Text(status.name, overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: formFieldGap),
-                Expanded(
-                  child: FormBuilderTextField(
-                    name: 'weight',
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: appInputDecoration('Weight', suffixText: 'kg'),
-                    valueTransformer: (value) => value?.replaceAll(',', '.'),
-                    validator: FormBuilderValidators.compose([
-                      FormBuilderValidators.required(errorText: 'Weight is required.'),
-                      FormBuilderValidators.numeric(errorText: 'Weight must be a number.'),
-                      FormBuilderValidators.min(0, errorText: 'Weight cannot be negative.'),
-                    ]),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: formFieldGap),
-            Row(
-              children: [
-                Expanded(
-                  child: FormBuilderDropdown<ProjectPriority>(
-                    name: 'priority',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Priority'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Pick a priority.',
-                    ),
-                    items: [
-                      for (final priority in ProjectPriority.values)
-                        DropdownMenuItem(
-                          value: priority,
-                          child: Text(priority.label),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: formFieldGap),
-                Expanded(
-                  child: FormBuilderDropdown<int>(
-                    name: 'createdByUserId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Created by'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Every project has an author.',
-                    ),
-                    items: [
-                      for (final User author in provider.authors)
-                        DropdownMenuItem(
-                          value: author.id,
-                          child: Text(author.fullName, overflow: TextOverflow.ellipsis),
                         ),
                     ],
                   ),
@@ -266,22 +180,46 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: formFieldGap),
-            FormBuilderDropdown<int?>(
-              name: 'deliveryCompanyId',
-              isExpanded: true,
-              decoration: appInputDecoration(
-                'Delivery company',
-                // The mockup's Location is this company's city and country.
-                hintText: 'Not assigned',
-              ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('Not assigned')),
-                for (final Company carrier in provider.carriers)
-                  DropdownMenuItem(
-                    value: carrier.id,
-                    child: Text(carrier.name, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: formSectionGap),
+            Row(
+              children: [
+                Expanded(
+                  child: FormBuilderDropdown<int>(
+                    name: 'customerId',
+                    isExpanded: true,
+                    decoration: appInputDecoration('Customer'),
+                    validator: FormBuilderValidators.required(
+                      errorText: 'Pick the customer this is built for.',
+                    ),
+                    items: [
+                      for (final Company customer in provider.customers)
+                        DropdownMenuItem(
+                          value: customer.id,
+                          child: Text(customer.name, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
                   ),
+                ),
+                const SizedBox(width: formFieldGap),
+                Expanded(
+                  child: FormBuilderDropdown<int?>(
+                    name: 'deliveryCompanyId',
+                    isExpanded: true,
+                    decoration: appInputDecoration(
+                      'Delivery company',
+                      // The mockup's Location is this company's city and country.
+                      hintText: 'Not assigned',
+                    ),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('Not assigned')),
+                      for (final Company carrier in provider.carriers)
+                        DropdownMenuItem(
+                          value: carrier.id,
+                          child: Text(carrier.name, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
             if (widget.row?.location case final location?) ...[
@@ -291,6 +229,72 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                 style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
             ],
+            const SizedBox(height: formFieldGap),
+            Row(
+              children: [
+                Expanded(
+                  child: FormBuilderDropdown<int>(
+                    name: 'projectStatusId',
+                    isExpanded: true,
+                    decoration: appInputDecoration('Status'),
+                    validator: FormBuilderValidators.required(
+                      errorText: 'Pick a status.',
+                    ),
+                    items: [
+                      for (final ProjectStatusType status in provider.statusTypes)
+                        DropdownMenuItem(
+                          value: status.id,
+                          child: Text(status.name, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: formFieldGap),
+                Expanded(
+                  child: FormBuilderDropdown<ProjectPriority>(
+                    name: 'priority',
+                    isExpanded: true,
+                    decoration: appInputDecoration('Priority'),
+                    validator: FormBuilderValidators.required(
+                      errorText: 'Pick a priority.',
+                    ),
+                    items: [
+                      for (final priority in ProjectPriority.values)
+                        DropdownMenuItem(
+                          value: priority,
+                          child: Text(priority.label),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: formFieldGap),
+            FormBuilderDropdown<int>(
+              name: 'createdByUserId',
+              isExpanded: true,
+              decoration: appInputDecoration('Created by'),
+              validator: FormBuilderValidators.required(
+                errorText: 'Every project has an author.',
+              ),
+              items: [
+                for (final User author in provider.authors)
+                  DropdownMenuItem(
+                    value: author.id,
+                    child: Text(author.fullName, overflow: TextOverflow.ellipsis),
+                  ),
+              ],
+            ),
+            const SizedBox(height: formSectionGap),
+            FormBuilderTextField(
+              name: 'description',
+              minLines: 2,
+              maxLines: 3,
+              decoration: appInputDecoration(
+                'Description',
+                hintText: 'What is being built',
+              ),
+            ),
             const SizedBox(height: formFieldGap),
             FormBuilderTextField(
               name: 'notes',

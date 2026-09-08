@@ -471,7 +471,9 @@ carries the fields the Project Details mockup asks for: `Code` (the shop's own r
 must not become them — **Project Type** is the existing `ProjectCategory`, and **Location** is the delivery
 company's city and country, resolved client-side through `Company.CityId` → `City` → `Country` and exposed
 as `ProjectRow.location`. Seeded project names no longer carry their code inline; the code is its own
-column, and `ProjectRow.displayName` puts them back together as "MU-2201 - Hall roof structure". **Search, status filter, sort
+column, handed out by `DataSeeder.AssignCodes` in creation order and restarting each
+year — `26-001`, `26-002`, … `27-001` — and `ProjectRow.displayName` puts the two back
+together as "26-003 - Hall roof structure". **Search, status filter, sort
 and paging are the API's job**: `ProjectsProvider.filter` builds the `ProjectSearchObject`
 (`search`, `projectStatusId`, `page`, `pageSize`, `includeTotalCount`, `sortBy: 'CreationDate desc'`) and
 one page of eight rows comes back. Only the small lookup tables — companies, company types, categories,
@@ -484,7 +486,12 @@ change. Because a search now costs a request, the box applies on Enter or its ar
 on every keystroke.
 
 `ProjectDetailsScreen` serves both New and Edit, and a new project defaults its author to whoever is
-signed in (`ProjectsProvider.signedInUserId`, read from `AuthProvider`). The carrier dropdown offers
+signed in (`ProjectsProvider.signedInUserId`, read from `AuthProvider`) and its code to
+`ProjectsProvider.nextCode` — the next number in this year's run, which the office can type over.
+`_loadNextCode` runs with the counters, so it follows a save; it reads a page of codes sorted
+`Code desc` and takes the highest that matches `yy-nnn` rather than trusting the first row, because a
+hand-typed code in another shape would sort above the real ones. Nothing enforces uniqueness in the
+schema, so the number is a convenience, not a guarantee. The carrier dropdown offers
 companies that are *not* customers, and the location line under it is read from the one selected. It always sends `creationDate` and
 `productionStartDate` — both are `NOT NULL`; on an edit the original `creationDate` is sent back
 unchanged — while `deliveryDate` is left null until the project is scheduled. Statuses are coloured by
@@ -545,6 +552,29 @@ in the schema, so the database drops them itself. `UnloadColor` is free text; th
 offers are the `unloadColors` map in `transport_details_screen.dart`, not something the database
 enforces. Statuses are coloured by name in `TruckLoadStatusChip`, which falls back to neutral for a
 status it does not know.
+
+### How a details form is laid out
+
+`appInputDecoration` sets a field's *padding* — `isDense` with 16px horizontal and 15px
+vertical, which the list screens' own filter decorations repeat verbatim so every input in
+the app sits the same distance off its outline. Its
+*outline* comes from `AppTheme`'s `inputDecorationTheme`, which fills every per-state
+border (`enabledBorder`, `focusedBorder`, …) from the palette's `fieldBorder` at 1px, with
+the accent at 1.4 for focus rather than Material's doubled 2. That reaches the list
+screens' filter bars too: they pass a bare `OutlineInputBorder()` as `border`, and
+`InputDecoration.applyDefaults` fills the per-state borders from the theme *before* it
+falls back to `border`, so the theme is what actually gets painted. Material's own default
+draws `onSurface` at 38%, which reads heavy on both grounds — that is what this replaces.
+A widget that wants **no** box has to say `InputBorder.none` for each state, not just for
+`border`; the worker form's switch and qualification chips are the two that do.
+`formFieldGap` (16) separates fields, and `formSectionGap` (28) separates *groups* that
+answer different questions: who worked from when they worked, the account details from the
+password, the qualifications from whether the account is live. `FieldSeparator` is the
+"-" that ties a date to the times booked against it on the work hours form.
+
+A field the office cannot type into is an `InputDecorator` over a `Text` rather than a
+disabled `TextField` — the transport form's **Bruto project weight** is that, and it reads
+full weight less empty weight straight off the two fields as they are typed.
 
 ### Account settings and passwords
 

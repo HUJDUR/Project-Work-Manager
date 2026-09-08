@@ -135,7 +135,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: formFieldGap),
+            const SizedBox(height: formSectionGap),
             Row(
               children: [
                 Expanded(
@@ -160,7 +160,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
                     builder: (field) => _TimeField(field: field, label: 'Started at'),
                   ),
                 ),
-                const SizedBox(width: formFieldGap),
+                FieldSeparator(),
                 Expanded(
                   child: FormBuilderField<TimeOfDay>(
                     name: 'finishedAt',
@@ -170,12 +170,6 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: formFieldGap),
-            Text(
-              'Regular and overtime are worked out from the whole day: the first '
-              'eight hours a worker books on a date are regular, the rest overtime.',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ],
         ),

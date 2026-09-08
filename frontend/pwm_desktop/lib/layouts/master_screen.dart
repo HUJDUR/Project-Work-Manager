@@ -345,7 +345,7 @@ class _Sidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       child: ListView.builder(
         itemCount: destinations.length,
         itemBuilder: (context, index) => _NavItem(

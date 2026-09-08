@@ -185,7 +185,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: formFieldGap),
+            const SizedBox(height: formSectionGap),
             // The pair check each other, so they are plain fields with one
             // complaint worked out in _checkPasswords rather than two validators.
             Row(
@@ -226,22 +226,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
                     : AppColors.danger,
               ),
             ),
-            const SizedBox(height: formFieldGap),
-            // The switch is a ListTile, which paints its ink on the nearest
-            // Material - the card's decoration would otherwise hide it.
-            Material(
-              color: Colors.transparent,
-              child: FormBuilderSwitch(
-                name: 'isActive',
-                title: const Text('Currently employed'),
-                subtitle: Text(
-                  'An account is deactivated rather than deleted when someone leaves.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                ),
-                decoration: const InputDecoration(border: InputBorder.none),
-              ),
-            ),
-            const SizedBox(height: formFieldGap),
+            const SizedBox(height: formSectionGap),
             const Text(
               'Qualified for',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
@@ -254,7 +239,13 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
             const SizedBox(height: 8),
             FormBuilderFilterChips<int>(
               name: 'operationIds',
-              decoration: const InputDecoration(border: InputBorder.none),
+              decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                ),
               spacing: 8,
               runSpacing: 4,
               options: [
@@ -264,6 +255,27 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
                     child: Text(operation.name),
                   ),
               ],
+            ),
+            const SizedBox(height: formSectionGap),
+            // The switch is a ListTile, which paints its ink on the nearest
+            // Material - the card's decoration would otherwise hide it.
+            Material(
+              color: Colors.transparent,
+              child: FormBuilderSwitch(
+                name: 'isActive',
+                title: const Text('Currently employed'),
+                subtitle: Text(
+                  'An account is deactivated rather than deleted when someone leaves.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  disabledBorder: InputBorder.none,
+                ),
+              ),
             ),
           ],
         ),

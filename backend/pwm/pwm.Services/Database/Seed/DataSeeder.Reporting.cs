@@ -134,16 +134,16 @@ namespace pwm.Services.Database.Seed
 
             var messages = new (string Title, string Message)[]
             {
-                ("Project ready for delivery", "Staircase module WM-45 has been loaded and is ready to leave."),
-                ("New project created", "Silo foundations AK-88 was created for Adria Konstrukcije d.o.o."),
-                ("Delivery date approaching", "Staircase module WM-45 is due for delivery in 3 days."),
+                ("Project ready for delivery", "The staircase module has been loaded and is ready to leave."),
+                ("New project created", "Silo foundations was created for Adria Konstrukcije d.o.o."),
+                ("Delivery date approaching", "The staircase module is due for delivery in 3 days."),
                 ("Truck load registered", "A load for Euro Spedicija d.o.o. was registered this morning."),
-                ("Assigned to project", "You have been assigned welding work on Platform driptrays MU-2311."),
+                ("Assigned to project", "You have been assigned welding work on the platform driptrays."),
                 ("Missing clock out", "Please check your work log, one shift was closed automatically."),
-                ("Quality check requested", "Machine base plates AK-77 need a quality check before packing."),
+                ("Quality check requested", "The machine base plates need a quality check before packing."),
                 ("Shift change", "Next week the early shift starts at 06:00."),
                 ("Monthly report generated", "The monthly hour report has been generated and is ready for review."),
-                ("Material delivered", "The plate delivery for AK-77 has arrived at the yard."),
+                ("Material delivered", "The plate delivery for the machine base plates has arrived at the yard."),
             };
 
             var notifications = new List<Notification>();

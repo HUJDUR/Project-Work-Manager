@@ -149,48 +149,6 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: formFieldGap),
-            Row(
-              children: [
-                Expanded(
-                  child: FormBuilderTextField(
-                    name: 'driverName',
-                    autofocus: _isNew,
-                    decoration: appInputDecoration('Driver name'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'The driver needs a name.',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: formFieldGap),
-                Expanded(
-                  child: FormBuilderTextField(
-                    name: 'driverSurname',
-                    decoration: appInputDecoration('Driver surname'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'The driver needs a surname.',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: formFieldGap),
-            Row(
-              children: [
-                Expanded(
-                  child: FormBuilderTextField(
-                    name: 'vehicleRegistration',
-                    decoration: appInputDecoration(
-                      'Registration',
-                      hintText: 'A12-K-345',
-                    ),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Every load has a vehicle registration.',
-                    ),
-                  ),
-                ),
                 const SizedBox(width: formFieldGap),
                 Expanded(
                   child: FormBuilderDateTimePicker(
@@ -254,11 +212,68 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Cargo weight ${formatTonnes(_netWeight)}',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            const SizedBox(height: formFieldGap),
+            InputDecorator(
+              decoration: appInputDecoration(
+                'Bruto project weight',
+                suffixText: 'kg',
+              ).copyWith(
+                enabled: false,
+                helperText: 'Full weight less the empty truck',
+                helperStyle: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+              child: Text(
+                _netWeight.toStringAsFixed(2),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
+            const SizedBox(height: formFieldGap),
+            Row(
+              children: [
+                Expanded(
+                  child: FormBuilderTextField(
+                    name: 'driverName',
+                    autofocus: _isNew,
+                    decoration: appInputDecoration('Driver name'),
+                    validator: FormBuilderValidators.required(
+                      errorText: 'The driver needs a name.',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: formFieldGap),
+                Expanded(
+                  child: FormBuilderTextField(
+                    name: 'driverSurname',
+                    decoration: appInputDecoration('Driver surname'),
+                    validator: FormBuilderValidators.required(
+                      errorText: 'The driver needs a surname.',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: formFieldGap),
+            Row(
+              children: [
+                Expanded(
+                  child: FormBuilderTextField(
+                    name: 'vehicleRegistration',
+                    decoration: appInputDecoration(
+                      'Registration',
+                      hintText: 'A12-K-345',
+                    ),
+                    validator: FormBuilderValidators.required(
+                      errorText: 'Every load has a vehicle registration.',
+                    ),
+                  ),
+                ),
+
+              ],
+            ),
+            const SizedBox(height: formFieldGap),
             const SizedBox(height: formFieldGap),
             FormBuilderTextField(
               name: 'note',
