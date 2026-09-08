@@ -19,6 +19,7 @@ class AppPalette {
     required this.dangerBorder,
     required this.tooltipSurface,
     required this.tooltipText,
+    required this.fieldBorder,
     required this.chipTint,
   });
 
@@ -42,6 +43,11 @@ class AppPalette {
   final Color tooltipSurface;
   final Color tooltipText;
 
+  /// The outline of an input. A shade firmer than [border] so a field still
+  /// reads as a field, but far lighter than Material's default, which draws
+  /// `onSurface` at 38% and looks heavy on both grounds.
+  final Color fieldBorder;
+
   /// How strongly a status chip's own colour washes its background. Dark needs
   /// more of it to read against a dark card.
   final double chipTint;
@@ -63,6 +69,7 @@ class AppPalette {
     dangerBorder: Color(0xFFFECACA),
     tooltipSurface: Color(0xFF1F2937),
     tooltipText: Color(0xFFF9FAFB),
+    fieldBorder: Color(0xFFDCE0E6),
     chipTint: 0.12,
   );
 
@@ -82,6 +89,7 @@ class AppPalette {
     dangerBorder: Color(0xFF5B2A2A),
     tooltipSurface: Color(0xFF333B47),
     tooltipText: Color(0xFFF2F4F7),
+    fieldBorder: Color(0xFF323945),
     chipTint: 0.20,
   );
 }
@@ -109,6 +117,7 @@ abstract final class AppColors {
   static Color get textMuted => palette.textMuted;
   static Color get tooltipSurface => palette.tooltipSurface;
   static Color get tooltipText => palette.tooltipText;
+  static Color get fieldBorder => palette.fieldBorder;
   static Color get accent => palette.accent;
   static Color get accentSoft => palette.accentSoft;
   static Color get danger => palette.danger;
@@ -179,6 +188,12 @@ class ThemeController extends ChangeNotifier {
 }
 
 abstract final class AppTheme {
+  static OutlineInputBorder _outline(Color color, {double width = 1}) =>
+      OutlineInputBorder(
+        borderRadius: const BorderRadius.all(Radius.circular(6)),
+        borderSide: BorderSide(color: color, width: width),
+      );
+
   static ThemeData light() => _build(AppPalette.light);
 
   static ThemeData dark() => _build(AppPalette.dark);
@@ -211,6 +226,17 @@ abstract final class AppTheme {
         // Fields sit on cards, so they take the card's own ground.
         fillColor: palette.surface,
         hintStyle: TextStyle(color: palette.textMuted),
+        // One outline for every input in the app. A screen that passes a bare
+        // OutlineInputBorder() as `border` still lands here: InputDecoration
+        // fills its per-state borders from the theme before it falls back to
+        // `border`, so these are what actually get painted.
+        enabledBorder: _outline(palette.fieldBorder),
+        border: _outline(palette.fieldBorder),
+        disabledBorder: _outline(palette.border),
+        // A focus ring, not a second frame - Material's default doubles to 2.
+        focusedBorder: _outline(palette.accent, width: 1.4),
+        errorBorder: _outline(palette.danger),
+        focusedErrorBorder: _outline(palette.danger, width: 1.4),
       ),
       tooltipTheme:
           const TooltipThemeData(waitDuration: Duration(milliseconds: 400)),

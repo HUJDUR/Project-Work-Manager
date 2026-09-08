@@ -193,7 +193,7 @@ class _FilterBarState extends State<_FilterBar> {
               ),
               border: const OutlineInputBorder(),
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             ),
           ),
         ),
@@ -206,7 +206,7 @@ class _FilterBarState extends State<_FilterBar> {
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             ),
             items: [
               const DropdownMenuItem(value: null, child: Text('All Status')),

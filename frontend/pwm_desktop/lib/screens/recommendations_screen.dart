@@ -107,7 +107,7 @@ class _InputBar extends StatelessWidget {
   static const _decoration = InputDecoration(
     border: OutlineInputBorder(),
     isDense: true,
-    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
   );
 
   final RecommendationsProvider provider;

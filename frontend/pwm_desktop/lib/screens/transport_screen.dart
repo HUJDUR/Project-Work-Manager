@@ -169,7 +169,7 @@ class _FilterBarState extends State<_FilterBar> {
               border: const OutlineInputBorder(),
               isDense: true,
               contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             ),
           ),
         ),
@@ -182,7 +182,7 @@ class _FilterBarState extends State<_FilterBar> {
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             ),
             items: [
               const DropdownMenuItem(value: null, child: Text('All Status')),
@@ -230,7 +230,7 @@ class _DateRangeField extends StatelessWidget {
                   icon: const Icon(Icons.close, size: 16),
                   onPressed: () => provider.setDateRange(null),
                 ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
         ),
         child: Text(
           label,

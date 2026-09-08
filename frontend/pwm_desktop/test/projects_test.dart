@@ -439,6 +439,14 @@ void main() {
     expect(find.text('Created by'), findsOneWidget);
     expect(find.text('Delivery company'), findsWidgets);
     expect(find.text('Notes'), findsOneWidget);
+    // The code box opens on the next number in this year's run rather than
+    // empty; the fixture holds no code in that shape, so it starts the year.
+    final codeField = tester.widget<TextField>(find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == 'Project code',
+    ));
+    final prefix = (DateTime.now().year % 100).toString().padLeft(2, '0');
+    expect(codeField.controller?.text, '$prefix-001');
+
     // Adding cannot delete, and an empty form refuses to save.
     expect(find.text('Delete'), findsNothing);
 
@@ -471,5 +479,69 @@ void main() {
       (widget) => widget is TextField && widget.decoration?.labelText == 'Project name',
     ));
     expect(nameField.controller?.text, 'Hall roof MU-1');
+  });
+
+  group('the next project code', () {
+    /// The provider's own rule, restated so the test does not depend on the
+    /// year the suite happens to run in.
+    String prefix() =>
+        (DateTime.now().year % 100).toString().padLeft(2, '0');
+
+    ProjectsProvider providerOver(List<Project> rows) => ProjectsProvider(
+          projects: _FakeProvider(rows, matches: _applyProjectFilters),
+          companies: _FakeProvider(_companies),
+          companyTypes: _FakeProvider(const [
+            CompanyType(id: 1, name: 'Customer'),
+            CompanyType(id: 2, name: 'Transport'),
+          ]),
+          categories: _FakeProvider(const [ProjectCategory(id: 1, name: 'Sections')]),
+          statusTypes: _FakeProvider(const [
+            ProjectStatusType(id: 3, name: 'In production'),
+          ]),
+          users: _FakeProvider(const <User>[]),
+          cities: _FakeProvider(const <City>[]),
+          countries: _FakeProvider(const <Country>[]),
+        );
+
+    Project coded(int id, String code) =>
+        _project(id: id, name: 'P$id', code: code, customerId: 1, statusId: 3, createdDaysAgo: id);
+
+    test('carries on from the highest number this year', () async {
+      final provider = providerOver([
+        coded(1, '${prefix()}-002'),
+        coded(2, '${prefix()}-005'),
+        coded(3, '${prefix()}-001'),
+      ]);
+      await provider.load();
+
+      expect(provider.nextCode, '${prefix()}-006');
+    });
+
+    test('starts the year at 001 when nothing carries this year', () async {
+      // Last year's run, and a code from before the scheme existed.
+      final lastYear = ((DateTime.now().year - 1) % 100).toString().padLeft(2, '0');
+      final provider = providerOver([
+        coded(1, '$lastYear-042'),
+        coded(2, 'MU-2201'),
+      ]);
+      await provider.load();
+
+      expect(provider.nextCode, '${prefix()}-001');
+    });
+
+    test('an empty book starts at 001', () async {
+      final provider = providerOver(const []);
+      await provider.load();
+
+      expect(provider.nextCode, '${prefix()}-001');
+    });
+
+    test('a new project opens with it, an existing one keeps its own', () async {
+      final provider = providerOver([coded(1, '${prefix()}-004')]);
+      await provider.load();
+
+      expect(provider.nextCode, '${prefix()}-005');
+      expect(provider.rows.single.code, '${prefix()}-004');
+    });
   });
 }
