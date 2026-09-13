@@ -538,8 +538,10 @@ the split — the seam is `_buildEntries`.
 
 `WorkHoursDetailsScreen` writes a `WorkLog` first and then a `WorkLogDetail` pointing at the new id — the
 API has no endpoint that creates both — and on an edit puts both back. Deleting a block deletes its
-shift too when nothing else was booked against it. Because `ClockedOut` and `FinishedAt` are `NOT NULL`,
-the form always sends a finished block; an open shift still cannot be recorded.
+shift too when nothing else was booked against it. The **desktop form** always sends a finished block,
+so an open shift cannot be raised from a desk — not because the columns forbid it (`ClockedOut` and
+`FinishedAt` are both nullable, and the requests carry them as `DateTime?`) but because the office is
+recording work that already happened. The mobile Clock In screen is what writes the open ones.
 
 ### Transports
 
@@ -778,8 +780,9 @@ opening a shell with no session behind it.
 `my_hours_screen.dart` over `MyHoursProvider` is `docs/mockups/mobile/My hours.png`: a period picker,
 two metric cards with trend lines, then one row per **day**.
 
-A day, not a shift — a worker can clock in more than once, so the blocks are grouped by the date they
-were *started* on rather than by the `WorkLog` they hang off. Days are listed newest first; the blocks
+A day, not a shift — the same thing once Clock In has written the rows, since that raises one `WorkLog`
+per day, but the blocks are grouped by the date they were *started* on rather than by the `WorkLog`
+they hang off, so a day still reads correctly whatever wrote them. Days are listed newest first; the blocks
 *within* a day run in the order they were worked, because a day reads as the shift ran.
 
 The list costs **one request**, the same shape as the dashboard: `WorkLogDetail` carries its own
@@ -809,6 +812,44 @@ line. A period where every day is equal draws a flat rule instead of nothing.
 `TrendCard` expects a bounded height and bottom-aligns its figure, so put a pair of them in a row under
 `IntrinsicHeight` — "Projects Worked On" wraps to two lines where "Total Hours" does not, and without
 it the two numbers sit at different heights side by side.
+
+### Clock In / Clock Out
+
+`clock_in_screen.dart` over `ClockInProvider` is `docs/mockups/mobile/Clockin clockout.png`: the running
+session on top, the form to start one underneath.
+
+The three shapes, which are not interchangeable:
+
+- a **`WorkLog` is a shift** — one day of work, running from the first clock-in to the last clock-out,
+  whose `Hours` is the day's total;
+- its **`WorkLogDetail`s are the separate operations** worked through that day;
+- a **session** is one of those details while it is still running, which is to say while its
+  `FinishedAt` is null. This is the only screen in either app that writes an unfinished one, which is
+  what those two nullable columns exist for.
+
+So clocking in **joins today's shift**, raising one only when it is the first session of the day, and
+adds a detail to it; a shift already clocked out of is reopened rather than duplicated, because the
+worker is back on the clock. Clocking out closes the detail and totals the day back onto the shift —
+read back from its details rather than added to, so a session booked elsewhere still lands in the
+total. **One shift per day, not per session**: three sessions on a Tuesday are three details on one
+Tuesday shift.
+
+Both dropdowns are narrowed to what the worker can honestly pick. Projects are the ones **in
+production** — booking time to a delivered job is not a thing — with the status matched by *name*
+(`ClockInProvider.bookableStatus`) and its id sent as the filter, because the ids are the seeder's and
+the name is the business's. Operations are the ones they are **qualified for**, through `UserOperations`;
+the seeded workers hold two to five each, so most of the operation list is correctly not on offer.
+
+A session left running is found on load by asking for recent blocks and picking the unfinished one —
+there is no "open" filter on the API. It only looks back `openSessionWindow` (two days): a shift that
+crossed midnight is still the one in progress, but one abandoned last week is not something to silently
+resume. Clocking in is refused while a session is running, and the button says which of the reasons
+applies rather than just sitting there greyed out.
+
+**The mockup's Note field is not built.** Neither `WorkLogs` nor `WorkLogDetails` has a column to put it
+in, and a field whose text is discarded the moment it is typed is worse than no field — the same call
+the Notifications screen makes about its "Notification type" dropdown. Adding it is an entity column, a
+migration and three DTOs, which is a schema change rather than a screen change.
 
 ### Running the mobile app on a phone or emulator
 

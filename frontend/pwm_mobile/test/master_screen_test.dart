@@ -7,7 +7,14 @@ import 'package:pwm_mobile/providers/auth_provider.dart';
 /// A small phone — the width the six-entry bottom bar has to survive.
 const _phone = Size(390, 844);
 
-Future<void> _pumpShell(WidgetTester tester, {int initialIndex = 1}) async {
+/// Options, the last tab still without a screen. The shell tests are about the
+/// bar, not about what a tab holds, so they open on a [PlaceholderBody]: a real
+/// screen would go looking for an API. Move this as tabs get built.
+const _placeholderTab = 5;
+const _otherPlaceholderTab = 4;
+
+Future<void> _pumpShell(WidgetTester tester,
+    {int initialIndex = _placeholderTab}) async {
   tester.view
     ..physicalSize = _phone
     ..devicePixelRatio = 1.0;
@@ -16,7 +23,6 @@ Future<void> _pumpShell(WidgetTester tester, {int initialIndex = 1}) async {
   await tester.pumpWidget(
     ChangeNotifierProvider(
       create: (_) => AuthProvider(),
-      // Opens on a placeholder tab: the dashboard would go looking for an API.
       child: MaterialApp(home: MasterScreen(initialIndex: initialIndex)),
     ),
   );
@@ -54,14 +60,14 @@ void main() {
 
   testWidgets('the bar swaps the body rather than stacking screens',
       (tester) async {
-    await _pumpShell(tester);
-    expect(find.text('Clock In is not built yet'), findsOneWidget);
+    await _pumpShell(tester, initialIndex: _otherPlaceholderTab);
+    expect(find.text('Notifications is not built yet'), findsOneWidget);
 
-    await tester.tap(find.text('Projects'));
+    await tester.tap(find.text('Options'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Clock In is not built yet'), findsNothing);
-    expect(find.text('Projects is not built yet'), findsOneWidget);
+    expect(find.text('Notifications is not built yet'), findsNothing);
+    expect(find.text('Options is not built yet'), findsOneWidget);
     // One shell, one screen deep — nothing was pushed over it.
     expect(find.byType(MasterScreen), findsOneWidget);
   });

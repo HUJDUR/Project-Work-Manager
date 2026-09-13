@@ -38,3 +38,15 @@ String formatHoursValue(double hours) {
 /// worker is still on it.
 String formatTimeRange(DateTime from, DateTime? to) =>
     '${formatTime(from)} - ${to == null ? '...' : formatTime(to)}';
+
+/// A running session's elapsed time, ticking: `0:07:12`, `11:03:40`. Seconds are
+/// shown because this counts up on screen and a clock that never visibly moves
+/// reads as broken.
+String formatElapsed(Duration elapsed) {
+  final seconds = elapsed.inSeconds;
+  final minutes = (seconds ~/ 60) % 60;
+
+  return '${seconds ~/ 3600}:'
+      '${minutes.toString().padLeft(2, '0')}:'
+      '${(seconds % 60).toString().padLeft(2, '0')}';
+}
