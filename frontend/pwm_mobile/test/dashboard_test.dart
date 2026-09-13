@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pwm_mobile/models/models.dart';
@@ -15,10 +17,51 @@ class _FakeProvider<T> extends BaseProvider<T> {
   /// rather than the whole table being pulled and sifted here.
   dynamic lastFilter;
 
+  /// How many times the screen has gone to the API, which is what tells a
+  /// refresh apart from the first load.
+  int loads = 0;
+
   @override
   Future<PageResult<T>> get({dynamic filter}) async {
     lastFilter = filter;
+    loads++;
     return PageResult<T>()..items = rows;
+  }
+}
+
+/// Hangs until [finish] is called, so a test can look at the screen while a
+/// refresh is still in flight.
+class _SlowProvider<T> extends _FakeProvider<T> {
+  _SlowProvider(super.rows);
+
+  Completer<void>? _pending;
+
+  void finish() {
+    _pending?.complete();
+    _pending = null;
+  }
+
+  @override
+  Future<PageResult<T>> get({dynamic filter}) async {
+    // The first load resolves at once; a refresh is what waits.
+    if (loads > 0) {
+      final pending = _pending = Completer<void>();
+      await pending.future;
+    }
+    return super.get(filter: filter);
+  }
+}
+
+/// Answers once, then refuses — a refresh failing over figures already shown.
+class _FlakyProvider<T> extends _FakeProvider<T> {
+  _FlakyProvider(super.rows);
+
+  @override
+  Future<PageResult<T>> get({dynamic filter}) async {
+    if (loads > 0) {
+      throw ApiClientException('The API is unreachable.');
+    }
+    return super.get(filter: filter);
   }
 }
 
@@ -173,6 +216,57 @@ void main() {
 
     await tester.tap(find.text('View all'));
     expect(tapped, isTrue);
+  });
+
+  testWidgets('the refresh button reloads from the API', (tester) async {
+    final blocks = _FakeProvider(_blocks());
+    await _pumpDashboard(tester, _fakeDashboard(blocks));
+
+    expect(blocks.loads, 1);
+
+    await tester.tap(find.byTooltip('Refresh'));
+    await tester.pumpAndSettle();
+
+    expect(blocks.loads, 2);
+    // The numbers are still there — refreshing must not blank the screen.
+    expect(find.text('5h 30m'), findsOneWidget);
+  });
+
+  testWidgets('refreshing keeps the figures and spins the button',
+      (tester) async {
+    final blocks = _SlowProvider(_blocks());
+    await _pumpDashboard(tester, _fakeDashboard(blocks));
+
+    await tester.tap(find.byTooltip('Refresh'));
+    await tester.pump();
+
+    // Mid-flight: last week's answer stays up rather than flashing to a spinner.
+    expect(find.text('5h 30m'), findsOneWidget);
+    expect(find.byTooltip('Refreshing'), findsOneWidget);
+
+    blocks.finish();
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Refresh'), findsOneWidget);
+  });
+
+  testWidgets('a refresh that fails keeps the old figures and says so',
+      (tester) async {
+    final provider = _fakeDashboard(_FlakyProvider(_blocks()));
+    await _pumpDashboard(tester, provider);
+
+    expect(find.text('5h 30m'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Refresh'));
+    await tester.pumpAndSettle();
+
+    // The full error state is for having nothing; here there is still data.
+    expect(find.text('5h 30m'), findsOneWidget);
+    expect(find.text('Try again'), findsNothing);
+    expect(
+      find.textContaining('Showing what was last loaded.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a failed load offers a retry', (tester) async {

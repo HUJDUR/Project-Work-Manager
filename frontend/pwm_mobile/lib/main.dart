@@ -7,14 +7,20 @@ import 'screens/login_screen.dart';
 import 'utils/api_client_exception.dart';
 import 'utils/app_theme.dart';
 
-/// The app opens on [LoginScreen]. Set this to true to skip it and come up
-/// signed in as the seeded worker below — handy while building a screen that
-/// is several taps in, and the switch the desktop still has turned on.
+/// Skips [LoginScreen] and comes up already signed in as [_devEmail], so a
+/// screen several taps in is one hot restart away. Set this to false to get
+/// sign-in back — the screen is built and nothing else has to change.
 /// The API side has its own switch, `pwm.WebAPI/DevSettings.BypassAuthentication`,
 /// which stops endpoints checking the token but does **not** stop `/Access/Login`
-/// checking the password.
-const bool bypassLogin = false;
-const String _devEmail = 'muhamed.ramic@pwm.ba';
+/// checking the password, so this is still a real sign-in.
+const bool bypassLogin = true;
+
+/// Faruk Tufekcic, a seeded production worker (Painter, id 20) — picked once at
+/// random from the active shop floor and **kept**, so every run shows the same
+/// hours and a screen's numbers can be checked against the API by hand. The
+/// seeder generates these names from a seeded `Random`, so a database reseeded
+/// from different data means picking again.
+const String _devEmail = 'faruk.tufekcic@pwm.ba';
 const String _devPassword = 'test';
 
 void main() {
@@ -26,6 +32,8 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeController()),
         ChangeNotifierProvider(create: (_) => WorkLogDetailProvider()),
+        ChangeNotifierProvider(create: (_) => ProjectProvider()),
+        ChangeNotifierProvider(create: (_) => OperationTypeProvider()),
       ],
       child: PwmMobileApp(),
     ),
