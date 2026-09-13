@@ -699,9 +699,11 @@ Everything the desktop's architecture notes say about `BaseProvider`, `AuthProvi
 palette and the no-`const` rule holds here too — `test/theme_test.dart` is the same scan over this
 `lib/`. Three things differ deliberately:
 
-- **The shell is a bottom bar, not a sidebar**, and it does not hand each tab its own `Navigator`.
-  Nothing pushes a details screen yet; the tab whose turn it is builds straight into the body. A tab
-  is switched **by label** (`_go('My Hours')`), so reordering the bar cannot silently repoint the
+- **The shell is a bottom bar, not a sidebar**, and it does not hand each tab its own `Navigator`:
+  the tab whose turn it is builds straight into the body. A screen that pushes a detail therefore
+  pushes on the **root** navigator and covers the bar — `MyHoursScreen`'s "View entries" is the one
+  that does, and a full-screen day with its own back arrow is what a phone expects anyway. A tab is
+  switched **by label** (`_go('My Hours')`), so reordering the bar cannot silently repoint the
   dashboard's "View all". Six entries is more than Material's `BottomNavigationBar` lays out, so the
   bar is built by hand and each label sits in a `FittedBox` — a phone-width bar reading
   "Notificat…" names nothing.
@@ -728,9 +730,13 @@ second call for them. The week runs **Monday to Sunday**, and the window is appl
 well as in the request, so a stale API that ignores `dateFrom` cannot inflate the totals.
 
 Hours are written `7h 30m` (`formatClockHours`) rather than the desktop's `7.5 h`: a shift is read off
-a clock, a monthly total is read off a table. Pull-to-refresh replaces the desktop's Refresh button.
-"View all" is only rendered when the shell passes `onViewAllHours`, so the card cannot offer a dead
-link in a test or wherever the screen is reused.
+a clock, a monthly total is read off a table. There are two ways to reload — a pull, and a Refresh
+button beside the greeting — and the screen **decides what to show from whether it has data, not from
+the status**: a reload leaves the last figures up and spins the button, where switching on the status
+would blank the screen to a spinner on every press. The full error state is for having nothing at all;
+a refresh that fails over good numbers keeps them and admits it in a banner. "View all" is only
+rendered when the shell passes `onViewAllHours`, so the card cannot offer a dead link in a test or
+wherever the screen is reused.
 
 The screen takes a `providerFactory` for the same reason the desktop's does — `test/dashboard_test.dart`
 injects a provider over one fake `BaseProvider` and a fixed clock, so the week arithmetic is pinned to
@@ -755,12 +761,54 @@ same way. What differs is the shape and a handful of things only a phone needs:
 is sent back at desktop sign-in because no desktop screen is theirs; the reverse does not hold, and the
 dashboard shows the signed-in account's own hours, which reads the same whoever signs in.
 
-`main.dart` keeps the desktop's **`bypassLogin`** switch, but **mobile has it off** — the app opens on
-`LoginScreen`. Turn it on to come up already signed in as the seeded worker it names while building a
-screen that is several taps in. That worker is one of the seeder's *generated* accounts, and those names
-are picked from a seeded `Random`, so a differently regenerated database means re-picking the e-mail.
-Note that `DevSettings.BypassAuthentication` on the API stops endpoints checking the token but does
-**not** stop `/Access/Login` checking the password — sign-in is a real sign-in either way.
+`main.dart` keeps the desktop's **`bypassLogin`** switch, and **it is on**: the app comes up already
+signed in as `faruk.tufekcic@pwm.ba` — Faruk Tufekcic, a seeded production worker (Painter, id 20),
+drawn once at random from the active shop floor and then **kept**, so every run shows the same hours
+and a screen's figures can be checked against the API by hand. Set it to false to get `LoginScreen`
+back; that screen is built and nothing else has to change.
+
+That account is one of the seeder's *generated* ones, and those names come from a seeded `Random`, so a
+database reseeded from different data means picking another. Note that `DevSettings.BypassAuthentication`
+on the API stops endpoints checking the token but does **not** stop `/Access/Login` checking the
+password — the auto sign-in is a real sign-in, and it fails loudly (see `_SignedInAsWorker`) rather than
+opening a shell with no session behind it.
+
+### My Work Hours
+
+`my_hours_screen.dart` over `MyHoursProvider` is `docs/mockups/mobile/My hours.png`: a period picker,
+two metric cards with trend lines, then one row per **day**.
+
+A day, not a shift — a worker can clock in more than once, so the blocks are grouped by the date they
+were *started* on rather than by the `WorkLog` they hang off. Days are listed newest first; the blocks
+*within* a day run in the order they were worked, because a day reads as the shift ran.
+
+The list costs **one request**, the same shape as the dashboard: `WorkLogDetail` carries its own
+`UserId`, `dateFrom`/`dateTo` bound the period, and the day rows, both totals and both sparklines all
+come out of that one answer. The window is re-applied client-side so an API ignoring the dates cannot
+put another month in this one's figures.
+
+**Names are not fetched for the list.** Nothing on it shows a project or an operation, so
+`entriesFor` resolves them only when a day is opened — the same bargain as the desktop's
+`TransportsProvider.linesOf`. Operations are a small fixed lookup read whole once; projects are **not**
+a lookup table, so it asks for the handful of ids that day names and caches them, and a second day
+usually costs nothing. There is no "by ids" filter on `ProjectSearchObject`, which is why that part is
+one call per project — adding one would collapse it to a single request, and is the seam if it matters.
+
+`HoursPeriod` is four ranges (this/last week, this/last month) rather than a free date range, which
+would need two pickers and a lot more screen. `MyHoursProvider.rangeFor` resolves them against a clock
+the tests inject, and every range is **half-open** — `from` inclusive, `to` exclusive — so a week ends
+as the next one starts and month arithmetic rolls across a year end on its own. The week runs Monday to
+Sunday, the same rule the dashboard counts by.
+
+The sparkline is hand-painted (`widgets/sparkline.dart`) rather than drawn with `fl_chart`, which is
+what the desktop charts with: it has no axes, labels, tooltip or interaction, and a charting package
+for one polyline is a dependency the mobile app does not otherwise need. Its series carries **one point
+per calendar day including the empty ones**, or a week holding two shifts would draw as a straight
+line. A period where every day is equal draws a flat rule instead of nothing.
+
+`TrendCard` expects a bounded height and bottom-aligns its figure, so put a pair of them in a row under
+`IntrinsicHeight` — "Projects Worked On" wraps to two lines where "Total Hours" does not, and without
+it the two numbers sit at different heights side by side.
 
 ### Running the mobile app on a phone or emulator
 

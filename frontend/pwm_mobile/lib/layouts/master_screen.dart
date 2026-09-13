@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../providers/auth_provider.dart';
 import '../screens/dashboard_screen.dart';
+import '../screens/my_hours_screen.dart';
 import '../screens/widgets/placeholder_body.dart';
 import '../utils/app_theme.dart';
 
@@ -61,7 +62,7 @@ class _MasterScreenState extends State<MasterScreen> {
       label: 'My Hours',
       icon: Icons.schedule_outlined,
       activeIcon: Icons.schedule,
-      builder: (go) => PlaceholderBody(title: 'My Hours'),
+      builder: (go) => MyHoursScreen(),
     ),
     AppDestination(
       label: 'Projects',
