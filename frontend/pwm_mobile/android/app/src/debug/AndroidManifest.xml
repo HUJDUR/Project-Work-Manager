@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The INTERNET permission is required for development. Specifically,
+         the Flutter tool needs it to communicate with the running application
+         to allow setting breakpoints, to provide hot reload, etc.
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- The dev API is plain http, and Android has blocked cleartext by default
+         since API 28 — without this every call dies as
+         "CLEARTEXT communication to 10.0.2.2 not permitted by network security policy",
+         which surfaces in the app as an unreachable server. Deliberately not set
+         for release: shipping against plain http should be a decision, not a default.
+    -->
+    <application android:usesCleartextTraffic="true"/>
+</manifest>

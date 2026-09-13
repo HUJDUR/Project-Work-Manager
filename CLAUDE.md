@@ -11,7 +11,7 @@ Monorepo layout:
 - `backend/pwm/` — .NET 10 solution (`pwm.slnx`), four projects
 - `frontend/pwm_desktop` — Flutter desktop app; every screen in the navigation is built. The Recommendations screen is the one
   shell without a working body - the estimator behind it does not exist yet
-- `frontend/pwm_mobile` — Flutter mobile app (scaffolding only, one `main.dart`)
+- `frontend/pwm_mobile` — Flutter mobile app; the Dashboard is built, the other five tabs are shells
 - `docs/mockups/` — UI mockups that define the intended screens (gitignored)
 - `docs/PWM - prijava seminarskog rada v3.md` - defines the projects scope and needed funcionality
 - `docs/RSII_Upute_za_izradu_seminarskog_rada_2025_26.md` - defines the project requirements regarding implementation
@@ -88,7 +88,12 @@ flutter run -d windows                                        # desktop app
 flutter run --dart-define=baseUrl=http://localhost:7094/       # point at a different API
 flutter test
 flutter test test/dashboard_test.dart --plain-name "<test name>"   # single test
+dart run build_runner build                                   # after touching a model
 ```
+
+The mobile app runs on Windows too, which is the quickest way to see a screen; an emulator is what
+tells you whether it fits a phone. `test/master_screen_test.dart` pins the layout at 390x844, so a
+tab bar that only fits on a desktop window fails there rather than on a device.
 
 There is no backend test project yet.
 
@@ -132,6 +137,10 @@ title; on a truck load it matches the driver's name or surname, the vehicle regi
 carrier's name, so `TruckLoadService` overrides the same method to load `TransportCompany`. Adding a
 search box to a new screen means adding the same pair: a `Search` property and one `Where` over the
 columns the box should reach.
+
+`WorkLogDetailSearchObject` carries `DateFrom`/`DateTo` over `StartedAt` beside its four id filters,
+which is what lets the mobile dashboard ask for one worker's current week instead of their whole
+history. `WorkLogSearchObject` already had the same pair over `ClockedIn`.
 
 Mapping is Mapster by property name — a `Response`/`Request` property only maps if it matches the entity property. `UserService` overrides `MapInsertRequestToEntity`/`MapUpdateRequestToEntity` because the request carries a plain `Password` while the entity stores `PasswordHash`/`PasswordSalt`.
 
@@ -666,6 +675,121 @@ is hardcoded false and every card reads an em dash; pressing Estimate says the e
 rather than showing invented numbers. The provider is the seam — `estimate()` is what will call the model,
 and the only real work it does today is loading `ProjectCategory` for the dropdown and checking that all
 three inputs are filled in.
+
+## Mobile frontend architecture
+
+`frontend/pwm_mobile/lib` is the desktop's layering cut down to what a phone needs, and the two share
+their bones on purpose — `base_provider.dart`, `auth_provider.dart`, `api_client_exception.dart` and
+the `User`/`WorkLog`/`WorkLogDetail` models are the desktop's files, copied rather than adapted, so a
+fix to how the app talks to the API is the same fix in both places:
+
+```
+main.dart                     MultiProvider, MaterialApp + theme, opens LoginScreen
+layouts/master_screen.dart    top bar + bottom navigation, the shell every tab renders into
+models/                       the tables the app reads, plus WorkerSummary
+providers/base_provider.dart  transport: get / getById / insert / update / remove, auth headers, baseUrl
+providers/dashboard_provider.dart the dashboard's ChangeNotifier
+screens/<name>_screen.dart    one screen per tab
+screens/widgets/              the pieces those screens are built from
+utils/app_theme.dart          AppPalette / AppColors / ThemeController / AppSpacing / AppCard
+utils/formatters.dart         hours as `7h 30m`, counts, dates
+```
+
+Everything the desktop's architecture notes say about `BaseProvider`, `AuthProvider`, the global
+palette and the no-`const` rule holds here too — `test/theme_test.dart` is the same scan over this
+`lib/`. Three things differ deliberately:
+
+- **The shell is a bottom bar, not a sidebar**, and it does not hand each tab its own `Navigator`.
+  Nothing pushes a details screen yet; the tab whose turn it is builds straight into the body. A tab
+  is switched **by label** (`_go('My Hours')`), so reordering the bar cannot silently repoint the
+  dashboard's "View all". Six entries is more than Material's `BottomNavigationBar` lays out, so the
+  bar is built by hand and each label sits in a `FittedBox` — a phone-width bar reading
+  "Notificat…" names nothing.
+- **The app opens light** (`ThemeController.defaultMode`), because every mobile mockup is drawn light,
+  where the desktop opens dark. The toggle belongs on the Options tab, which is not built.
+- **`AppSpacing.pagePadding` is 16**, not the desktop's 24, and `AppPalette.light.canvas` is white
+  rather than grey — a phone shows one card at a time, so the cards are told apart by their borders.
+  That white canvas is why the palette carries a **`fieldFill`** token the desktop has no need of: the
+  desktop fills its inputs with the page's grey, which works because its cards are white on grey, and
+  here the page *is* white, so a field needs a tint of its own or it reads as a bare outline.
+  `AppTheme` sets `filled: true` over it, so every mobile input gets that ground.
+
+`utils/app_roles.dart` has no counterpart here: no mobile screen is barred by role. The desktop turns
+a production worker away at sign-in because no desktop screen is theirs; the reverse is not true, and
+the dashboard shows the signed-in account's own hours, which reads the same whoever signs in.
+
+### The mobile dashboard
+
+`docs/mockups/mobile/Dashboard.png`: a greeting, "Today's Summary" and "This Week", each a card of two
+tiles split by a hairline. `DashboardProvider` is worker-scoped and costs **one request** —
+`WorkLogDetail` carries its own `UserId`, so the blocks come back already narrowed, and `dateFrom`
+keeps them to the current week. Today's numbers are a subset of the week's, which is why there is no
+second call for them. The week runs **Monday to Sunday**, and the window is applied client-side as
+well as in the request, so a stale API that ignores `dateFrom` cannot inflate the totals.
+
+Hours are written `7h 30m` (`formatClockHours`) rather than the desktop's `7.5 h`: a shift is read off
+a clock, a monthly total is read off a table. Pull-to-refresh replaces the desktop's Refresh button.
+"View all" is only rendered when the shell passes `onViewAllHours`, so the card cannot offer a dead
+link in a test or wherever the screen is reused.
+
+The screen takes a `providerFactory` for the same reason the desktop's does — `test/dashboard_test.dart`
+injects a provider over one fake `BaseProvider` and a fixed clock, so the week arithmetic is pinned to
+dates that do not move.
+
+### Mobile sign-in
+
+`login_screen.dart` is the desktop's, with the same wording (`Sign in` / *Use your Project Work Manager
+account.*), the same field decoration and the same error banner — so the two apps refuse a password the
+same way. What differs is the shape and a handful of things only a phone needs:
+
+- the desktop's wide layout sets a brand panel beside the form; one column puts the brand **above** it
+  and **drops the panel's feature list** — with a keyboard up there is no room for marketing copy;
+- the form is capped at 420 wide and centred through a `ConstrainedBox` over the viewport height, so it
+  sits mid-screen on a tall phone and still scrolls once the keyboard takes the room;
+- `AutofillGroup` with username/password hints, and `TextInput.finishAutofillContext()` **only after the
+  API accepts** — offering to save a password that was just refused is worse than not offering;
+- `_submit` unfocuses first, or the button's spinner comes up behind the keyboard;
+- the button is 52 high against the desktop's 46: it is pressed with a thumb, sometimes gloved.
+
+**No role is turned away here**, which is the deliberate asymmetry with the desktop. A production worker
+is sent back at desktop sign-in because no desktop screen is theirs; the reverse does not hold, and the
+dashboard shows the signed-in account's own hours, which reads the same whoever signs in.
+
+`main.dart` keeps the desktop's **`bypassLogin`** switch, but **mobile has it off** — the app opens on
+`LoginScreen`. Turn it on to come up already signed in as the seeded worker it names while building a
+screen that is several taps in. That worker is one of the seeder's *generated* accounts, and those names
+are picked from a seeded `Random`, so a differently regenerated database means re-picking the e-mail.
+Note that `DevSettings.BypassAuthentication` on the API stops endpoints checking the token but does
+**not** stop `/Access/Login` checking the password — sign-in is a real sign-in either way.
+
+### Running the mobile app on a phone or emulator
+
+Three things have to be right before a single call reaches the API, and all three fail the same
+unhelpful way — as a server that cannot be reached:
+
+- **`localhost` is the wrong address.** Inside the Android emulator `localhost` is the *emulator*, so
+  an API on the development machine is simply not there. `BaseProvider.baseUrl` is therefore a getter,
+  not the desktop's `const`: it answers `http://10.0.2.2:7094/` on Android (the alias the emulator gives
+  its host) and `http://localhost:7094/` elsewhere. A **physical** phone is on neither and needs the
+  machine's address on the shared network:
+  `flutter run --dart-define=baseUrl=http://192.168.1.x:7094/` — which still overrides everything.
+- **Android blocks plain http.** Cleartext has been off by default since API 28, so `http://` dies as
+  `CLEARTEXT communication to 10.0.2.2 not permitted by network security policy`. The debug and profile
+  manifests opt in with `android:usesCleartextTraffic="true"`. Release deliberately does **not** —
+  shipping against plain http should be a decision, not a default.
+- **`INTERNET` is a real permission.** Flutter only adds it to the debug and profile overlays, which is
+  why a debug build talks to the API and a release build silently cannot. It is now in the main
+  manifest, where an app that is nothing without the network belongs.
+
+`android/app/src/debug/` was **gitignored** — the .NET `[Dd]ebug/` rule in the root `.gitignore` swallowed
+it, so the cleartext opt-in lived on one machine and vanished on a fresh clone. `.gitignore` now
+re-includes that directory (the directory, not just the file: git never looks inside an excluded one).
+
+The emulator is also the only place some layout bugs show up. `flutter run -d emulator-5554` caught a
+negative `BoxConstraints` minimum in the login screen that no phone-sized widget test could reach,
+because the viewport is briefly zero-height at startup. `adb shell input` drives the running app
+reliably — `input tap`, `input text`, `input keyevent 66` for the keyboard's next/done action — and
+`adb shell screencap -p /sdcard/x.png` plus `adb pull` gets a screenshot out.
 
 ## Configuration
 
