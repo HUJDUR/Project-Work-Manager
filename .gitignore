@@ -93,6 +93,15 @@ out/
 x64/
 x86/
 [Ww][Ii][Nn]32/
+
+# Android's per-build-type manifests are *source*, not build output, and the
+# .NET `[Dd]ebug/` / `[Rr]elease/` rules above would swallow them — which quietly
+# drops the cleartext-http opt-in the emulator needs. The directory has to be
+# re-included, not just the file: git never looks inside an excluded directory.
+!**/android/app/src/debug/
+!**/android/app/src/debug/**
+!**/android/app/src/release/
+!**/android/app/src/release/**
 [Aa][Rr][Mm]/
 publish/
 [Pp]ublish[Pp]rofiles/*.user

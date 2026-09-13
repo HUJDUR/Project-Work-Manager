@@ -1,4 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Every screen reads the PWM API over the network; without this a release
+         build has no connectivity at all. Flutter only adds it to the debug and
+         profile overlays, which is why a debug run works and a release one does not. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="pwm_mobile"
         android:name="${applicationName}"

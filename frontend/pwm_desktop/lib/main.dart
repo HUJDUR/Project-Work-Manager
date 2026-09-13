@@ -14,13 +14,13 @@ import 'utils/app_theme.dart';
 /// false to get [LoginScreen] back — nothing else has to change.
 /// The API side has its own switch, `pwm.WebAPI/DevSettings.BypassAuthentication`.
 const bool bypassLogin = true;
-const String _devEmail = 'admin@pwm.ba';
+const String _devEmail = 'nadir.hujdur@pwm.ba';
 const String _devPassword = 'test';
 
 /// The window the app opens in. The OS title bar is hidden because the app draws
 /// its own into the top bar - see `layouts/window_chrome.dart`.
 const _windowOptions = WindowOptions(
-  size: Size(1440, 900),
+  size: Size(1280, 800),
   minimumSize: Size(1100, 700),
   center: true,
   title: 'Project Work Manager',

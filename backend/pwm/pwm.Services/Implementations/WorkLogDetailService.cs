@@ -50,6 +50,16 @@ namespace pwm.Services.Implementations
                 query = query.Where(x => x.OperationTypeId == search.OperationTypeId.Value);
             }
 
+            if (search.DateFrom.HasValue)
+            {
+                query = query.Where(x => x.StartedAt >= search.DateFrom.Value);
+            }
+
+            if (search.DateTo.HasValue)
+            {
+                query = query.Where(x => x.StartedAt <= search.DateTo.Value);
+            }
+
             return query;
         }
     }
