@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../providers/auth_provider.dart';
+import '../screens/clock_in_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/my_hours_screen.dart';
 import '../screens/widgets/placeholder_body.dart';
@@ -56,7 +57,7 @@ class _MasterScreenState extends State<MasterScreen> {
       label: 'Clock In',
       icon: Icons.play_circle_outline,
       activeIcon: Icons.play_circle,
-      builder: (go) => PlaceholderBody(title: 'Clock In'),
+      builder: (go) => ClockInScreen(),
     ),
     AppDestination(
       label: 'My Hours',
