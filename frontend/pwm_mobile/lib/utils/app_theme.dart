@@ -20,6 +20,7 @@ class AppPalette {
     required this.dangerBorder,
     required this.fieldBorder,
     required this.fieldFill,
+    required this.chipTint,
   });
 
   final Brightness brightness;
@@ -46,6 +47,10 @@ class AppPalette {
   /// would be white on white and read as nothing but an outline.
   final Color fieldFill;
 
+  /// How strongly a status chip's own colour washes its background. Dark needs
+  /// more of it to read against a dark card.
+  final double chipTint;
+
   bool get isDark => brightness == Brightness.dark;
 
   static const light = AppPalette(
@@ -66,6 +71,7 @@ class AppPalette {
     fieldBorder: Color(0xFFDCE0E6),
     // The grey the desktop uses for its page, borrowed for the field itself.
     fieldFill: Color(0xFFF6F7F9),
+    chipTint: 0.12,
   );
 
   static const dark = AppPalette(
@@ -85,6 +91,7 @@ class AppPalette {
     fieldBorder: Color(0xFF323945),
     // A shade *below* the card, so a field reads as a well rather than a raised tile.
     fieldFill: Color(0xFF12161B),
+    chipTint: 0.20,
   );
 }
 
@@ -115,6 +122,19 @@ abstract final class AppColors {
   static Color get dangerBorder => palette.dangerBorder;
   static Color get fieldBorder => palette.fieldBorder;
   static Color get fieldFill => palette.fieldFill;
+
+  /// A status chip built from the one colour that names its state rather than
+  /// from a hand-picked pair, so both themes get it right — the desktop's rule,
+  /// and the reason a chip stores an accent and nothing else.
+  static (Color background, Color foreground) chip(Color accent) {
+    if (!palette.isDark) {
+      return (accent.withValues(alpha: palette.chipTint), accent);
+    }
+
+    // A mid-dark accent has to be lifted to stay legible on a dark chip.
+    final lifted = Color.lerp(accent, Colors.white, 0.32)!;
+    return (lifted.withValues(alpha: palette.chipTint), lifted);
+  }
 }
 
 abstract final class AppSpacing {

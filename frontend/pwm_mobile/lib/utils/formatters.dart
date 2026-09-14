@@ -50,3 +50,7 @@ String formatElapsed(Duration elapsed) {
       '${minutes.toString().padLeft(2, '0')}:'
       '${(seconds % 60).toString().padLeft(2, '0')}';
 }
+
+/// Kilograms in, tonnes out — a project's weight runs into thousands of kg, the
+/// same conversion the desktop's formatter makes.
+String formatTonnes(double kilograms) => '${_decimal.format(kilograms / 1000)} t';

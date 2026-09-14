@@ -20,63 +20,63 @@ namespace pwm.Services.Database.Seed
             {
                 CreateProject("Hall roof structure", "Stahlbau Meyer GmbH", "General steel construction",
                     weight: 12450.5, createdDaysAgo: 96, startedDaysAgo: 88, deliveryInDays: -12,
-                    status: "Delivered", carrier: "TransBalkan Logistika d.o.o.",
+                    status: "Delivered", deliveryArranged: true,
                     priority: ProjectPriority.High, createdBy: "kenan.fajic@pwm.ba",
                     description: "Primary roof structure for the new production hall, hot-dip galvanised.",
                     notes: "Customer collected the galvanising certificates on delivery."),
 
                 CreateProject("Conveyor frame", "Nordmetall AG", "Sections",
                     weight: 3820.0, createdDaysAgo: 74, startedDaysAgo: 66, deliveryInDays: -4,
-                    status: "Delivered", carrier: "Euro Spedicija d.o.o.",
+                    status: "Delivered", deliveryArranged: true,
                     priority: ProjectPriority.Medium, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Welded support frame for a belt conveyor, delivered in four sections.",
                     notes: null),
 
                 CreateProject("Staircase module", "Wiener Metallwerke GmbH", "General steel construction",
                     weight: 1640.75, createdDaysAgo: 52, startedDaysAgo: 44, deliveryInDays: 3,
-                    status: "In production", carrier: "TransBalkan Logistika d.o.o.",
+                    status: "In production", deliveryArranged: true,
                     priority: ProjectPriority.VeryHigh, createdBy: "kenan.fajic@pwm.ba",
                     description: "Two-flight staircase with landing and powder-coated handrail.",
                     notes: "Delivery window is tight - the site crane is booked for one morning only."),
 
                 CreateProject("Machine base plates", "Adria Konstrukcije d.o.o.", "Foundations - steel",
                     weight: 2210.0, createdDaysAgo: 40, startedDaysAgo: 31, deliveryInDays: 9,
-                    status: "In production", carrier: "Euro Spedicija d.o.o.",
+                    status: "In production", deliveryArranged: true,
                     priority: ProjectPriority.High, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Machined and drilled base plates for four press foundations.",
                     notes: "Flatness has to be checked before packing."),
 
                 CreateProject("Extraction ducting", "Alpina Systems GmbH", "Heavy ducting - stainless steel",
                     weight: 980.25, createdDaysAgo: 27, startedDaysAgo: 19, deliveryInDays: 16,
-                    status: "In production", carrier: null,
+                    status: "In production", deliveryArranged: false,
                     priority: ProjectPriority.Low, createdBy: "kenan.fajic@pwm.ba",
                     description: "Rolled and welded extraction ducting with flanged joints.",
                     notes: null),
 
                 CreateProject("Platform driptrays", "Stahlbau Meyer GmbH", "Driptrays - aluminum",
                     weight: 745.5, createdDaysAgo: 18, startedDaysAgo: 10, deliveryInDays: 24,
-                    status: "In production", carrier: null,
+                    status: "In production", deliveryArranged: false,
                     priority: ProjectPriority.Medium, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Folded aluminium driptrays for a maintenance platform.",
                     notes: null),
 
                 CreateProject("Support brackets", "Nordmetall AG", "Sections",
                     weight: 1310.0, createdDaysAgo: 9, startedDaysAgo: 2, deliveryInDays: 33,
-                    status: "On hold", carrier: null,
+                    status: "On hold", deliveryArranged: false,
                     priority: ProjectPriority.Medium, createdBy: "kenan.fajic@pwm.ba",
                     description: "Repeat order of welded pipe brackets, same drawing as the conveyor frame.",
                     notes: "On hold until the customer confirms the revised drawing."),
 
                 CreateProject("Silo foundations", "Adria Konstrukcije d.o.o.", "Foundations - steel",
                     weight: 8600.0, createdDaysAgo: 4, startedDaysAgo: 1, deliveryInDays: 47,
-                    status: "On hold", carrier: null,
+                    status: "On hold", deliveryArranged: false,
                     priority: ProjectPriority.High, createdBy: "nadir.hujdur@pwm.ba",
                     description: "Anchor cages and base frames for four silo legs.",
                     notes: "Waiting on the customer to confirm the plate grade."),
 
                 CreateProject("Trial batch", "Wiener Metallwerke GmbH", "Driptrays - stainless steel",
                     weight: 320.0, createdDaysAgo: 60, startedDaysAgo: 55, deliveryInDays: -20,
-                    status: "Rejected", carrier: null,
+                    status: "Rejected", deliveryArranged: false,
                     priority: ProjectPriority.Low, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Sample batch for a facade tender.",
                     notes: "Rejected - the customer did not win the tender."),
@@ -114,10 +114,6 @@ namespace pwm.Services.Database.Seed
                 .Where(c => c.CompanyTypeId == FindCompanyType("Customer").Id)
                 .ToArray();
 
-            var carriers = _companies
-                .Where(c => c.CompanyTypeId == FindCompanyType("Transport").Id)
-                .ToArray();
-
             var office = OfficeUsers;
             var priorities = Enum.GetValues<ProjectPriority>();
             var statuses = new[] { "Delivered", "In production", "In production", "On hold", "Rejected" };
@@ -151,7 +147,10 @@ namespace pwm.Services.Database.Seed
                     CreationDate = _today.AddDays(-createdDaysAgo).AddHours(8),
                     ProductionStartDate = _today.AddDays(-startedDaysAgo).AddHours(7),
                     DeliveryDate = _today.AddDays(_random.Next(-30, 60)).AddHours(14),
-                    DeliveryCompanyId = _random.Next(3) == 0 ? null : Pick(carriers).Id,
+                    // Null while delivery is not arranged yet; otherwise where the
+                    // customer takes it - never the carrier, which is a TruckLoad's.
+                    DeliveryCompanyId =
+                        _random.Next(3) == 0 ? null : DeliveryPlaceFor(customer).Id,
                     ProjectStatusId = FindStatus(status).Id,
                     CreatedByUserId = Pick(office).Id,
                 };
@@ -167,7 +166,7 @@ namespace pwm.Services.Database.Seed
             int startedDaysAgo,
             int deliveryInDays,
             string status,
-            string? carrier,
+            bool deliveryArranged,
             ProjectPriority priority,
             string createdBy,
             string? description,
@@ -186,7 +185,8 @@ namespace pwm.Services.Database.Seed
                 CreationDate = _today.AddDays(-createdDaysAgo).AddHours(8),
                 ProductionStartDate = _today.AddDays(-startedDaysAgo).AddHours(7),
                 DeliveryDate = _today.AddDays(deliveryInDays).AddHours(14),
-                DeliveryCompanyId = carrier is null ? null : FindCompany(carrier).Id,
+                DeliveryCompanyId =
+                    deliveryArranged ? DeliveryPlaceFor(FindCompany(customer)).Id : null,
                 ProjectStatusId = FindStatus(status).Id,
                 CreatedByUserId = FindUser(createdBy).Id,
             };

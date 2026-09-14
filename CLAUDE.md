@@ -11,7 +11,7 @@ Monorepo layout:
 - `backend/pwm/` — .NET 10 solution (`pwm.slnx`), four projects
 - `frontend/pwm_desktop` — Flutter desktop app; every screen in the navigation is built. The Recommendations screen is the one
   shell without a working body - the estimator behind it does not exist yet
-- `frontend/pwm_mobile` — Flutter mobile app; the Dashboard is built, the other five tabs are shells
+- `frontend/pwm_mobile` — Flutter mobile app; Dashboard, Clock In, My Hours and Projects are built, Notifications and Options are shells
 - `docs/mockups/` — UI mockups that define the intended screens (gitignored)
 - `docs/PWM - prijava seminarskog rada v3.md` - defines the projects scope and needed funcionality
 - `docs/RSII_Upute_za_izradu_seminarskog_rada_2025_26.md` - defines the project requirements regarding implementation
@@ -850,6 +850,62 @@ applies rather than just sitting there greyed out.
 in, and a field whose text is discarded the moment it is typed is worse than no field — the same call
 the Notifications screen makes about its "Notification type" dropdown. Adding it is an entity column, a
 migration and three DTOs, which is a schema change rather than a screen change.
+
+### Projects
+
+`projects_screen.dart` over `ProjectsProvider`, with `project_details_screen.dart` behind it.
+
+**There was no mockup for this one** — it was designed to sit with the others and the drawing lives in
+`docs/mockups/mobile/projects-canvas/` (the `.dc.html` artboards plus `canvas.json`, seeded into a
+canvas published as an Artifact). Re-seed from those working files to change it; the canvas is the
+record of what the screen is meant to look like, the way the PNGs are for the other four.
+
+**Only projects that are in production are ever listed.** This is the production workers' app: a
+delivered job, a rejected quote or one on hold is not something they can act on or book time against,
+so it is not something they are shown — the desktop is where the office sees the whole book. That makes
+the status a constant rather than a filter, so there are **no status chips and no per-row status pill**:
+a chip reading the same thing on every card is noise. `utils/shop_floor.dart` is the one definition of
+"live" (`ShopFloor.liveStatus`, matched by **name** because the ids are the seeder's), and Clock In's
+`bookableStatus` is the same constant — the two screens that name a project cannot drift apart. A
+database with no such status lists **nothing** rather than falling back to everything.
+
+**Search and paging go to the API** with it, as a `ProjectSearchObject` — projects are not a lookup
+table, and reading the lot to filter in Dart stops working the moment the shop has a few hundred. A
+page is eight rows, appended by "Load more" rather than replacing what is on screen, and a search
+resets to page one. `projectStatusId` is sent on **every** page, so a search matching a delivered job
+still turns up nothing. The search applies on submit, not per keystroke, because each one is a request.
+
+The names beside each row come from three small lookups — statuses, categories, customers — read
+**once** and kept, not per page. The row carries the `Project` itself, so opening one fills the detail
+screen with no second fetch.
+
+**The shop floor is shown where a job goes, not who ordered it.** The detail has *Deliver to* and
+*Address* rows and no customer: `ProjectsProvider.deliveryOf` reads the company named by
+**`Project.DeliveryCompanyId`** — the place the project is delivered to — and writes its `Address`, its
+city with postal code and its country as one line, resolved through `Company.CityId` → `City` →
+`Country`. That is five small lookups now, read once between them. `ProjectRow` deliberately carries no
+customer name. `DeliveryCompanyId` is nullable, so "Not set" is a normal answer.
+
+`Project.DeliveryCompanyId` is **where the job is delivered**, not who hauls it — the carrier is
+`TruckLoad.TransportCompanyId`, a different thing. The seeder fills it through
+`DataSeeder.DeliveryPlaceFor`: the customer's **unload site** where they have one, otherwise the
+customer's own address, and null while delivery is not arranged. Which site belongs to which customer
+is not a foreign key anywhere, so the pairing is stated once in `UnloadSites` beside the companies it
+pairs — Stahlbau Meyer → Meyer Baustelle Nord, Nordmetall AG → Nordmetall Montageplatz, Adria
+Konstrukcije → Adria Gradiliste Jug. Two customers have no site and take delivery themselves.
+`CreateProject` therefore takes `deliveryArranged` rather than a carrier name.
+
+`workOn` is the only thing the detail pays for: the signed-in worker's hours on that project, narrowed
+by `userId` **and** `projectId` — the two filters `WorkLogDetailSearchObject` already carries. Days are
+the distinct calendar days with a booking, so two sessions on a Monday are one day worked. It is not on
+the list, because totalling it per row would mean reading the worker's whole history to draw a page of
+names — the same bargain My Hours strikes with its project names.
+
+`StatusPill` (`widgets/project_status_chip.dart`) stores the one colour that names a state and lets
+`AppColors.chip` build the pair, which is why the mobile palette now carries `chipTint` as the desktop
+does. An unknown status falls back to neutral rather than guessing. It survives on the **detail**
+screen, where status and priority are facts about the one project being read rather than a label
+repeated down a list.
 
 ### Running the mobile app on a phone or emulator
 

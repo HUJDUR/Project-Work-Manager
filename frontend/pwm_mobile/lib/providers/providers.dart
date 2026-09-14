@@ -1,10 +1,15 @@
 export 'auth_provider.dart';
 export 'base_provider.dart';
 export 'clock_in_provider.dart';
+export 'city_provider.dart';
+export 'company_provider.dart';
+export 'country_provider.dart';
 export 'dashboard_provider.dart';
 export 'my_hours_provider.dart';
 export 'operation_type_provider.dart';
+export 'project_category_provider.dart';
 export 'project_provider.dart';
+export 'projects_provider.dart';
 export 'project_status_type_provider.dart';
 export 'user_operation_provider.dart';
 export 'work_log_provider.dart';

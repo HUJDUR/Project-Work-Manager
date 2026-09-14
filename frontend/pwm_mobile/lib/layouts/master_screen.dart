@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../screens/clock_in_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/my_hours_screen.dart';
+import '../screens/projects_screen.dart';
 import '../screens/widgets/placeholder_body.dart';
 import '../utils/app_theme.dart';
 
@@ -69,7 +70,7 @@ class _MasterScreenState extends State<MasterScreen> {
       label: 'Projects',
       icon: Icons.folder_outlined,
       activeIcon: Icons.folder,
-      builder: (go) => PlaceholderBody(title: 'Projects'),
+      builder: (go) => ProjectsScreen(),
     ),
     AppDestination(
       label: 'Notifications',
