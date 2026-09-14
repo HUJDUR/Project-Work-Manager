@@ -35,6 +35,8 @@ void main() {
         ChangeNotifierProvider(create: (_) => ProjectProvider()),
         ChangeNotifierProvider(create: (_) => OperationTypeProvider()),
         ChangeNotifierProvider(create: (_) => ProjectStatusTypeProvider()),
+        ChangeNotifierProvider(create: (_) => ProjectCategoryProvider()),
+        ChangeNotifierProvider(create: (_) => CompanyProvider()),
         ChangeNotifierProvider(create: (_) => UserOperationProvider()),
         ChangeNotifierProvider(create: (_) => WorkLogProvider()),
       ],

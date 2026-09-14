@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/shop_floor.dart';
 import 'auth_provider.dart';
 import 'base_provider.dart';
 import 'operation_type_provider.dart';
@@ -53,9 +54,9 @@ class ClockInProvider extends ChangeNotifier {
         _userId = userId ?? AuthProvider.user?.id,
         _clock = clock ?? DateTime.now;
 
-  /// The status whose projects may be booked against, matched by name rather
-  /// than by id — the ids are the seeder's, the name is the business's.
-  static const String bookableStatus = 'In production';
+  /// The status whose projects may be booked against — the same definition the
+  /// Projects tab lists by, kept in one place.
+  static const String bookableStatus = ShopFloor.liveStatus;
 
   /// How far back to look for a session left running. A shift that crossed
   /// midnight is still the one in progress; anything older than this was a
@@ -317,11 +318,7 @@ class ClockInProvider extends ChangeNotifier {
 
   Future<List<Project>> _bookableProjects() async {
     final statuses = await _projectStatuses.getAll();
-    final bookable = statuses
-        .where((status) =>
-            status.name.toLowerCase() == bookableStatus.toLowerCase())
-        .map((status) => status.id)
-        .firstOrNull;
+    final bookable = ShopFloor.liveStatusId(statuses);
 
     // No such status is a seeding problem, not a reason to offer every project
     // including the ones already delivered.

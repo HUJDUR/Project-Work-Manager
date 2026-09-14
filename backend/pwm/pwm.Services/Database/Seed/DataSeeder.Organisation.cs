@@ -110,6 +110,35 @@ namespace pwm.Services.Database.Seed
             await AddRangeAsync(_companies);
         }
 
+        /// <summary>
+        /// Where a customer takes delivery, when it is not their own address. The
+        /// <c>Unload address for customer</c> companies are sites, and which site
+        /// belongs to which customer is not a foreign key anywhere - so the pairing
+        /// is stated here, beside the companies it pairs.
+        /// </summary>
+        private static readonly (string Customer, string Site)[] UnloadSites =
+        [
+            ("Stahlbau Meyer GmbH", "Meyer Baustelle Nord"),
+            ("Nordmetall AG", "Nordmetall Montageplatz"),
+            ("Adria Konstrukcije d.o.o.", "Adria Gradiliste Jug"),
+        ];
+
+        /// <summary>
+        /// The company a project is delivered **to** - the customer's unload site
+        /// where they have one, otherwise the customer themselves. This is what
+        /// <c>Project.DeliveryCompanyId</c> means; the carrier that hauls it is
+        /// <c>TruckLoad.TransportCompanyId</c>, which is a different thing.
+        /// </summary>
+        private Company DeliveryPlaceFor(Company customer)
+        {
+            var site = UnloadSites
+                .Where(pair => pair.Customer == customer.Name)
+                .Select(pair => FindCompany(pair.Site))
+                .FirstOrDefault();
+
+            return site ?? customer;
+        }
+
         /// <summary>The office, by name; the shop floor below is generated.</summary>
         private static readonly (string Name, string Surname, string Role, string JobTitle)[] NamedStaff =
         [

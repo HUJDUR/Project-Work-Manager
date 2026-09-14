@@ -1,8 +1,14 @@
+export 'city.dart';
+export 'company.dart';
+export 'country.dart';
 export 'login_result.dart';
 export 'operation_type.dart';
 export 'page_result.dart';
 export 'project.dart';
+export 'project_category.dart';
 export 'project_priority.dart';
+export 'project_row.dart';
+export 'project_work.dart';
 export 'project_status_type.dart';
 export 'work_day.dart';
 export 'active_session.dart';
