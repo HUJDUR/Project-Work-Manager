@@ -11,7 +11,7 @@ Monorepo layout:
 - `backend/pwm/` — .NET 10 solution (`pwm.slnx`), four projects
 - `frontend/pwm_desktop` — Flutter desktop app; every screen in the navigation is built. The Recommendations screen is the one
   shell without a working body - the estimator behind it does not exist yet
-- `frontend/pwm_mobile` — Flutter mobile app; Dashboard, Clock In, My Hours and Projects are built, Notifications and Options are shells
+- `frontend/pwm_mobile` — Flutter mobile app; Dashboard, Clock In, My Hours, Projects and Notifications are built, Options is a shell
 - `docs/mockups/` — UI mockups that define the intended screens (gitignored)
 - `docs/PWM - prijava seminarskog rada v3.md` - defines the projects scope and needed funcionality
 - `docs/RSII_Upute_za_izradu_seminarskog_rada_2025_26.md` - defines the project requirements regarding implementation
@@ -196,19 +196,36 @@ Deliberate split — do not add write endpoints to the read-only set without ask
 
 - **CRUD**: Company, User, OperationType, UserOperation, Project, ProjectCategory, WorkLog, WorkLogDetail, TruckLoad, TruckLoadDetail
 - **Read-only**: Country, City, UserType, CompanyType, ProjectStatusType, TruckLoadStatusType, ActivityLogType, ActivityLog, ReportType, MonthlyHourReport, MonthlyHourReportDetail, GeneratedReport
-- **Read plus one write**: Notification — reading is the generic list, and `POST /Notification/Send` is the only way in. See below.
+- **Read plus two writes**: Notification — reading is the generic list; `POST /Notification/Send` is the only way a row gets in, and `POST /Notification/MarkRead` is the only thing about one that can change. See below.
 - **CRUD plus one self-service write**: User — the three CRUD writes stay administrator-only, and `PUT /User/Me` lets anyone edit their own row. See below.
 
 The rule: user-entered data gets CRUD; enum-like values the C# branches on (`ProjectStatusTypes.Name`, `TruckLoadStatusTypes.Name`, `UserTypes.Type`, `CompanyTypes.Name`) stay read-only so business logic can't be broken from Swagger; system-generated rows (activity logs, monthly reports) stay read-only and are written by services, not controllers.
 
 `Notification` is the one deliberate exception, and it is a narrow one. The office has to be able to
-write to the shop floor, so `NotificationController` adds **one** action — `POST /Notification/Send`,
+write to the shop floor, so `NotificationController` adds `POST /Notification/Send`,
 `[Authorization]` over the four office roles, taking `{ title, message, userIds? }`. It fans
 the message out into one `Notifications` row per recipient inside `NotificationService.SendAsync`;
 an empty or missing `userIds` means every account with `IsActive`, resolved **on the server** so the
 list cannot go stale between the screen loading and the message being sent. An id naming nobody is a
-`ClinetException` rather than a silent drop. There is still no update or delete: a notification that
-was sent stays sent.
+`ClinetException` rather than a silent drop.
+
+`POST /Notification/MarkRead` is the second write, and the only thing that changes a row that already
+exists — there is still no update or delete, so a notification that was sent stays sent and says what
+it always said. It takes `{ notificationIds? }` and flips `IsRead`, and it is open to **all five**
+roles because it only ever reaches the caller's own copies: `NotificationService.MarkReadAsync` takes
+its user id from `ICurrentUser` and narrows the table by it *before* the ids are looked at, so an id
+belonging to another account is a `ForbiddenException` rather than something found. No ids at all
+means every unread one of theirs, resolved on the server — that is what the mobile screen's "Mark all
+as read" sends, and it is why the button reaches notifications past the last page loaded. Rows already
+read are left alone, so `markedCount` says what actually changed and a second press answers zero.
+Unlike `WorkLogController`, there is no owner to fall back to when the token carries no user: "mark
+mine read" has no meaning without a caller, so it is refused rather than quietly widened.
+
+**Reading is still not narrowed to the caller.** `GET /Notification` is the generic list, open to
+every signed-in user, so a client that omits `userId` sees everyone's. The screens all send it; the
+API does not insist. Narrowing it the way `MarkRead` is narrowed would be a one-line change to
+`NotificationService.ApplyFilters` and a deliberate departure from "reading is open to every
+signed-in user".
 
 **`Notifications` has no type column**, so the mockup's "Notification type" dropdown is not built.
 Adding it means an enum plus a migration, which is a schema change rather than a screen change.
@@ -256,6 +273,11 @@ Fajic and Zuhdija Delic (Project manager), Vedad Kahrimanovic, Nevres Smajlovic 
 operations. E-mails are `firstname.surname@pwm.ba` and all seeded users share the password `test`.
 Nadir runs projects as well as the system, but an account holds exactly one `UserTypeId` and Admin
 already reaches everything a project manager can, so he is seeded Admin.
+
+Notifications are dealt out **per recipient** — three to nine each for every active account — rather
+than by picking a recipient per message. Forty messages scattered over the whole roster left a third
+of the accounts with none at all, and the mobile Notifications tab opening on an empty list cannot be
+told from a broken screen.
 
 `SeedAsync` is a no-op if any users exist; `--force` calls `ClearAsync`, which deletes children first and reseeds identity counters via `DBCC CHECKIDENT`.
 
@@ -708,7 +730,8 @@ palette and the no-`const` rule holds here too — `test/theme_test.dart` is the
   switched **by label** (`_go('My Hours')`), so reordering the bar cannot silently repoint the
   dashboard's "View all". Six entries is more than Material's `BottomNavigationBar` lays out, so the
   bar is built by hand and each label sits in a `FittedBox` — a phone-width bar reading
-  "Notificat…" names nothing.
+  "Notificat…" names nothing. The bell in the top bar is another way into the same tab, switched
+  by the same label.
 - **The app opens light** (`ThemeController.defaultMode`), because every mobile mockup is drawn light,
   where the desktop opens dark. The toggle belongs on the Options tab, which is not built.
 - **`AppSpacing.pagePadding` is 16**, not the desktop's 24, and `AppPalette.light.canvas` is white
@@ -907,6 +930,51 @@ does. An unknown status falls back to neutral rather than guessing. It survives 
 screen, where status and priority are facts about the one project being read rather than a label
 repeated down a list.
 
+### Notifications
+
+`notifications_screen.dart` over `NotificationsProvider`, with `notification_provider.dart` carrying
+the one custom call. **There was no mockup for this one either** — it follows the Projects tab's
+anatomy: the same heading and subtitle, the same card, the same "Load more".
+
+The only thing a notification list has to get right is **read against unread**, and it is said three
+ways rather than one: a count and a filter at the top, an accent rule down the card's leading edge
+over a tinted ground, and the weight of its title. Sender, type and priority are shown nowhere —
+`Notifications` has no column for any of them, and the shop floor does not need them.
+
+Paging goes to the API as a `NotificationSearchObject` (`userId`, `isRead`, `page`, `pageSize`,
+`includeTotalCount`, `sortBy: 'CreatedAt desc'`), a page being eight rows appended by "Load more"
+rather than replacing what is on screen — the table grows by one row per person per message, so it is
+not something to read whole. The All/Unread filter is that same `isRead`, sent down rather than sifted
+in Dart.
+
+**The unread count is its own count-only request**, not something totalled off the page: "3 unread"
+has to mean three in the table and not three among the eight rows that happen to be loaded. Its
+`pageSize` is 1 rather than 0 because `BaseReadService` clamps a page to at least one row, and that
+row is thrown away — the desktop's project counters make the same call.
+
+Two ways to mark read, and they are different calls:
+
+- **tapping a card** opens it and reads it, sending that one id. A row already read costs no request.
+  The row is swapped in place rather than dropped, even under the Unread filter — a card vanishing
+  from under the thumb that tapped it reads as a mis-tap. It leaves on the next load.
+- **"Mark all as read"** sends **no ids at all**, so the API resolves the list from the token. That is
+  what makes it reach unread notifications past the last page loaded, which is what the button says.
+  It reloads afterwards rather than patching rows, because under the Unread filter there is nothing
+  left to show. It is disabled rather than hidden when there is nothing unread, and the pill beside it
+  reads "All read" instead of a count.
+
+`_MarkAllButton` is built by hand rather than as a `TextButton.icon`: Material's button carries a 64px
+minimum width and padding of its own on top of whatever `styleFrom` asks for, which put the label 34px
+over the edge of a 390pt phone. Its label sits in a `FittedBox` besides, the same thing the bottom bar
+does with "Notifications".
+
+Which cards are expanded is **view state on the screen**, not on the provider — a reload should not
+re-collapse what the reader opened, and the provider has no business knowing.
+
+`models/notification.dart` is the desktop's model verbatim, so it collides with Flutter's own
+`Notification`; the screen imports `package:flutter/material.dart` with a `hide Notification` clause,
+exactly as the desktop's does.
+
 ### Running the mobile app on a phone or emulator
 
 Three things have to be right before a single call reaches the API, and all three fail the same
@@ -949,6 +1017,13 @@ Migrations are applied automatically on startup in Development only. Scalar API 
 ## Known rough edges
 
 - `BaseReadService.GetAllAsync` assigns the DbSet to an `IEnumerable<TEntity>`, so filtering, sorting and paging all happen **in memory after loading the whole table**. Fine at seed scale, not beyond it. Fixing it means changing `ApplyFilters` to take and return `IQueryable<TEntity>` in all 20 services. The desktop now sends its filters and paging down as search objects, so the *client* no longer holds whole tables — but the server still loads them, and that is where the remaining cost is.
+- **Dates go out as UTC with no zone marker.** Everything is stamped `DateTime.UtcNow` and stored in a
+  `datetime2`, which EF reads back with `Kind=Unspecified`, so `System.Text.Json` writes
+  `2026-09-14T17:45:18` rather than `...Z`. Dart parses that as *local*, so a row is off by whatever
+  the client's offset from UTC is. It never shows, because every other screen in both apps renders a
+  stamp as a **date** — the mobile notifications list is the only one that counts backwards from now,
+  and `formatters.apiTimeToLocal` puts the zone back on for it alone. Fixing it properly is a
+  serializer setting on the API, and it would move every date the desktop shows.
 - `intl` is pinned to `^0.20.2` rather than `^0.20.3`: `form_builder_validators` pulls in `flutter_localizations`, which the Flutter SDK pins to `intl 0.20.2`.
 - `CryptoService` builds with `SYSLIB0060`/`SYSLIB0023` obsolescence warnings and its `Verify` uses ordinary string comparison rather than a fixed-time compare.
 - Killing a stray API process: `pkill` from Git Bash does not match native Windows processes. Use `Get-NetTCPConnection -LocalPort 7094 -State Listen` then `Stop-Process -Id <pid> -Force`.

@@ -8,10 +8,14 @@ import 'package:pwm_mobile/providers/auth_provider.dart';
 const _phone = Size(390, 844);
 
 /// Options, the last tab still without a screen. The shell tests are about the
-/// bar, not about what a tab holds, so they open on a [PlaceholderBody]: a real
-/// screen would go looking for an API. Move this as tabs get built.
+/// bar, not about what a tab holds, so they open on a [PlaceholderBody]: most
+/// real screens would go looking for an API. Move this as tabs get built.
 const _placeholderTab = 5;
-const _otherPlaceholderTab = 4;
+
+/// Notifications, which is built. Nothing is signed in in these tests, so its
+/// provider stops at "No account is signed in." and asks the API for nothing —
+/// which is what makes it safe to open here.
+const _notificationsTab = 4;
 
 Future<void> _pumpShell(WidgetTester tester,
     {int initialIndex = _placeholderTab}) async {
@@ -60,13 +64,14 @@ void main() {
 
   testWidgets('the bar swaps the body rather than stacking screens',
       (tester) async {
-    await _pumpShell(tester, initialIndex: _otherPlaceholderTab);
-    expect(find.text('Notifications is not built yet'), findsOneWidget);
+    await _pumpShell(tester, initialIndex: _notificationsTab);
+    // The subtitle, not the heading: "Notifications" is also a tab label.
+    expect(find.text('Messages from the office'), findsOneWidget);
 
     await tester.tap(find.text('Options'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Notifications is not built yet'), findsNothing);
+    expect(find.text('Messages from the office'), findsNothing);
     expect(find.text('Options is not built yet'), findsOneWidget);
     // One shell, one screen deep — nothing was pushed over it.
     expect(find.byType(MasterScreen), findsOneWidget);
@@ -78,6 +83,6 @@ void main() {
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Notifications is not built yet'), findsOneWidget);
+    expect(find.text('Messages from the office'), findsOneWidget);
   });
 }

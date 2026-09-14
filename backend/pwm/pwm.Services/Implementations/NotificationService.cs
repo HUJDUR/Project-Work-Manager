@@ -96,5 +96,49 @@ namespace pwm.Services.Implementations
 
             return new NotificationSendResponse { SentCount = recipients.Count };
         }
+
+        /// <summary>
+        /// Marks the caller's own notifications read - no ids means every unread
+        /// one of theirs, which is the mobile screen's "Mark all as read".
+        ///
+        /// A notification is personal, so there is no role that reads somebody
+        /// else's: <paramref name="userId"/> comes from the token and narrows the
+        /// rows before the ids are looked at, which is why an id belonging to
+        /// another account is refused rather than found.
+        /// </summary>
+        public async Task<NotificationMarkReadResponse> MarkReadAsync(int userId, NotificationMarkReadRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+
+            var wanted = request.NotificationIds?.Distinct().ToList() ?? [];
+            var mine = _dbContext.Notifications.Where(x => x.UserId == userId);
+
+            var rows = wanted.Count == 0
+                ? mine.Where(x => !x.IsRead).ToList()
+                : mine.Where(x => wanted.Contains(x.Id)).ToList();
+
+            var missing = wanted.Except(rows.Select(x => x.Id)).ToList();
+            if (missing.Count > 0)
+            {
+                throw new ForbiddenException(
+                    $"No notification of yours with id {string.Join(", ", missing)}.");
+            }
+
+            // Only the unread ones are touched, so the count says what actually
+            // changed rather than how many rows were named.
+            var unread = rows.Where(x => !x.IsRead).ToList();
+
+            foreach (var row in unread)
+            {
+                row.IsRead = true;
+            }
+
+            if (unread.Count > 0)
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+
+            return new NotificationMarkReadResponse { MarkedCount = unread.Count };
+        }
     }
 }

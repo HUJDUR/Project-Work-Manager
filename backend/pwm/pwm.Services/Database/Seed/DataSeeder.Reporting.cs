@@ -147,25 +147,37 @@ namespace pwm.Services.Database.Seed
             };
 
             var notifications = new List<Notification>();
+            var nextMessage = 0;
 
-            for (var i = 0; i < 40; i++)
+            // Dealt out per recipient rather than by picking a recipient per
+            // message: 40 messages scattered over the whole roster left a third
+            // of the accounts with none at all, and the mobile Notifications tab
+            // opening on an empty list cannot be told from a broken screen.
+            // Everybody who still works gets a handful, and some more than a
+            // page of them, so "Load more" is reachable.
+            foreach (var recipient in recipients)
             {
-                var (title, message) = messages[i % messages.Length];
-                var hoursAgo = _random.Next(1, 72);
+                var count = _random.Next(3, 10);
 
-                var sentBy = Pick(office).Id;
-                var createdAt = DateTime.UtcNow.AddHours(-hoursAgo);
-
-                _messagesSent.Add((sentBy, createdAt));
-
-                notifications.Add(new Notification
+                for (var i = 0; i < count; i++)
                 {
-                    UserId = Pick(recipients).Id,
-                    Title = title,
-                    Message = message,
-                    IsRead = _random.Next(3) != 0,
-                    CreatedAt = createdAt,
-                });
+                    var (title, message) = messages[nextMessage++ % messages.Length];
+                    var hoursAgo = _random.Next(1, 72);
+
+                    var sentBy = Pick(office).Id;
+                    var createdAt = DateTime.UtcNow.AddHours(-hoursAgo);
+
+                    _messagesSent.Add((sentBy, createdAt));
+
+                    notifications.Add(new Notification
+                    {
+                        UserId = recipient.Id,
+                        Title = title,
+                        Message = message,
+                        IsRead = _random.Next(3) != 0,
+                        CreatedAt = createdAt,
+                    });
+                }
             }
 
             _notifications = notifications.ToArray();
