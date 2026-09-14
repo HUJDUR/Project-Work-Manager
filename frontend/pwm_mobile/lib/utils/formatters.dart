@@ -25,6 +25,50 @@ String formatDayLabel(DateTime date) => _weekdayDayMonth.format(date);
 
 String formatFullDate(DateTime date) => _dayMonthYear.format(date);
 
+/// A timestamp from the API, as local time.
+///
+/// The backend stamps every row with `DateTime.UtcNow` and serialises it
+/// **without a zone marker** — `2026-09-14T17:45:18`, not `...Z` — so Dart parses
+/// it as local and a message sent a minute ago reads as however many hours this
+/// machine sits from UTC. Everywhere else in both apps a stamp is shown as a
+/// *date*, where that offset never surfaces; the notifications list is the only
+/// screen that counts backwards from now, which is why this is the only place
+/// that has to put the zone back on. A value that did arrive with a zone is
+/// already right and is only converted.
+///
+/// The real fix is at the API, and it is a one-line serializer setting that
+/// would move every date the desktop shows — which is why it is not made here.
+DateTime apiTimeToLocal(DateTime value) => value.isUtc
+    ? value.toLocal()
+    : DateTime.utc(
+        value.year,
+        value.month,
+        value.day,
+        value.hour,
+        value.minute,
+        value.second,
+        value.millisecond,
+        value.microsecond,
+      ).toLocal();
+
+/// How long ago something happened, for a list read top-down where the exact
+/// minute does not matter — "12 min ago", "3 h ago", then a plain date once it
+/// is a week old and "ago" stops meaning anything useful. The desktop's
+/// `formatRelative` is the same function; a stamp should not read two ways
+/// across the two apps.
+String formatRelative(DateTime date, {DateTime? now}) {
+  final reference = now ?? DateTime.now();
+  final difference = reference.difference(date);
+
+  if (difference.isNegative) return formatDate(date);
+  if (difference.inMinutes < 1) return 'just now';
+  if (difference.inMinutes < 60) return '${difference.inMinutes} min ago';
+  if (difference.inHours < 24) return '${difference.inHours} h ago';
+  if (difference.inDays < 7) return '${difference.inDays} d ago';
+
+  return formatDate(date);
+}
+
 /// Hours as a bare figure for a card that carries its own "hrs" label, where
 /// [formatClockHours] would repeat the unit.
 String formatHoursValue(double hours) {

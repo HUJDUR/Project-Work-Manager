@@ -9,8 +9,15 @@ namespace pwm.Services.Interfaces
     {
         /// <summary>
         /// Writes one notification per recipient and answers how many that was.
-        /// The only door into the table other than the seeder.
+        /// The only way a row gets into the table other than the seeder.
         /// </summary>
         Task<NotificationSendResponse> SendAsync(NotificationSendRequest request);
+
+        /// <summary>
+        /// Flips <c>IsRead</c> on the caller's own notifications and answers how
+        /// many that changed. The other door into the table, and the reason the
+        /// column is worth having.
+        /// </summary>
+        Task<NotificationMarkReadResponse> MarkReadAsync(int userId, NotificationMarkReadRequest request);
     }
 }

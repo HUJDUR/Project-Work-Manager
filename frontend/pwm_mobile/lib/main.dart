@@ -39,6 +39,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => CompanyProvider()),
         ChangeNotifierProvider(create: (_) => UserOperationProvider()),
         ChangeNotifierProvider(create: (_) => WorkLogProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: PwmMobileApp(),
     ),

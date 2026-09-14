@@ -2,6 +2,7 @@ export 'city.dart';
 export 'company.dart';
 export 'country.dart';
 export 'login_result.dart';
+export 'notification.dart';
 export 'operation_type.dart';
 export 'page_result.dart';
 export 'project.dart';

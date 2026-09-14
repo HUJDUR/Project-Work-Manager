@@ -4,6 +4,7 @@ import '../providers/auth_provider.dart';
 import '../screens/clock_in_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/my_hours_screen.dart';
+import '../screens/notifications_screen.dart';
 import '../screens/projects_screen.dart';
 import '../screens/widgets/placeholder_body.dart';
 import '../utils/app_theme.dart';
@@ -46,7 +47,8 @@ class _MasterScreenState extends State<MasterScreen> {
 
   late int _selectedIndex = widget.initialIndex;
 
-  /// Only Dashboard has a body so far; the rest render [PlaceholderBody].
+  /// Options is the one entry still without a screen; it renders
+  /// [PlaceholderBody].
   static final List<AppDestination> _destinations = [
     AppDestination(
       label: 'Dashboard',
@@ -76,7 +78,7 @@ class _MasterScreenState extends State<MasterScreen> {
       label: 'Notifications',
       icon: Icons.notifications_outlined,
       activeIcon: Icons.notifications,
-      builder: (go) => PlaceholderBody(title: 'Notifications'),
+      builder: (go) => NotificationsScreen(),
     ),
     AppDestination(
       label: 'Options',
