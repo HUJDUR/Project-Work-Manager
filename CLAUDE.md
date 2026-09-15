@@ -9,8 +9,7 @@ Project Work Manager (PWM) — a work-tracking system for a metal fabrication sh
 Monorepo layout:
 
 - `backend/pwm/` — .NET 10 solution (`pwm.slnx`), four projects
-- `frontend/pwm_desktop` — Flutter desktop app; every screen in the navigation is built. The Recommendations screen is the one
-  shell without a working body - the estimator behind it does not exist yet
+- `frontend/pwm_desktop` — Flutter desktop app; every screen in the navigation is built, Recommendations included
 - `frontend/pwm_mobile` — Flutter mobile app; every tab in the bottom bar is built
 - `docs/mockups/` — UI mockups that define the intended screens (gitignored)
 - `docs/PWM - prijava seminarskog rada v3.md` - defines the projects scope and needed funcionality
@@ -692,13 +691,48 @@ asked for with `isActive` and `sortBy: 'Surname, Name'` — a closed account can
 
 ### Recommendations
 
-`recommendations_screen.dart` is the Project Resource Estimation layout — project type, expected tonnage
-and deadline, the four metric cards and the work-type table — and **nothing behind it**. There is no
-estimator: no endpoint, and nothing client-side that derives one. `RecommendationsProvider.hasEstimate`
-is hardcoded false and every card reads an em dash; pressing Estimate says the estimator is not built
-rather than showing invented numbers. The provider is the seam — `estimate()` is what will call the model,
-and the only real work it does today is loading `ProjectCategory` for the dropdown and checking that all
-three inputs are filled in.
+Project Resource Estimation — `POST /Recommendation/Estimate` on the API, `recommendations_screen.dart`
+over `RecommendationsProvider` on the desktop. Nothing is stored, the same bargain `ReportService` makes:
+every call re-fits from whatever `Projects` and `WorkLogDetails` exist right now, so the estimate can
+only improve as the shop delivers more work. `RecommendationController` sits outside the generic
+service/controller pattern — one action, not a table — and is open to the same three roles the screen
+itself is (`Admin`, `Work preparation`, `Project manager`; `AppRoles._blocked` is what keeps Finances off
+the screen, matching `[Authorization]` on the action).
+
+`RecommendationService.EstimateAsync` takes `{ projectCategoryId, tonnes, workingDays }` and, for every
+past project of that category whose `ProjectStatus.Name` is `"Delivered"`, fits one ordinary-least-squares
+line per work type — hours booked against it (summed from `WorkLogDetail.Hours`) against the project's
+tonnage (`Project.Weight / 1000`; the column is kilograms, the request and the fit are both tonnes).
+Reading the requested tonnage through each work type's line is the per-row estimate; their sum is the
+total, and every category's set of past projects is the same set for every work type's fit, so the totals
+and the breakdown can never disagree. `RecommendationService.MinSampleSize` (3) is the line below which
+nothing is estimated — `HasEstimate` comes back false with a `Message` saying how many delivered projects
+exist and how many are needed, exactly the spec's "a brand new project type gets no estimate until enough
+history exists" rather than a guess dressed up as one.
+
+The explanation is two numbers, not prose: `SampleSize` (how many delivered projects the fit drew on) and
+`AccuracyPercent` (the R² of a second, independent fit — the project's *total* hours against its tonnage,
+for the category as a whole — clamped to 0-100). A category whose hours don't track its tonnage well
+reports that honestly as a low accuracy rather than hiding it; the estimate is offered as an aid, not a
+verdict, which is the R² number's whole job. `EstimatedWorkers` divides the total by the requested
+deadline (`workingDays * HoursPerWorkerPerDay`, rounded up); `EstimatedDurationDays` instead divides by the
+category's own typical crew size (the average count of distinct workers across its past delivered
+projects), so the two cards answer two different questions — "how long would this normally take" against
+"how many people to hit *this* deadline" — rather than reporting the same number twice.
+
+The desktop screen sends the three inputs and renders exactly what comes back: `RecommendationsProvider`
+holds `asked`/`estimating`/`estimateError` beside the result, and `_TableBody` picks one of five states in
+order — not yet asked, in flight, an API error, "not enough history" (the service's `Message`, verbatim),
+or the real breakdown — so the empty state always says why there is nothing rather than looking broken.
+`RecommendationApiProvider` rides on `BaseProvider` purely for the auth header, the 401 refresh and
+`validateResponse`, the same reason `ReportProvider` does — one POST that does not fit
+`get`/`insert`/`update`/`remove`.
+
+The seed data carries four extra hand-written `Delivered` projects (two in "Sections", two in "General
+steel construction") purely so the estimator has something to show out of the box; every other seeded
+category still answers "not enough history" until the office raises more projects through the app. They
+cost no `_random` calls, so nothing else the seeder produces — the mobile app's bypass-login worker
+included — shifted when they were added.
 
 ## Mobile frontend architecture
 

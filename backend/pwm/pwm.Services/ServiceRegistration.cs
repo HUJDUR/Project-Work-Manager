@@ -60,6 +60,7 @@ namespace pwm.Services
             services.AddScoped<ITruckLoadDetailService, TruckLoadDetailService>();
             services.AddScoped<IMonthlyHourReportService, MonthlyHourReportService>();
             services.AddScoped<IMonthlyHourReportDetailService, MonthlyHourReportDetailService>();
+            services.AddScoped<IRecommendationService, RecommendationService>();
 
             return services;
         }

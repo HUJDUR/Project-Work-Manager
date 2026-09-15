@@ -4,21 +4,23 @@ import '../models/models.dart';
 import '../utils/api_client_exception.dart';
 import 'base_provider.dart';
 import 'project_category_provider.dart';
+import 'recommendation_api_provider.dart';
 
 enum RecommendationsStatusState { idle, loading, ready, failed }
 
 /// The Project Resource Estimation screen's own store. It holds what the office
-/// typed in; the estimate itself is not computed yet.
-///
-/// **There is no estimator behind this screen.** The API has no endpoint for it
-/// and nothing here derives one, so [hasEstimate] is always false and the cards
-/// and the work-type table stay empty. This class is the seam: when the model
-/// lands, [estimate] is what calls it and fills [totalHours] and the rest.
+/// typed in and, once Estimate is pressed, the answer from `POST
+/// /Recommendation/Estimate` - see `RecommendationService` on the API for how
+/// that answer is worked out.
 class RecommendationsProvider extends ChangeNotifier {
-  RecommendationsProvider({BaseProvider<ProjectCategory>? categories})
-      : _categories = categories ?? ProjectCategoryProvider();
+  RecommendationsProvider({
+    BaseProvider<ProjectCategory>? categories,
+    RecommendationApiProvider? recommendationApi,
+  })  : _categories = categories ?? ProjectCategoryProvider(),
+        _recommendationApi = recommendationApi ?? RecommendationApiProvider();
 
   final BaseProvider<ProjectCategory> _categories;
+  final RecommendationApiProvider _recommendationApi;
 
   RecommendationsStatusState _status = RecommendationsStatusState.idle;
   String? _errorMessage;
@@ -33,6 +35,10 @@ class RecommendationsProvider extends ChangeNotifier {
   /// nothing rather than looking like it is still loading.
   bool _asked = false;
 
+  bool _estimating = false;
+  String? _estimateError;
+  RecommendationResult? _result;
+
   RecommendationsStatusState get status => _status;
   String? get errorMessage => _errorMessage;
 
@@ -43,11 +49,23 @@ class RecommendationsProvider extends ChangeNotifier {
   int? get workingDays => _workingDays;
 
   bool get asked => _asked;
+  bool get estimating => _estimating;
+  String? get estimateError => _estimateError;
 
-  /// True once an estimator exists and has answered. Nothing sets it yet.
-  bool get hasEstimate => false;
+  /// True once the API has answered with an estimate it could compute.
+  bool get hasEstimate => _result?.hasEstimate ?? false;
 
-  /// Every input the estimator will need is filled in.
+  /// Set when the API answered but the category has too little history yet.
+  String? get noDataMessage => _result != null && !_result!.hasEstimate ? _result!.message : null;
+
+  int get sampleSize => _result?.sampleSize ?? 0;
+  double get accuracyPercent => _result?.accuracyPercent ?? 0;
+  double get totalHours => _result?.totalHours ?? 0;
+  int get estimatedWorkers => _result?.estimatedWorkers ?? 0;
+  int get estimatedDurationDays => _result?.estimatedDurationDays ?? 0;
+  List<RecommendationWorkType> get workTypes => _result?.workTypes ?? const [];
+
+  /// Every input the estimator needs is filled in.
   bool get canEstimate =>
       _categoryId != null && (_tonnes ?? 0) > 0 && (_workingDays ?? 0) > 0;
 
@@ -66,8 +84,29 @@ class RecommendationsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void estimate() {
+  Future<void> estimate() async {
+    if (!canEstimate) return;
+
     _asked = true;
+    _estimating = true;
+    _estimateError = null;
+    notifyListeners();
+
+    try {
+      _result = await _recommendationApi.estimate(
+        projectCategoryId: _categoryId!,
+        tonnes: _tonnes!,
+        workingDays: _workingDays!,
+      );
+    } on ApiClientException catch (error) {
+      _result = null;
+      _estimateError = error.message;
+    } catch (error) {
+      _result = null;
+      _estimateError = 'Something went wrong while estimating: $error';
+    }
+
+    _estimating = false;
     notifyListeners();
   }
 
