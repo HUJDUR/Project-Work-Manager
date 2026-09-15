@@ -14,5 +14,6 @@ export 'project_provider.dart';
 export 'projects_provider.dart';
 export 'project_status_type_provider.dart';
 export 'user_operation_provider.dart';
+export 'user_provider.dart';
 export 'work_log_provider.dart';
 export 'work_log_detail_provider.dart';

@@ -7,18 +7,14 @@ import 'package:pwm_mobile/providers/auth_provider.dart';
 /// A small phone — the width the six-entry bottom bar has to survive.
 const _phone = Size(390, 844);
 
-/// Options, the last tab still without a screen. The shell tests are about the
-/// bar, not about what a tab holds, so they open on a [PlaceholderBody]: most
-/// real screens would go looking for an API. Move this as tabs get built.
-const _placeholderTab = 5;
-
-/// Notifications, which is built. Nothing is signed in in these tests, so its
-/// provider stops at "No account is signed in." and asks the API for nothing —
-/// which is what makes it safe to open here.
+/// Every tab is built now, so the shell tests open on the two that reach no
+/// API: Options reads only the signed-in account, and Notifications stops at
+/// "No account is signed in." because these tests sign nobody in.
+const _optionsTab = 5;
 const _notificationsTab = 4;
 
 Future<void> _pumpShell(WidgetTester tester,
-    {int initialIndex = _placeholderTab}) async {
+    {int initialIndex = _optionsTab}) async {
   tester.view
     ..physicalSize = _phone
     ..devicePixelRatio = 1.0;
@@ -56,7 +52,17 @@ void main() {
       'Notifications',
       'Options',
     ]) {
-      expect(find.text(label), findsOneWidget, reason: '$label is missing');
+      // Scoped to the bar's own FittedBox rather than the whole tree: a tab's
+      // screen heads itself with its tab's name, so `find.text('Options')`
+      // matches the heading too once that tab is open.
+      expect(
+        find.descendant(
+          of: find.byType(FittedBox),
+          matching: find.text(label),
+        ),
+        findsOneWidget,
+        reason: '$label is missing from the bar',
+      );
     }
 
     expect(tester.takeException(), isNull);
@@ -72,7 +78,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Messages from the office'), findsNothing);
-    expect(find.text('Options is not built yet'), findsOneWidget);
+    // The subtitle again: "Options" is also a tab label.
+    expect(find.text('Your account and this app'), findsOneWidget);
     // One shell, one screen deep — nothing was pushed over it.
     expect(find.byType(MasterScreen), findsOneWidget);
   });

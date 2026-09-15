@@ -11,7 +11,7 @@ Monorepo layout:
 - `backend/pwm/` — .NET 10 solution (`pwm.slnx`), four projects
 - `frontend/pwm_desktop` — Flutter desktop app; every screen in the navigation is built. The Recommendations screen is the one
   shell without a working body - the estimator behind it does not exist yet
-- `frontend/pwm_mobile` — Flutter mobile app; Dashboard, Clock In, My Hours, Projects and Notifications are built, Options is a shell
+- `frontend/pwm_mobile` — Flutter mobile app; every tab in the bottom bar is built
 - `docs/mockups/` — UI mockups that define the intended screens (gitignored)
 - `docs/PWM - prijava seminarskog rada v3.md` - defines the projects scope and needed funcionality
 - `docs/RSII_Upute_za_izradu_seminarskog_rada_2025_26.md` - defines the project requirements regarding implementation
@@ -731,9 +731,10 @@ palette and the no-`const` rule holds here too — `test/theme_test.dart` is the
   dashboard's "View all". Six entries is more than Material's `BottomNavigationBar` lays out, so the
   bar is built by hand and each label sits in a `FittedBox` — a phone-width bar reading
   "Notificat…" names nothing. The bell in the top bar is another way into the same tab, switched
-  by the same label.
+  by the same label, and the avatar beside it is `AccountMenuButton`.
 - **The app opens light** (`ThemeController.defaultMode`), because every mobile mockup is drawn light,
-  where the desktop opens dark. The toggle belongs on the Options tab, which is not built.
+  where the desktop opens dark. The toggle belongs on the Options tab and is not wired up yet — the
+  tab exists now, so that is a screen change rather than a missing screen.
 - **`AppSpacing.pagePadding` is 16**, not the desktop's 24, and `AppPalette.light.canvas` is white
   rather than grey — a phone shows one card at a time, so the cards are told apart by their borders.
   That white canvas is why the palette carries a **`fieldFill`** token the desktop has no need of: the
@@ -974,6 +975,52 @@ re-collapse what the reader opened, and the provider has no business knowing.
 `models/notification.dart` is the desktop's model verbatim, so it collides with Flutter's own
 `Notification`; the screen imports `package:flutter/material.dart` with a `hide Notification` clause,
 exactly as the desktop's does.
+
+### The account: settings, the avatar's menu, and Options
+
+Three files, and the two ways in run the same two calls so neither can drift:
+
+- `screens/widgets/account_menu.dart` holds `AccountMenuButton` — the avatar in the top bar and the
+  menu behind it — and `signOutToLogin`, which both entry points call. It is the desktop's
+  `_AccountChip` cut down: the same two entries in the same order, but the name and role move *into*
+  the menu because a 60px bar has no room for them beside the product's name. Its menu is widened past
+  Material's 280 default (`constraints`), which left "Account settings" 0.6px over its row.
+- `screens/options_screen.dart` is the Options tab: the same two things as rows a thumb can hit. The
+  avatar is where somebody coming from another app looks; the tab is where somebody who only knows
+  this bar looks.
+- `screens/account_settings_screen.dart` is pushed on the **root** navigator by
+  `openAccountSettings`, so it covers the bottom bar.
+
+**A worker may change two things about themselves: their phone number and their password.** Name,
+surname, e-mail, job title and role are shown as facts, not fields — deliberately narrower than the
+desktop's version of this screen, where the office edits its own name and e-mail. On the shop floor
+those identify the account to everyone else, so they stay an administrator's job on the Workers
+screen. The API is **not** what enforces that: `UserProfileUpdateRequest` would take a new name, so
+this screen sends the current one straight back, the way the desktop's project form returns a
+`creationDate` it never showed. Role and `IsActive` are a different matter — the request cannot
+express them at all, so no client can set them on itself.
+
+A read-only value is a label and a value, never a disabled `TextField`: on a phone a greyed-out box
+still reads as something to tap.
+
+`utils/password_rules.dart` is the desktop's file verbatim, so a password refused in one app is
+refused in the other, and both are mirrored on the API by `UserProfileUpdateRequestValidator`. Three
+copies that have to agree. The three password fields are checked **together** in `_save` through
+`PasswordRules.validateChange` rather than by per-field validators, the desktop's reasoning; each
+carries a show/hide eye, which the desktop's do not — a phone keyboard gives no sign of what was
+typed, so a password refused blind has no way to be seen.
+
+**The error banner sits above the Save button, not at the top of the page.** The form is longer than
+a phone, Save is at the bottom, and a complaint at the top is one the thumb that pressed it would
+never scroll back to find. The same fact bites in tests: a widget below the fold of a `ListView` is
+not merely off screen, it has not been built, so `test/account_test.dart` drags it into view first —
+naming the `ListView` explicitly, because `scrollUntilVisible`'s default `find.byType(Scrollable)`
+matches every `TextField`'s own inner scrollable and dies as "Bad state: Too many elements".
+
+Signing out goes through `AuthProvider.signOut`, which drops the session locally even when telling
+the API fails, then `pushAndRemoveUntil(LoginScreen())` so the back gesture cannot return to a shell
+with no account. It works whatever `main.dart`'s `bypassLogin` says — that switch only decides what
+the app opens on.
 
 ### Running the mobile app on a phone or emulator
 
