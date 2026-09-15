@@ -18,6 +18,8 @@ export 'project_priority.dart';
 export 'project_row.dart';
 export 'project_status_type.dart';
 export 'recent_report.dart';
+export 'recommendation_result.dart';
+export 'recommendation_work_type.dart';
 export 'transport_row.dart';
 export 'truck_load.dart';
 export 'truck_load_detail.dart';

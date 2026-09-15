@@ -4,12 +4,15 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/recommendations_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/formatters.dart';
 
 /// Project Resource Estimation, laid out as in
 /// `docs/mockups/desktop/Recommendation.png`.
 ///
-/// The screen is built; the estimator behind it is not. Pressing Estimate says
-/// so rather than showing invented numbers — see [RecommendationsProvider].
+/// A linear regression per work type, fitted on the API against past delivered
+/// projects of the picked category, is what fills the cards and the table -
+/// see `RecommendationService`. This screen only asks for the three inputs and
+/// renders whatever comes back.
 class RecommendationsScreen extends StatelessWidget {
   const RecommendationsScreen({super.key, this.providerFactory});
 
@@ -53,7 +56,7 @@ class _Body extends StatelessWidget {
           const SizedBox(height: AppSpacing.gap),
           _InputBar(provider: provider),
           const SizedBox(height: AppSpacing.gap),
-          _MetricRow(),
+          _MetricRow(provider: provider),
           const SizedBox(height: AppSpacing.gap),
           Expanded(child: _WorkTypeTable(provider: provider)),
         ],
@@ -88,13 +91,20 @@ class _Header extends StatelessWidget {
           ),
         ),
         OutlinedButton(
-          onPressed: provider.canEstimate ? provider.estimate : null,
+          onPressed:
+              provider.canEstimate && !provider.estimating ? provider.estimate : null,
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.accent,
             side: BorderSide(color: AppColors.accent),
             padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
           ),
-          child: const Text('Estimate'),
+          child: provider.estimating
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Estimate'),
         ),
       ],
     );
@@ -153,27 +163,59 @@ class _InputBar extends StatelessWidget {
   }
 }
 
-/// The mockup's four cards. Every value reads as a dash until there is an
-/// estimator to fill it in.
+/// The mockup's four cards. Every value reads as a dash until an estimate
+/// comes back.
 class _MetricRow extends StatelessWidget {
-  const _MetricRow();
+  const _MetricRow({required this.provider});
 
-  static const _metrics = <(IconData, String, String)>[
-    (Icons.schedule_outlined, 'Total Estimated Hours', 'across every work type'),
-    (Icons.groups_outlined, 'Estimated Workers', 'to hit the deadline'),
-    (Icons.calendar_month_outlined, 'Estimated Duration', 'working days'),
-    (Icons.verified_outlined, 'Based On Projects', 'comparable past jobs'),
-  ];
+  final RecommendationsProvider provider;
 
   @override
   Widget build(BuildContext context) {
+    final hasEstimate = provider.hasEstimate;
+
+    final metrics = <(IconData, String, String, String)>[
+      (
+        Icons.schedule_outlined,
+        'Total Estimated Hours',
+        hasEstimate ? formatHours(provider.totalHours) : '—',
+        'across every work type',
+      ),
+      (
+        Icons.groups_outlined,
+        'Estimated Workers',
+        hasEstimate ? formatCount(provider.estimatedWorkers) : '—',
+        'to hit the deadline',
+      ),
+      (
+        Icons.calendar_month_outlined,
+        'Estimated Duration',
+        hasEstimate ? '${formatCount(provider.estimatedDurationDays)} d' : '—',
+        'working days',
+      ),
+      (
+        Icons.verified_outlined,
+        'Based On Projects',
+        hasEstimate ? formatCount(provider.sampleSize) : '—',
+        hasEstimate
+            ? '~${provider.accuracyPercent.toStringAsFixed(0)}% accuracy'
+            : 'comparable past jobs',
+      ),
+    ];
+
     return Row(
       children: [
-        for (final (index, metric) in _metrics.indexed) ...[
+        for (final (index, metric) in metrics.indexed) ...[
           Expanded(
-            child: _MetricCard(icon: metric.$1, label: metric.$2, caption: metric.$3),
+            child: _MetricCard(
+              icon: metric.$1,
+              label: metric.$2,
+              value: metric.$3,
+              caption: metric.$4,
+              muted: !hasEstimate,
+            ),
           ),
-          if (index < _metrics.length - 1) const SizedBox(width: AppSpacing.gap),
+          if (index < metrics.length - 1) const SizedBox(width: AppSpacing.gap),
         ],
       ],
     );
@@ -184,12 +226,16 @@ class _MetricCard extends StatelessWidget {
   const _MetricCard({
     required this.icon,
     required this.label,
+    required this.value,
     required this.caption,
+    required this.muted,
   });
 
   final IconData icon;
   final String label;
+  final String value;
   final String caption;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
@@ -226,11 +272,11 @@ class _MetricCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '—',
+            value,
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
-              color: AppColors.textMuted,
+              color: muted ? AppColors.textMuted : AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 2),
@@ -290,19 +336,172 @@ class _WorkTypeTable extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
-          Expanded(child: _EmptyState(asked: provider.asked)),
+          Expanded(child: _TableBody(provider: provider)),
         ],
       ),
     );
   }
 }
 
-/// Says plainly that the estimate is not implemented rather than dressing the
-/// screen up with numbers nothing produced.
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.asked});
+class _TableBody extends StatelessWidget {
+  const _TableBody({required this.provider});
 
-  final bool asked;
+  final RecommendationsProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!provider.asked) {
+      return _EmptyState(
+        icon: Icons.insights_outlined,
+        title: 'Nothing to estimate yet',
+        message: 'Pick a project type, an expected tonnage and a deadline, '
+            'then press Estimate.',
+      );
+    }
+
+    if (provider.estimating) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (provider.estimateError != null) {
+      return _EmptyState(
+        icon: Icons.cloud_off_outlined,
+        title: 'The estimate could not be produced',
+        message: provider.estimateError!,
+      );
+    }
+
+    if (provider.noDataMessage != null) {
+      return _EmptyState(
+        icon: Icons.hourglass_empty,
+        title: 'Not enough history yet',
+        message: provider.noDataMessage!,
+      );
+    }
+
+    if (!provider.hasEstimate || provider.workTypes.isEmpty) {
+      return _EmptyState(
+        icon: Icons.hourglass_empty,
+        title: 'No estimate yet',
+        message: 'The estimator has nothing to break down for this project type.',
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: provider.workTypes.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (context, index) => _WorkTypeRow(workType: provider.workTypes[index]),
+    );
+  }
+}
+
+class _WorkTypeRow extends StatelessWidget {
+  const _WorkTypeRow({required this.workType});
+
+  final RecommendationWorkType workType;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    workType.operationTypeName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _DistributionBar(sharePercent: workType.sharePercent),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              formatHours(workType.estimatedHours),
+              style: const TextStyle(fontSize: 13.5),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: Text(
+              '${workType.sharePercent.toStringAsFixed(0)}%',
+              style: TextStyle(fontSize: 13.5, color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DistributionBar extends StatelessWidget {
+  const _DistributionBar({required this.sharePercent});
+
+  final double sharePercent;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Container(
+              height: 8,
+              width: constraints.maxWidth,
+              decoration: BoxDecoration(
+                color: AppColors.accentSoft,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            Container(
+              height: 8,
+              width: constraints.maxWidth * (sharePercent.clamp(0, 100) / 100),
+              decoration: BoxDecoration(
+                color: AppColors.accent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Says plainly why the table is empty rather than dressing it up.
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -312,23 +511,15 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              asked ? Icons.hourglass_empty : Icons.insights_outlined,
-              size: 40,
-              color: AppColors.textMuted,
-            ),
+            Icon(icon, size: 40, color: AppColors.textMuted),
             const SizedBox(height: 12),
             Text(
-              asked ? 'No estimate yet' : 'Nothing to estimate yet',
+              title,
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 6),
             Text(
-              asked
-                  ? 'The estimator has not been built yet, so there are no hours '
-                      'to break down. The screen is ready for it.'
-                  : 'Pick a project type, an expected tonnage and a deadline, '
-                      'then press Estimate.',
+              message,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),

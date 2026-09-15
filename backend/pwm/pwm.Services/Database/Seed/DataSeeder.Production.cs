@@ -80,6 +80,39 @@ namespace pwm.Services.Database.Seed
                     priority: ProjectPriority.Low, createdBy: "zuhdija.delic@pwm.ba",
                     description: "Sample batch for a facade tender.",
                     notes: "Rejected - the customer did not win the tender."),
+
+                // These four exist so the Recommendations screen's estimator has
+                // more than one delivered project of a category to learn from -
+                // RecommendationService.MinSampleSize is 3, and without them no
+                // seeded category reliably clears it.
+                CreateProject("Roof purlin batch two", "Nordmetall AG", "Sections",
+                    weight: 2650.0, createdDaysAgo: 100, startedDaysAgo: 92, deliveryInDays: -30,
+                    status: "Delivered", deliveryArranged: true,
+                    priority: ProjectPriority.Medium, createdBy: "zuhdija.delic@pwm.ba",
+                    description: "Second run of welded purlins, same drawing as the first batch.",
+                    notes: null),
+
+                CreateProject("Mezzanine support sections", "Wiener Metallwerke GmbH", "Sections",
+                    weight: 4980.0, createdDaysAgo: 85, startedDaysAgo: 78, deliveryInDays: -18,
+                    status: "Delivered", deliveryArranged: true,
+                    priority: ProjectPriority.Low, createdBy: "kenan.fajic@pwm.ba",
+                    description: "Welded sections for a warehouse mezzanine deck.",
+                    notes: null),
+
+                CreateProject("Access gantry frame", "Stahlbau Meyer GmbH", "General steel construction",
+                    weight: 6200.0, createdDaysAgo: 70, startedDaysAgo: 63, deliveryInDays: -9,
+                    status: "Delivered", deliveryArranged: true,
+                    priority: ProjectPriority.High, createdBy: "zuhdija.delic@pwm.ba",
+                    description: "Welded gantry frame for a maintenance access walkway.",
+                    notes: null),
+
+                CreateProject("Workshop extension frame", "Adria Konstrukcije d.o.o.",
+                    "General steel construction",
+                    weight: 3150.0, createdDaysAgo: 45, startedDaysAgo: 38, deliveryInDays: -2,
+                    status: "Delivered", deliveryArranged: true,
+                    priority: ProjectPriority.Medium, createdBy: "nadir.hujdur@pwm.ba",
+                    description: "Structural steel frame for the workshop's new bay.",
+                    notes: null),
             };
 
             projects.AddRange(RandomProjects(15, startingAt: projects.Count));
