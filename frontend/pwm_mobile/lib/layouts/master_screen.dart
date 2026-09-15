@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../providers/auth_provider.dart';
 import '../screens/clock_in_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/my_hours_screen.dart';
 import '../screens/notifications_screen.dart';
+import '../screens/options_screen.dart';
 import '../screens/projects_screen.dart';
-import '../screens/widgets/placeholder_body.dart';
+import '../screens/widgets/account_menu.dart';
 import '../utils/app_theme.dart';
 
 /// One entry in the bottom navigation.
@@ -47,8 +47,7 @@ class _MasterScreenState extends State<MasterScreen> {
 
   late int _selectedIndex = widget.initialIndex;
 
-  /// Options is the one entry still without a screen; it renders
-  /// [PlaceholderBody].
+  /// Every entry has a screen behind it.
   static final List<AppDestination> _destinations = [
     AppDestination(
       label: 'Dashboard',
@@ -84,7 +83,7 @@ class _MasterScreenState extends State<MasterScreen> {
       label: 'Options',
       icon: Icons.more_horiz_outlined,
       activeIcon: Icons.more_horiz,
-      builder: (go) => PlaceholderBody(title: 'Options'),
+      builder: (go) => OptionsScreen(),
     ),
   ];
 
@@ -131,8 +130,6 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = AuthProvider.user;
-
     return Container(
       height: height,
       color: AppColors.surface,
@@ -183,25 +180,7 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.accentSoft,
-              shape: BoxShape.circle,
-            ),
-            child: user == null
-                ? Icon(Icons.person, size: 20, color: AppColors.textSecondary)
-                : Text(
-                    user.initials,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.accent,
-                    ),
-                  ),
-          ),
+          AccountMenuButton(),
           const SizedBox(width: 4),
         ],
       ),
