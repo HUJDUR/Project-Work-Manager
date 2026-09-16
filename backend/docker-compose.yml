@@ -1,6 +1,8 @@
 services:
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    # Pinned to the build (16.0.4250.1) this project was seeded and tested against,
+    # rather than 2022-latest, which moves.
+    image: mcr.microsoft.com/mssql/server:2022-CU24-GDR1-ubuntu-22.04
     container_name: project-work-manager
     hostname: project-work-manager
     environment:
