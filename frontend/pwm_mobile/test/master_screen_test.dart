@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pwm_mobile/layouts/master_screen.dart';
 import 'package:pwm_mobile/providers/auth_provider.dart';
+import 'package:pwm_mobile/utils/app_theme.dart';
 
 /// A small phone — the width the six-entry bottom bar has to survive.
 const _phone = Size(390, 844);
@@ -21,8 +22,11 @@ Future<void> _pumpShell(WidgetTester tester,
   addTearDown(tester.view.reset);
 
   await tester.pumpWidget(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
+      ],
       child: MaterialApp(home: MasterScreen(initialIndex: initialIndex)),
     ),
   );

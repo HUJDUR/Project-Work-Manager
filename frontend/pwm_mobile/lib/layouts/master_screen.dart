@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../screens/clock_in_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -167,6 +168,7 @@ class _TopBar extends StatelessWidget {
               ),
             ),
           ),
+          _ThemeToggle(),
           IconButton(
             onPressed: onNotifications,
             tooltip: 'Notifications',
@@ -183,6 +185,30 @@ class _TopBar extends StatelessWidget {
           AccountMenuButton(),
           const SizedBox(width: 4),
         ],
+      ),
+    );
+  }
+}
+
+/// Flips the whole app between the two palettes. It sits beside the bell, as
+/// the desktop's does — the one piece of chrome that is a preference rather
+/// than a destination, which is why it reads a shade quieter than the bell.
+class _ThemeToggle extends StatelessWidget {
+  const _ThemeToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeController>();
+
+    return IconButton(
+      onPressed: theme.toggle,
+      tooltip: theme.isDark ? 'Switch to light theme' : 'Switch to dark theme',
+      constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+      padding: EdgeInsets.zero,
+      icon: Icon(
+        theme.isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+        size: 21,
+        color: AppColors.textSecondary,
       ),
     );
   }
