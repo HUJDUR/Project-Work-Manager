@@ -19,6 +19,12 @@ var seedRequested = args.Any(a => a is "--seed" or "seed");
 var seedForce = args.Any(a => a is "--force" or "--seed-force");
 var hostArgs = args.Where(a => a is not ("--seed" or "seed" or "--force" or "--seed-force")).ToArray();
 
+// Every secret and environment-specific value lives in one file, backend/.env,
+// rather than appsettings.json or a value the shell has to be told to export by
+// hand. docker-compose already reads that file natively; this is what gives the
+// API and the seeder the same view of it.
+LoadDotEnvFile();
+
 var builder = WebApplication.CreateBuilder(hostArgs);
 
 builder.Services.AddDbContext<PWMDbContext>(options =>
@@ -92,9 +98,13 @@ app.Run();
 // (sign-in and refresh); roles are checked per action by AuthorizationAttribute.
 static void AddJwtAuthentication(WebApplicationBuilder builder)
 {
+    // Issuer, audience and the two lifetimes are not secrets and stay in
+    // appsettings.json; the signing key is, so it comes from JWT_SECRET in
+    // backend/.env (via LoadDotEnvFile) alone - appsettings.json carries no
+    // fallback value for it.
     var jwt = builder.Configuration.GetSection("JwtToken");
-    var secretKey = jwt["SecretKey"] ?? Environment.GetEnvironmentVariable("JWT_SECRET")
-        ?? throw new InvalidOperationException("JwtToken:SecretKey is not configured.");
+    var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET")
+        ?? throw new InvalidOperationException("JWT_SECRET is not set - add it to backend/.env.");
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
@@ -127,21 +137,72 @@ static void AddJwtAuthentication(WebApplicationBuilder builder)
     });
 }
 
-// The password lives in backend/.env next to docker-compose.yml, so it is read
-// from the DB_PASSWORD environment variable rather than from appsettings.json.
+/// <summary>
+/// Reads <c>backend/.env</c> - the same file docker-compose feeds the container
+/// from - into this process's environment, so every secret has exactly one home
+/// regardless of whether a command was launched by a shell that exported it.
+/// Searches upward from the working directory rather than assuming one fixed
+/// relative path, since `dotnet run --project pwm.WebAPI` and an IDE's own
+/// launch profile do not agree on what that directory is. A variable the real
+/// environment already set (CI, a container, an explicit export) is left alone.
+/// </summary>
+static void LoadDotEnvFile()
+{
+    for (var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+        directory != null;
+        directory = directory.Parent)
+    {
+        var candidate = Path.Combine(directory.FullName, ".env");
+        if (!File.Exists(candidate))
+        {
+            continue;
+        }
+
+        foreach (var line in File.ReadAllLines(candidate))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0 || trimmed.StartsWith('#'))
+            {
+                continue;
+            }
+
+            var separator = trimmed.IndexOf('=');
+            if (separator <= 0)
+            {
+                continue;
+            }
+
+            var key = trimmed[..separator].Trim();
+            var value = trimmed[(separator + 1)..].Trim();
+
+            if (Environment.GetEnvironmentVariable(key) == null)
+            {
+                Environment.SetEnvironmentVariable(key, value);
+            }
+        }
+
+        return;
+    }
+}
+
+// appsettings.json carries the shape of the connection string but never the
+// password - that comes from .env alone, via LoadDotEnvFile, so it is never
+// hardcoded in source control.
 static string BuildConnectionString(IConfiguration configuration)
 {
     var connectionString = configuration.GetConnectionString("PWMConnection")
         ?? throw new InvalidOperationException("Connection string 'PWMConnection' is not configured.");
 
-    var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
-
-    if (!string.IsNullOrEmpty(password) && !connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase))
+    if (connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase))
     {
-        connectionString = connectionString.TrimEnd(';') + $";Password={password}";
+        return connectionString;
     }
 
-    return connectionString;
+    var password = Environment.GetEnvironmentVariable("DB_PASSWORD")
+        ?? throw new InvalidOperationException(
+            "DB_PASSWORD is not set - add it to backend/.env.");
+
+    return connectionString.TrimEnd(';') + $";Password={password}";
 }
 
 static async Task RunSeedAsync(IServiceProvider services, bool force)

@@ -119,11 +119,14 @@ namespace pwm.WebAPI.Services.AccessManager
         private (string Token, DateTime ExpiresAt) GenerateAccessToken(AuthenticatedUser authenticated)
         {
             var user = authenticated.User;
-            var secretKey = _configuration["JwtToken:SecretKey"];
+            // The signing key is a secret, so it comes from JWT_SECRET in backend/.env
+            // alone - the same resolution Program.cs's AddJwtAuthentication uses to
+            // validate the tokens this issues, never from appsettings.json.
+            var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET");
 
             if (string.IsNullOrWhiteSpace(secretKey))
             {
-                throw new InvalidOperationException("JwtToken:SecretKey is not configured.");
+                throw new InvalidOperationException("JWT_SECRET is not set - add it to backend/.env.");
             }
 
             var expiresAt = DateTime.UtcNow.AddMinutes(AccessTokenDurationInMinutes);
