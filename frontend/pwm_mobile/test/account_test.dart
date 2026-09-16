@@ -9,6 +9,7 @@ import 'package:pwm_mobile/screens/account_settings_screen.dart';
 import 'package:pwm_mobile/screens/login_screen.dart';
 import 'package:pwm_mobile/screens/options_screen.dart';
 import 'package:pwm_mobile/utils/api_client_exception.dart';
+import 'package:pwm_mobile/utils/app_theme.dart';
 
 const _phone = Size(390, 844);
 
@@ -79,8 +80,11 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
   addTearDown(tester.view.reset);
 
   await tester.pumpWidget(
-    ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
+      ],
       child: MaterialApp(home: child),
     ),
   );

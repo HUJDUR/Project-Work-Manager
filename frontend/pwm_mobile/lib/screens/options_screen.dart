@@ -8,16 +8,16 @@ import 'account_settings_screen.dart';
 import 'widgets/account_menu.dart';
 
 /// The Options tab: the same two things the avatar's menu offers, laid out as
-/// rows a thumb can hit.
+/// rows a thumb can hit, plus the light/dark toggle that also lives beside the
+/// bell in the top bar — two ways to reach the same [ThemeController], the same
+/// bargain the account settings entry already strikes with the avatar's menu.
 ///
-/// Both ways in are deliberate rather than duplicated by accident. The avatar is
-/// where somebody coming from another app looks; the tab is where somebody who
-/// only knows this bar looks. They run the same two calls — `openAccountSettings`
-/// and `signOutToLogin` — so neither can drift.
+/// Both ways into account settings are deliberate rather than duplicated by
+/// accident. The avatar is where somebody coming from another app looks; the
+/// tab is where somebody who only knows this bar looks. They run the same two
+/// calls — `openAccountSettings` and `signOutToLogin` — so neither can drift.
 ///
-/// There is nothing else here yet. The light/dark toggle belongs on this tab
-/// (the app has a [ThemeController] and no way to reach it), and so would
-/// anything about notifications or units once there is something to set.
+/// Anything about notifications or units still has nothing to set yet.
 class OptionsScreen extends StatelessWidget {
   const OptionsScreen({super.key, this.userProvider});
 
@@ -28,6 +28,7 @@ class OptionsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
+    final theme = context.watch<ThemeController>();
 
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.pagePadding),
@@ -47,6 +48,11 @@ class OptionsScreen extends StatelessWidget {
           style: TextStyle(fontSize: 14.5, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 18),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: _ThemeToggleRow(theme: theme),
+        ),
+        const SizedBox(height: 16),
         AppCard(
           padding: EdgeInsets.zero,
           child: Column(
@@ -74,6 +80,75 @@ class OptionsScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The same toggle the top bar's bell-side icon reaches, laid out as a row
+/// with a switch rather than a chevron — flipping it is the whole action,
+/// there is nowhere for a tap to navigate to.
+///
+/// Wrapped in its own transparent `Material`, the same thing `_OptionRow` does
+/// for its `InkWell` — a `Switch` needs a `Material` ancestor to paint itself,
+/// and this card should not depend on the `Scaffold` a host screen happens to
+/// wrap it in.
+class _ThemeToggleRow extends StatelessWidget {
+  const _ThemeToggleRow({required this.theme});
+
+  final ThemeController theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = AppColors.accent;
+
+    return Material(
+      color: Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.chip(tint).$1,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                theme.isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+                size: 19,
+                color: AppColors.chip(tint).$2,
+              ),
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Dark mode',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    theme.isDark ? 'On' : 'Off',
+                    style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: theme.isDark,
+              onChanged: (_) => theme.toggle(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
