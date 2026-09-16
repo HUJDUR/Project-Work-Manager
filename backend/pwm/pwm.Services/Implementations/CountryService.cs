@@ -12,10 +12,14 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class CountryService
-        : BaseReadService<Country, CountryResponse, CountrySearchObject>, ICountryService
+        : BaseCRUDService<Country, CountryResponse, CountrySearchObject, CountryInsertRequest, CountryUpdateRequest>, ICountryService
     {
-        public CountryService(PWMDbContext dbContext, IMapper mapper)
-            : base(mapper, dbContext)
+        public CountryService(
+            PWMDbContext dbContext,
+            IMapper mapper,
+            IValidator<CountryInsertRequest> insertValidator,
+            IValidator<CountryUpdateRequest> updateValidator)
+            : base(dbContext, mapper, insertValidator, updateValidator)
         {
         }
 

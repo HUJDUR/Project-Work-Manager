@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import '../screens/account_settings_screen.dart';
+import '../screens/administration_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/notifications_screen.dart';
@@ -88,6 +89,11 @@ class _MasterScreenState extends State<MasterScreen> {
       icon: Icons.notifications_outlined,
       builder: _notifications,
     ),
+    AppDestination(
+      label: 'Administration',
+      icon: Icons.admin_panel_settings_outlined,
+      builder: _administration,
+    ),
   ];
 
   static Widget _dashboard(BuildContext context) => DashboardScreen();
@@ -99,6 +105,7 @@ class _MasterScreenState extends State<MasterScreen> {
   static Widget _recommendations(BuildContext context) =>
       RecommendationsScreen();
   static Widget _notifications(BuildContext context) => NotificationsScreen();
+  static Widget _administration(BuildContext context) => AdministrationScreen();
 
   @override
   Widget build(BuildContext context) {

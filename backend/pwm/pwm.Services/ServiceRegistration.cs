@@ -35,6 +35,30 @@ namespace pwm.Services
             services.AddTransient<IValidator<UserProfileUpdateRequest>,
                 UserProfileUpdateRequestValidator>();
 
+            // The eleven lookup tables behind the desktop's Administration screen
+            services.AddTransient<IValidator<ActivityLogTypeInsertRequest>, ActivityLogTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<ActivityLogTypeUpdateRequest>, ActivityLogTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<UserTypeInsertRequest>, UserTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<UserTypeUpdateRequest>, UserTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<CountryInsertRequest>, CountryInsertRequestValidator>();
+            services.AddTransient<IValidator<CountryUpdateRequest>, CountryUpdateRequestValidator>();
+            services.AddTransient<IValidator<CityInsertRequest>, CityInsertRequestValidator>();
+            services.AddTransient<IValidator<CityUpdateRequest>, CityUpdateRequestValidator>();
+            services.AddTransient<IValidator<CompanyTypeInsertRequest>, CompanyTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<CompanyTypeUpdateRequest>, CompanyTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<ProjectStatusTypeInsertRequest>, ProjectStatusTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<ProjectStatusTypeUpdateRequest>, ProjectStatusTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<TruckLoadStatusTypeInsertRequest>, TruckLoadStatusTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<TruckLoadStatusTypeUpdateRequest>, TruckLoadStatusTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<ReportTypeInsertRequest>, ReportTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<ReportTypeUpdateRequest>, ReportTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<OperationTypeInsertRequest>, OperationTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<OperationTypeUpdateRequest>, OperationTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<ProjectCategoryInsertRequest>, ProjectCategoryInsertRequestValidator>();
+            services.AddTransient<IValidator<ProjectCategoryUpdateRequest>, ProjectCategoryUpdateRequestValidator>();
+            services.AddTransient<IValidator<CompanyInsertRequest>, CompanyInsertRequestValidator>();
+            services.AddTransient<IValidator<CompanyUpdateRequest>, CompanyUpdateRequestValidator>();
+
             services.AddScoped<ICountryService, CountryService>();
             services.AddScoped<ICityService, CityService>();
             services.AddScoped<ICompanyTypeService, CompanyTypeService>();

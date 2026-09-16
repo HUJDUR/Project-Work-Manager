@@ -1,9 +1,10 @@
+using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
 
 namespace pwm.Services.Interfaces
 {
-    public interface IReportTypeService : IBaseReadService<ReportTypeResponse, ReportTypeSearchObject>
+    public interface IReportTypeService : IBaseCRUDService<ReportTypeResponse, ReportTypeSearchObject, ReportTypeInsertRequest, ReportTypeUpdateRequest>
     {
     }
 }

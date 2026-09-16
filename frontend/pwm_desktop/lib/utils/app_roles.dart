@@ -16,9 +16,9 @@ abstract final class AppRoles {
   /// Navigation entries a role may not open, by the label in `MasterScreen`.
   /// An admin reaches everything, so it has no entry.
   static const Map<String, Set<String>> _blocked = {
-    workPreparation: {'Work Hours', 'Workers', 'Reports'},
-    finances: {'Workers', 'Recommendations'},
-    projectManager: {'Workers'},
+    workPreparation: {'Work Hours', 'Workers', 'Reports', 'Administration'},
+    finances: {'Workers', 'Recommendations', 'Administration'},
+    projectManager: {'Workers', 'Administration'},
   };
 
   /// The shop floor books its hours from the mobile app; no desktop screen is

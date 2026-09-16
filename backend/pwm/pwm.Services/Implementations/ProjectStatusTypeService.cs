@@ -12,10 +12,14 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class ProjectStatusTypeService
-        : BaseReadService<ProjectStatusType, ProjectStatusTypeResponse, ProjectStatusTypeSearchObject>, IProjectStatusTypeService
+        : BaseCRUDService<ProjectStatusType, ProjectStatusTypeResponse, ProjectStatusTypeSearchObject, ProjectStatusTypeInsertRequest, ProjectStatusTypeUpdateRequest>, IProjectStatusTypeService
     {
-        public ProjectStatusTypeService(PWMDbContext dbContext, IMapper mapper)
-            : base(mapper, dbContext)
+        public ProjectStatusTypeService(
+            PWMDbContext dbContext,
+            IMapper mapper,
+            IValidator<ProjectStatusTypeInsertRequest> insertValidator,
+            IValidator<ProjectStatusTypeUpdateRequest> updateValidator)
+            : base(dbContext, mapper, insertValidator, updateValidator)
         {
         }
 

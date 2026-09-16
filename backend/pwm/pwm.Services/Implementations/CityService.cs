@@ -12,10 +12,14 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class CityService
-        : BaseReadService<City, CityResponse, CitySearchObject>, ICityService
+        : BaseCRUDService<City, CityResponse, CitySearchObject, CityInsertRequest, CityUpdateRequest>, ICityService
     {
-        public CityService(PWMDbContext dbContext, IMapper mapper)
-            : base(mapper, dbContext)
+        public CityService(
+            PWMDbContext dbContext,
+            IMapper mapper,
+            IValidator<CityInsertRequest> insertValidator,
+            IValidator<CityUpdateRequest> updateValidator)
+            : base(dbContext, mapper, insertValidator, updateValidator)
         {
         }
 
