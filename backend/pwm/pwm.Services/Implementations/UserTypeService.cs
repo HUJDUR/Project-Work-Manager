@@ -12,10 +12,14 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class UserTypeService
-        : BaseReadService<UserType, UserTypeResponse, UserTypeSearchObject>, IUserTypeService
+        : BaseCRUDService<UserType, UserTypeResponse, UserTypeSearchObject, UserTypeInsertRequest, UserTypeUpdateRequest>, IUserTypeService
     {
-        public UserTypeService(PWMDbContext dbContext, IMapper mapper)
-            : base(mapper, dbContext)
+        public UserTypeService(
+            PWMDbContext dbContext,
+            IMapper mapper,
+            IValidator<UserTypeInsertRequest> insertValidator,
+            IValidator<UserTypeUpdateRequest> updateValidator)
+            : base(dbContext, mapper, insertValidator, updateValidator)
         {
         }
 

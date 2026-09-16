@@ -19,6 +19,7 @@ export 'project_category_provider.dart';
 export 'project_status_type_provider.dart';
 export 'recommendations_provider.dart';
 export 'report_provider.dart';
+export 'report_type_provider.dart';
 export 'reports_provider.dart';
 export 'transports_provider.dart';
 export 'truck_load_provider.dart';

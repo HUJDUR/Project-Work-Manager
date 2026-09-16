@@ -12,10 +12,14 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class CompanyTypeService
-        : BaseReadService<CompanyType, CompanyTypeResponse, CompanyTypeSearchObject>, ICompanyTypeService
+        : BaseCRUDService<CompanyType, CompanyTypeResponse, CompanyTypeSearchObject, CompanyTypeInsertRequest, CompanyTypeUpdateRequest>, ICompanyTypeService
     {
-        public CompanyTypeService(PWMDbContext dbContext, IMapper mapper)
-            : base(mapper, dbContext)
+        public CompanyTypeService(
+            PWMDbContext dbContext,
+            IMapper mapper,
+            IValidator<CompanyTypeInsertRequest> insertValidator,
+            IValidator<CompanyTypeUpdateRequest> updateValidator)
+            : base(dbContext, mapper, insertValidator, updateValidator)
         {
         }
 

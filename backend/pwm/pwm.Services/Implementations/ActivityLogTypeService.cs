@@ -12,10 +12,14 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class ActivityLogTypeService
-        : BaseReadService<ActivityLogType, ActivityLogTypeResponse, ActivityLogTypeSearchObject>, IActivityLogTypeService
+        : BaseCRUDService<ActivityLogType, ActivityLogTypeResponse, ActivityLogTypeSearchObject, ActivityLogTypeInsertRequest, ActivityLogTypeUpdateRequest>, IActivityLogTypeService
     {
-        public ActivityLogTypeService(PWMDbContext dbContext, IMapper mapper)
-            : base(mapper, dbContext)
+        public ActivityLogTypeService(
+            PWMDbContext dbContext,
+            IMapper mapper,
+            IValidator<ActivityLogTypeInsertRequest> insertValidator,
+            IValidator<ActivityLogTypeUpdateRequest> updateValidator)
+            : base(dbContext, mapper, insertValidator, updateValidator)
         {
         }
 

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using FluentValidation;
 using MapsterMapper;
+using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
 using pwm.Services.Database;
@@ -10,10 +12,14 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class TruckLoadStatusTypeService
-        : BaseReadService<TruckLoadStatusType, TruckLoadStatusTypeResponse, TruckLoadStatusTypeSearchObject>, ITruckLoadStatusTypeService
+        : BaseCRUDService<TruckLoadStatusType, TruckLoadStatusTypeResponse, TruckLoadStatusTypeSearchObject, TruckLoadStatusTypeInsertRequest, TruckLoadStatusTypeUpdateRequest>, ITruckLoadStatusTypeService
     {
-        public TruckLoadStatusTypeService(PWMDbContext dbContext, IMapper mapper)
-            : base(mapper, dbContext)
+        public TruckLoadStatusTypeService(
+            PWMDbContext dbContext,
+            IMapper mapper,
+            IValidator<TruckLoadStatusTypeInsertRequest> insertValidator,
+            IValidator<TruckLoadStatusTypeUpdateRequest> updateValidator)
+            : base(dbContext, mapper, insertValidator, updateValidator)
         {
         }
 
