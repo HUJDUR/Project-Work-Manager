@@ -1,23 +1,27 @@
 using pwm.Model.Requests;
+using pwm.Model.Responses;
 
 namespace pwm.Services.Interfaces
 {
     /// <summary>
-    /// Builds the PDFs on demand and records that they were built. Nothing stores the
-    /// bytes, so a report can never drift from the work logs it was drawn from.
+    /// Queues a report and hands back its id immediately; <c>pwm.Worker</c> is what
+    /// actually renders the PDF, off RabbitMQ. Nothing here builds one synchronously
+    /// any more - see <c>pwm.Services.Reporting.ReportBuilder</c> for that.
     /// </summary>
     public interface IReportService
     {
-        Task<byte[]> MonthlyWorkHoursAsync(MonthlyWorkHoursReportRequest request, int generatedById);
+        Task<ReportQueuedResponse> MonthlyWorkHoursAsync(MonthlyWorkHoursReportRequest request, int generatedById);
 
-        Task<byte[]> TransportLoadsAsync(TransportLoadsReportRequest request, int generatedById);
+        Task<ReportQueuedResponse> TransportLoadsAsync(TransportLoadsReportRequest request, int generatedById);
 
         /// <summary>
-        /// Rebuilds a report from the parameters it was first run with. A project
-        /// manager cannot rebuild a monthly hours report - <paramref name="callerRole"/>
-        /// is what lets this check that, since the download route has no report type
-        /// of its own for <c>[Authorization]</c> to see.
+        /// A project manager cannot see a monthly hours report - <paramref name="callerRole"/>
+        /// is what lets this check that, since the route has no report type of its
+        /// own for <c>[Authorization]</c> to see.
         /// </summary>
-        Task<(byte[] Content, string FileName)> RerunAsync(int generatedReportId, string? callerRole);
+        Task<ReportStatusResponse> GetStatusAsync(int generatedReportId, string? callerRole);
+
+        /// <summary>Serves the PDF the worker already rendered. Throws if it is not ready yet.</summary>
+        Task<(byte[] Content, string FileName)> DownloadAsync(int generatedReportId, string? callerRole);
     }
 }

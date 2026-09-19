@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
+using pwm.Common.Services.Hosting;
 using pwm.Model.Access;
 using pwm.Services;
 using pwm.Services.Database;
@@ -24,17 +25,18 @@ var hostArgs = args.Where(a => a is not ("--seed" or "seed" or "--force" or "--s
 // rather than appsettings.json or a value the shell has to be told to export by
 // hand. docker-compose already reads that file natively; this is what gives the
 // API and the seeder the same view of it.
-LoadDotEnvFile();
+EnvironmentConfig.LoadDotEnvFile();
 
 var builder = WebApplication.CreateBuilder(hostArgs);
 
 builder.Services.AddDbContext<PWMDbContext>(options =>
-    options.UseSqlServer(BuildConnectionString(builder.Configuration)));
+    options.UseSqlServer(EnvironmentConfig.BuildConnectionString(builder.Configuration)));
 
 builder.Services.AddScoped<DataSeeder>();
 
-// Mapster, the validator fallback and every entity service
-builder.Services.AddPwmServices();
+// Mapster, the validator fallback, every entity service, and the RabbitMQ
+// publisher reports are queued through
+builder.Services.AddPwmServices(builder.Configuration);
 
 builder.Services.AddScoped<IAccessManager, AccessManager>();
 
@@ -138,73 +140,6 @@ static void AddJwtAuthentication(WebApplicationBuilder builder)
     });
 }
 
-/// <summary>
-/// Reads <c>backend/.env</c> - the same file docker-compose feeds the container
-/// from - into this process's environment, so every secret has exactly one home
-/// regardless of whether a command was launched by a shell that exported it.
-/// Searches upward from the working directory rather than assuming one fixed
-/// relative path, since `dotnet run --project pwm.WebAPI` and an IDE's own
-/// launch profile do not agree on what that directory is. A variable the real
-/// environment already set (CI, a container, an explicit export) is left alone.
-/// </summary>
-static void LoadDotEnvFile()
-{
-    for (var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-        directory != null;
-        directory = directory.Parent)
-    {
-        var candidate = Path.Combine(directory.FullName, ".env");
-        if (!File.Exists(candidate))
-        {
-            continue;
-        }
-
-        foreach (var line in File.ReadAllLines(candidate))
-        {
-            var trimmed = line.Trim();
-            if (trimmed.Length == 0 || trimmed.StartsWith('#'))
-            {
-                continue;
-            }
-
-            var separator = trimmed.IndexOf('=');
-            if (separator <= 0)
-            {
-                continue;
-            }
-
-            var key = trimmed[..separator].Trim();
-            var value = trimmed[(separator + 1)..].Trim();
-
-            if (Environment.GetEnvironmentVariable(key) == null)
-            {
-                Environment.SetEnvironmentVariable(key, value);
-            }
-        }
-
-        return;
-    }
-}
-
-// appsettings.json carries the shape of the connection string but never the
-// password - that comes from .env alone, via LoadDotEnvFile, so it is never
-// hardcoded in source control.
-static string BuildConnectionString(IConfiguration configuration)
-{
-    var connectionString = configuration.GetConnectionString("PWMConnection")
-        ?? throw new InvalidOperationException("Connection string 'PWMConnection' is not configured.");
-
-    if (connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase))
-    {
-        return connectionString;
-    }
-
-    var password = Environment.GetEnvironmentVariable("DB_PASSWORD")
-        ?? throw new InvalidOperationException(
-            "DB_PASSWORD is not set - add it to backend/.env.");
-
-    return connectionString.TrimEnd(';') + $";Password={password}";
-}
 
 static async Task RunSeedAsync(IServiceProvider services, bool force)
 {

@@ -187,15 +187,17 @@ class ReportsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Runs the selected report and hands the PDF to the preview. A run also
-  /// writes a `GeneratedReport` row, so the recent list is refetched after it.
+  /// Queues the selected report, waits for `pwm.Worker` to render it - off
+  /// RabbitMQ, in its own process - and hands the PDF to the preview once it
+  /// answers "Completed". A run also writes a `GeneratedReport` row, so the
+  /// recent list is refetched after it either way.
   Future<void> generate() async {
     _generating = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _pdf = switch (_type) {
+      final queued = switch (_type) {
         ReportType.monthlyWorkHours => await _reports.monthlyWorkHours(
             year: _year,
             month: _month,
@@ -209,30 +211,45 @@ class ReportsProvider extends ChangeNotifier {
           ),
       };
 
+      await _reports.awaitCompletion(queued.id);
+      _pdf = await _reports.download(queued.id);
+
       _pdfLabel = '${_type.label} · ${_parameterSummary()}';
       _fileName = _type == ReportType.monthlyWorkHours
           ? 'monthly-work-hours-$_year-${_month.toString().padLeft(2, '0')}.pdf'
           : 'transport-loads.pdf';
-
-      await _fetchRecent();
     } on ApiClientException catch (error) {
       _errorMessage = error.message;
     } catch (error) {
       _errorMessage = 'The report could not be generated: $error';
     }
 
+    try {
+      // Best-effort: a row is written whether the run succeeded or failed, so
+      // the list is refreshed either way, but a failure to refresh it must not
+      // overwrite the result already recorded above.
+      await _fetchRecent();
+    } catch (_) {
+      // Ignored - see the comment above.
+    }
+
     _generating = false;
     notifyListeners();
   }
 
-  /// Re-runs a past report and shows it in the preview, so the download button
-  /// and the Generate button end in the same place.
+  /// Re-opens a past report in the preview. Most are already "Completed" and
+  /// download immediately; one still queued or mid-render is waited on the
+  /// same way [generate] waits on a fresh one.
   Future<void> openRecent(RecentReport report) async {
     _generating = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
+      if (report.status != ReportRunStatus.completed) {
+        await _reports.awaitCompletion(report.id);
+      }
+
       _pdf = await _reports.download(report.id);
       _pdfLabel = '${report.title} · ${report.summary}';
       _fileName = 'report-${report.id}.pdf';
@@ -297,6 +314,8 @@ class ReportsProvider extends ChangeNotifier {
         summary: _describe(report),
         generatedAt: run?.date,
         generatedByName: _userById[run?.userId]?.fullName ?? 'Unknown user',
+        status: report.runStatus,
+        errorMessage: report.errorMessage,
       );
 
   /// Reads the request the run was made with back out of its stored JSON.
