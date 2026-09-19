@@ -7,11 +7,15 @@ import 'table_pager.dart';
 const _columns = <_Column>[
   _Column('Worker', 4),
   _Column('Job Title', 3),
-  _Column('Role', 2),
+  _Column('Role', 3),
   _Column('Phone', 2),
-  _Column('Operations', 4),
+  _Column('Operations', 3),
   _Column('Status', 2),
 ];
+
+/// Gap between every column, in both the header and the rows, so a long value
+/// in one never visually crowds the next.
+const _columnGap = SizedBox(width: 16);
 
 /// A state with no colour of its own.
 const Color _neutral = Color(0xFF6B7280);
@@ -84,7 +88,8 @@ class _HeaderRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(
         children: [
-          for (final column in _columns)
+          for (final (index, column) in _columns.indexed) ...[
+            if (index > 0) _columnGap,
             Expanded(
               flex: column.flex,
               child: Text(
@@ -96,6 +101,7 @@ class _HeaderRow extends StatelessWidget {
                 ),
               ),
             ),
+          ],
           const SizedBox(width: 32),
         ],
       ),
@@ -118,13 +124,18 @@ class _WorkerRowTile extends StatelessWidget {
         child: Row(
           children: [
             Expanded(flex: _columns[0].flex, child: _Worker(row: row)),
+            _columnGap,
             Expanded(flex: _columns[1].flex, child: _Cell(row.jobTitle)),
+            _columnGap,
             Expanded(flex: _columns[2].flex, child: _RoleChip(role: row.roleName)),
+            _columnGap,
             Expanded(flex: _columns[3].flex, child: _Cell(row.phoneNumber ?? '—')),
+            _columnGap,
             Expanded(
               flex: _columns[4].flex,
               child: _Operations(operations: row.operations),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[5].flex,
               child: _StatusChip(isActive: row.isActive),
@@ -284,17 +295,21 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: Alignment.center,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           color: background,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Text(
           label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 11.5,
             fontWeight: FontWeight.w600,
             color: foreground,
           ),
