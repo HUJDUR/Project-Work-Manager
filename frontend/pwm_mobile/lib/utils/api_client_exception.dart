@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 /// Thrown when the API returns an error body we can show to the user
-/// (e.g. [ClinetException] → HTTP 400 with `message` / `errors` from ExceptionFilter).
+/// (e.g. [ClientException] → HTTP 400 with `message` / `errors` from ExceptionFilter).
 class ApiClientException implements Exception {
   ApiClientException(this.message);
 

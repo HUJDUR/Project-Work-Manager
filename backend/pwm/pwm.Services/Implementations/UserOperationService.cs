@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using FluentValidation;
 using MapsterMapper;
 using pwm.Model.Requests;
@@ -23,7 +20,7 @@ namespace pwm.Services.Implementations
         {
         }
 
-        protected override IEnumerable<UserOperation> ApplyFilters(IEnumerable<UserOperation> query, UserOperationSearchObject? search)
+        protected override IQueryable<UserOperation> ApplyFilters(IQueryable<UserOperation> query, UserOperationSearchObject? search)
         {
             if (search == null)
             {

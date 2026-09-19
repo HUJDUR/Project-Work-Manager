@@ -1,7 +1,6 @@
 namespace pwm.Model.Requests
 {
-    public class TruckLoadStatusTypeUpdateRequest
+    public class TruckLoadStatusTypeUpdateRequest : TruckLoadStatusTypeInsertRequest
     {
-        public string Name { get; set; } = string.Empty;
     }
 }

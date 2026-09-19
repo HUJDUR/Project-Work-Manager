@@ -473,14 +473,19 @@ class _CargoSection extends StatelessWidget {
                 ],
               ),
             ),
-            OutlinedButton.icon(
-              onPressed: projects.isEmpty ? null : onAdd,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add cargo'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.accent,
-                side: BorderSide(color: AppColors.accent),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            Tooltip(
+              message: projects.isEmpty
+                  ? 'There are no projects to load onto this truck yet.'
+                  : 'Add cargo',
+              child: OutlinedButton.icon(
+                onPressed: projects.isEmpty ? null : onAdd,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add cargo'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: BorderSide(color: AppColors.accent),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
               ),
             ),
           ],

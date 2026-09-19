@@ -61,6 +61,10 @@ const _categories = [
 
 RecommendationResult _readyResult() => const RecommendationResult(
       hasEstimate: true,
+      explanation: 'Estimated by fitting a linear trend between tonnage and '
+          'hours per work type across 5 past delivered "Steel construction" '
+          'projects; that trend explains about 82.4% of the variation in the '
+          'hours those projects actually took.',
       sampleSize: 5,
       accuracyPercent: 82.4,
       totalHours: 340.5,
@@ -171,6 +175,7 @@ void main() {
       expect(provider.estimatedWorkers, 3);
       expect(provider.estimatedDurationDays, 14);
       expect(provider.sampleSize, 5);
+      expect(provider.explanation, contains('5 past delivered'));
       expect(provider.workTypes, hasLength(2));
       expect(provider.workTypes.first.operationTypeName, 'Welding');
     });
@@ -295,6 +300,9 @@ void main() {
     expect(find.text('Welding'), findsOneWidget);
     expect(find.text('Painting'), findsOneWidget);
     expect(find.text('No estimate yet'), findsNothing);
+
+    // Explainable, not a bare number: the "why" behind the estimate is shown.
+    expect(find.textContaining('5 past delivered'), findsOneWidget);
   });
 
   testWidgets('a category with too little history explains why, not a blank table',

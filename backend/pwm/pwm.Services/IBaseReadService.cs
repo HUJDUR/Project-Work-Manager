@@ -1,7 +1,5 @@
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace pwm.Services
 {

@@ -100,8 +100,9 @@ class NotificationsProvider extends ChangeNotifier {
 
     try {
       _page = 1;
-      _rows = await _fetchPage(_page);
-      _unreadCount = await _countUnread();
+      final results = await Future.wait([_fetchPage(_page), _countUnread()]);
+      _rows = results[0] as List<Notification>;
+      _unreadCount = results[1] as int;
 
       _status = NotificationsStatus.ready;
     } on ApiClientException catch (error) {

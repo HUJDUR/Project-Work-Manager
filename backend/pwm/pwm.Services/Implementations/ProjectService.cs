@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using FluentValidation;
 using MapsterMapper;
@@ -32,7 +28,7 @@ namespace pwm.Services.Implementations
             return Task.FromResult<IQueryable<Project>>(query.Include(x => x.Customer));
         }
 
-        protected override IEnumerable<Project> ApplyFilters(IEnumerable<Project> query, ProjectSearchObject? search)
+        protected override IQueryable<Project> ApplyFilters(IQueryable<Project> query, ProjectSearchObject? search)
         {
             if (search == null)
             {
@@ -43,15 +39,14 @@ namespace pwm.Services.Implementations
             {
                 var needle = search.Search;
                 query = query.Where(x =>
-                    x.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || (x.Customer != null
-                        && x.Customer.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)));
+                    EF.Functions.Like(x.Name, $"%{needle}%")
+                    || (x.Customer != null && EF.Functions.Like(x.Customer.Name, $"%{needle}%")));
             }
 
             if (!string.IsNullOrWhiteSpace(search.Name))
             {
                 var name = search.Name;
-                query = query.Where(x => x.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(x => EF.Functions.Like(x.Name, $"%{name}%"));
             }
 
             if (search.CustomerId.HasValue)

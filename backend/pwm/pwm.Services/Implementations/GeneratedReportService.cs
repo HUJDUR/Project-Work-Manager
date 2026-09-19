@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using MapsterMapper;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
@@ -17,7 +14,7 @@ namespace pwm.Services.Implementations
         {
         }
 
-        protected override IEnumerable<GeneratedReport> ApplyFilters(IEnumerable<GeneratedReport> query, GeneratedReportSearchObject? search)
+        protected override IQueryable<GeneratedReport> ApplyFilters(IQueryable<GeneratedReport> query, GeneratedReportSearchObject? search)
         {
             if (search == null)
             {

@@ -1,9 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using FluentValidation;
 using MapsterMapper;
+using Microsoft.EntityFrameworkCore;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
@@ -27,7 +24,7 @@ namespace pwm.Services.Implementations
             _sendValidator = sendValidator;
         }
 
-        protected override IEnumerable<Notification> ApplyFilters(IEnumerable<Notification> query, NotificationSearchObject? search)
+        protected override IQueryable<Notification> ApplyFilters(IQueryable<Notification> query, NotificationSearchObject? search)
         {
             if (search == null)
             {
@@ -47,7 +44,7 @@ namespace pwm.Services.Implementations
             if (!string.IsNullOrWhiteSpace(search.Title))
             {
                 var title = search.Title;
-                query = query.Where(x => x.Title.Contains(title, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(x => EF.Functions.Like(x.Title, $"%{title}%"));
             }
 
             return query;
@@ -65,20 +62,20 @@ namespace pwm.Services.Implementations
             var wanted = request.UserIds?.Distinct().ToList() ?? [];
 
             var recipients = wanted.Count == 0
-                ? _dbContext.Users.Where(x => x.IsActive).Select(x => x.Id).ToList()
-                : _dbContext.Users.Where(x => wanted.Contains(x.Id)).Select(x => x.Id).ToList();
+                ? await _dbContext.Users.Where(x => x.IsActive).Select(x => x.Id).ToListAsync()
+                : await _dbContext.Users.Where(x => wanted.Contains(x.Id)).Select(x => x.Id).ToListAsync();
 
             // An id that names nobody is worth reporting rather than quietly
             // dropping - the message would otherwise reach fewer people in silence.
             var missing = wanted.Except(recipients).ToList();
             if (missing.Count > 0)
             {
-                throw new ClinetException($"No account with id {string.Join(", ", missing)}.");
+                throw new ClientException($"No account with id {string.Join(", ", missing)}.");
             }
 
             if (recipients.Count == 0)
             {
-                throw new ClinetException("There is nobody to send this to.");
+                throw new ClientException("There is nobody to send this to.");
             }
 
             var sentAt = DateTime.UtcNow;
@@ -114,8 +111,8 @@ namespace pwm.Services.Implementations
             var mine = _dbContext.Notifications.Where(x => x.UserId == userId);
 
             var rows = wanted.Count == 0
-                ? mine.Where(x => !x.IsRead).ToList()
-                : mine.Where(x => wanted.Contains(x.Id)).ToList();
+                ? await mine.Where(x => !x.IsRead).ToListAsync()
+                : await mine.Where(x => wanted.Contains(x.Id)).ToListAsync();
 
             var missing = wanted.Except(rows.Select(x => x.Id)).ToList();
             if (missing.Count > 0)

@@ -1,10 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ReportKind = pwm.Model.Enums.ReportType;
+using pwm.Model.Access;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Services.Database;
@@ -34,7 +31,7 @@ namespace pwm.Services.Implementations
         {
             if (request.Month is < 1 or > 12)
             {
-                throw new ClinetException("Month has to be between 1 and 12.");
+                throw new ClientException("Month has to be between 1 and 12.");
             }
 
             var document = await BuildMonthlyWorkHoursAsync(request);
@@ -50,7 +47,7 @@ namespace pwm.Services.Implementations
             if (request.DateFrom.HasValue && request.DateTo.HasValue
                 && request.DateFrom > request.DateTo)
             {
-                throw new ClinetException("The date range starts after it ends.");
+                throw new ClientException("The date range starts after it ends.");
             }
 
             var document = await BuildTransportLoadsAsync(request);
@@ -60,11 +57,19 @@ namespace pwm.Services.Implementations
             return document;
         }
 
-        public async Task<(byte[] Content, string FileName)> RerunAsync(int generatedReportId)
+        public async Task<(byte[] Content, string FileName)> RerunAsync(int generatedReportId, string? callerRole)
         {
             var report = await _dbContext.GeneratedReports
                 .FirstOrDefaultAsync(x => x.Id == generatedReportId)
-                ?? throw new ClinetException($"Report {generatedReportId} does not exist.");
+                ?? throw new ClientException($"Report {generatedReportId} does not exist.");
+
+            // The download route has no report type of its own for [Authorization] to
+            // see, so the same narrowing MonthlyWorkHours applies at generation time
+            // is repeated here, against the type of the report actually being rebuilt.
+            if (callerRole == Roles.ProjectManager && report.ReportTypeId == (int)ReportKind.MonthlyWorkHours)
+            {
+                throw new ForbiddenException("You cannot download the monthly work hours report.");
+            }
 
             // A rerun is the same report, not a new one, so nothing is recorded.
             return (ReportKind)report.ReportTypeId switch
@@ -79,17 +84,8 @@ namespace pwm.Services.Implementations
                         Read<TransportLoadsReportRequest>(report.Parameters)),
                     $"transport-loads-{report.Id}.pdf"),
 
-                _ => throw new ClinetException("That report type cannot be rebuilt."),
+                _ => throw new ClientException("That report type cannot be rebuilt."),
             };
-        }
-
-        public async Task<int> TypeOfAsync(int generatedReportId)
-        {
-            var report = await _dbContext.GeneratedReports
-                .FirstOrDefaultAsync(x => x.Id == generatedReportId)
-                ?? throw new ClinetException($"Report {generatedReportId} does not exist.");
-
-            return report.ReportTypeId;
         }
 
         private async Task<byte[]> BuildMonthlyWorkHoursAsync(MonthlyWorkHoursReportRequest request)
@@ -206,16 +202,15 @@ namespace pwm.Services.Implementations
                 Parameters = JsonSerializer.Serialize(request),
             };
 
-            _dbContext.GeneratedReports.Add(report);
-            await _dbContext.SaveChangesAsync();
-
             var reportType = await _dbContext.ReportTypes
-                .FirstOrDefaultAsync(x => x.Id == report.ReportTypeId);
+                .FirstOrDefaultAsync(x => x.Id == (int)type);
 
             var logTypeName = $"Generated report - {reportType?.Description ?? type.ToString()}";
 
             var logType = await _dbContext.ActivityLogTypes
                 .FirstOrDefaultAsync(x => x.Name == logTypeName);
+
+            _dbContext.GeneratedReports.Add(report);
 
             if (logType is not null)
             {
@@ -223,12 +218,16 @@ namespace pwm.Services.Implementations
                 {
                     UserId = generatedById,
                     ActivityLogTypeId = logType.Id,
-                    GeneratedReportId = report.Id,
+                    // Through the navigation, not the raw id: `report` has none yet,
+                    // and this way EF fixes the foreign key up itself once it does,
+                    // so both rows commit in the one SaveChangesAsync below rather
+                    // than needing a first save just to learn the id.
+                    GeneratedReport = report,
                     Date = DateTime.UtcNow,
                 });
-
-                await _dbContext.SaveChangesAsync();
             }
+
+            await _dbContext.SaveChangesAsync();
         }
 
         private static T Read<T>(string parameters) where T : new() =>

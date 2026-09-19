@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace pwm.Model.Responses
 {
     /// <summary>
@@ -17,6 +15,13 @@ namespace pwm.Model.Responses
 
         /// <summary>Set only when <see cref="HasEstimate"/> is false, explaining why.</summary>
         public string? Message { get; set; }
+
+        /// <summary>
+        /// Set only when <see cref="HasEstimate"/> is true: a plain-language account of what
+        /// the estimate is based on and how well it fits, so the number is never just handed
+        /// over without saying where it came from.
+        /// </summary>
+        public string? Explanation { get; set; }
 
         /// <summary>How many past delivered projects of this category the estimate is based on.</summary>
         public int SampleSize { get; set; }

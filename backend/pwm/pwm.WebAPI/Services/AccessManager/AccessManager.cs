@@ -17,7 +17,11 @@ namespace pwm.WebAPI.Services.AccessManager
     {
         private readonly IUserService _userService;
         private readonly IRefreshTokenService _refreshTokenService;
-        private readonly IConfiguration _configuration;
+        private readonly string _jwtSecret;
+        private readonly string? _jwtIssuer;
+        private readonly string? _jwtAudience;
+        private readonly int _accessTokenDurationInMinutes;
+        private readonly int _refreshTokenDurationInDays;
 
         public AccessManager(
             IUserService userService,
@@ -26,14 +30,26 @@ namespace pwm.WebAPI.Services.AccessManager
         {
             _userService = userService;
             _refreshTokenService = refreshTokenService;
-            _configuration = configuration;
+
+            // The signing key is a secret, so it comes from JWT_SECRET in backend/.env
+            // alone - the same resolution Program.cs's AddJwtAuthentication uses to
+            // validate the tokens this issues, never from appsettings.json. Read once
+            // here rather than on every token issued.
+            _jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
+                ?? throw new InvalidOperationException("JWT_SECRET is not set - add it to backend/.env.");
+            _jwtIssuer = configuration["JwtToken:Issuer"];
+            _jwtAudience = configuration["JwtToken:Audience"];
+            _accessTokenDurationInMinutes =
+                int.TryParse(configuration["JwtToken:DurationInMinutes"], out var minutes) ? minutes : 60;
+            _refreshTokenDurationInDays =
+                int.TryParse(configuration["JwtToken:RefreshTokenDurationInDays"], out var days) ? days : 7;
         }
 
         public async Task<UserLoginResponse> LoginAsync(UserLoginRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
             {
-                throw new ClinetException("Email and password are required.");
+                throw new ClientException("Email and password are required.");
             }
 
             var authenticated = await _userService.AuthenticateAsync(request.Email.Trim(), request.Password);
@@ -41,7 +57,7 @@ namespace pwm.WebAPI.Services.AccessManager
             // Same message for an unknown email and a wrong password: it must not say which
             if (authenticated == null)
             {
-                throw new ClinetException("Incorrect email or password.");
+                throw new ClientException("Incorrect email or password.");
             }
 
             return await IssueTokensAsync(authenticated);
@@ -51,26 +67,26 @@ namespace pwm.WebAPI.Services.AccessManager
         {
             if (string.IsNullOrWhiteSpace(request.RefreshToken))
             {
-                throw new ClinetException("Refresh token is required.");
+                throw new ClientException("Refresh token is required.");
             }
 
             var stored = await _refreshTokenService.GetStoredTokenAsync(request.RefreshToken);
 
             if (stored == null)
             {
-                throw new ClinetException("Invalid refresh token.");
+                throw new ClientException("Invalid refresh token.");
             }
 
             if (stored.ExpiresAt < DateTime.UtcNow)
             {
-                throw new ClinetException("Your session has expired. Please sign in again.");
+                throw new ClientException("Your session has expired. Please sign in again.");
             }
 
             var authenticated = await _userService.GetAuthenticatedUserAsync(stored.UserId);
 
             if (authenticated == null)
             {
-                throw new ClinetException("Invalid refresh token.");
+                throw new ClientException("Invalid refresh token.");
             }
 
             return await IssueTokensAsync(authenticated);
@@ -93,18 +109,19 @@ namespace pwm.WebAPI.Services.AccessManager
         {
             if (!authenticated.User.IsActive)
             {
-                throw new ClinetException("This account is deactivated. Contact an administrator.");
+                throw new ClientException("This account is deactivated. Contact an administrator.");
             }
 
             var (accessToken, expiresAt) = GenerateAccessToken(authenticated);
             var refreshToken = GenerateRefreshToken();
 
-            // One live refresh token per user: the old one dies with the session it belonged to
-            await _refreshTokenService.DeleteAllUserRefreshTokensAsync(authenticated.User.Id);
-            await _refreshTokenService.IssueAsync(
+            // One live refresh token per user: the old one dies with the session it
+            // belonged to. RotateAsync does both in one SaveChangesAsync, so a crash
+            // between the two can never leave the account with neither.
+            await _refreshTokenService.RotateAsync(
                 authenticated.User.Id,
                 refreshToken,
-                DateTime.UtcNow.AddDays(RefreshTokenDurationInDays));
+                DateTime.UtcNow.AddDays(_refreshTokenDurationInDays));
 
             return new UserLoginResponse
             {
@@ -119,17 +136,7 @@ namespace pwm.WebAPI.Services.AccessManager
         private (string Token, DateTime ExpiresAt) GenerateAccessToken(AuthenticatedUser authenticated)
         {
             var user = authenticated.User;
-            // The signing key is a secret, so it comes from JWT_SECRET in backend/.env
-            // alone - the same resolution Program.cs's AddJwtAuthentication uses to
-            // validate the tokens this issues, never from appsettings.json.
-            var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET");
-
-            if (string.IsNullOrWhiteSpace(secretKey))
-            {
-                throw new InvalidOperationException("JWT_SECRET is not set - add it to backend/.env.");
-            }
-
-            var expiresAt = DateTime.UtcNow.AddMinutes(AccessTokenDurationInMinutes);
+            var expiresAt = DateTime.UtcNow.AddMinutes(_accessTokenDurationInMinutes);
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
@@ -143,10 +150,10 @@ namespace pwm.WebAPI.Services.AccessManager
                     new Claim(ClaimNames.IsActive, user.IsActive.ToString()),
                 ]),
                 Expires = expiresAt,
-                Issuer = _configuration["JwtToken:Issuer"],
-                Audience = _configuration["JwtToken:Audience"],
+                Issuer = _jwtIssuer,
+                Audience = _jwtAudience,
                 SigningCredentials = new SigningCredentials(
-                    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+                    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSecret)),
                     SecurityAlgorithms.HmacSha256Signature),
             };
 
@@ -154,12 +161,6 @@ namespace pwm.WebAPI.Services.AccessManager
 
             return (handler.WriteToken(handler.CreateToken(tokenDescriptor)), expiresAt);
         }
-
-        private int AccessTokenDurationInMinutes =>
-            int.TryParse(_configuration["JwtToken:DurationInMinutes"], out var minutes) ? minutes : 60;
-
-        private int RefreshTokenDurationInDays =>
-            int.TryParse(_configuration["JwtToken:RefreshTokenDurationInDays"], out var days) ? days : 7;
 
         private static string GenerateRefreshToken() =>
             Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));

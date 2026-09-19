@@ -4,9 +4,8 @@ using pwm.Model.Requests;
 namespace pwm.Services.Validators
 {
     /// <summary>
-    /// What a password has to satisfy. **Mirrored on the desktop** by
-    /// <c>utils/password_rules.dart</c>, so a password the form refuses is
-    /// refused here too and a client that skips the form gains nothing.
+    /// Mirrored on the desktop by <c>utils/password_rules.dart</c>, so a client
+    /// that skips the form still gains nothing by skipping the rules.
     /// </summary>
     public static class PasswordRules
     {

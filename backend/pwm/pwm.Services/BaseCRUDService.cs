@@ -1,13 +1,8 @@
+using pwm.Model.Exceptions;
 using pwm.Model.SearchObjects;
 using pwm.Services.Database;
 using FluentValidation;
 using FluentValidation.Results;
-using Mapster;
-using MapsterMapper;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace pwm.Services
 {
@@ -30,11 +25,6 @@ namespace pwm.Services
         }
 
         /// <summary>
-        /// Gets a writable data source for CRUD operations. Override in derived classes.
-        /// </summary>
-
-
-        /// <summary>
         /// Maps an insert request to an entity. Override in derived classes for custom logic.
         /// </summary>
         protected virtual TEntity MapInsertRequestToEntity(TInsertRequest request)
@@ -48,10 +38,6 @@ namespace pwm.Services
         /// </summary>
         protected virtual void MapUpdateRequestToEntity(TUpdateRequest request, TEntity entity)
         {
-            // var config = new TypeAdapterConfig();
-            // config.NewConfig<TUpdateRequest, TEntity>()
-            //     .IgnoreNullValues(true);
-            // new Mapper(config).Map(request, entity);
             _mapper.Map(request, entity);
         }
 
@@ -69,13 +55,8 @@ namespace pwm.Services
 
             var entity = MapInsertRequestToEntity(request);
 
-            // Set the Id property
-            var entityType = entity.GetType();
-            var idProperty = entityType.GetProperty("Id");
-            //idProperty?.SetValue(entity, GenerateNewId());
-
             // Set CreatedAt if exists
-            var createdAtProperty = entityType.GetProperty("CreatedAt");
+            var createdAtProperty = entity.GetType().GetProperty("CreatedAt");
             if (createdAtProperty?.CanWrite == true)
             {
                 createdAtProperty.SetValue(entity, DateTime.UtcNow);
@@ -83,8 +64,8 @@ namespace pwm.Services
 
             this._dbContext.Set<TEntity>().Add(entity);
             await this._dbContext.SaveChangesAsync();
-            
-            return await Task.FromResult(_mapper.Map<TResponse>(entity));
+
+            return _mapper.Map<TResponse>(entity);
         }
 
         /// <summary>
@@ -99,11 +80,10 @@ namespace pwm.Services
                 throw new FluentValidation.ValidationException(errors);
             }
 
-           
-            var entity = this._dbContext.Set<TEntity>().Find(id);
+            var entity = await this._dbContext.Set<TEntity>().FindAsync(id);
 
             if (entity == null)
-                throw new KeyNotFoundException($"{typeof(TEntity).Name} with id {id} not found.");
+                throw new NotFoundException($"{typeof(TEntity).Name} with id {id} not found.");
 
             MapUpdateRequestToEntity(request, entity);
 
@@ -116,7 +96,7 @@ namespace pwm.Services
 
             await this._dbContext.SaveChangesAsync();
 
-            return await Task.FromResult(_mapper.Map<TResponse>(entity));
+            return _mapper.Map<TResponse>(entity);
         }
 
         /// <summary>
@@ -124,10 +104,10 @@ namespace pwm.Services
         /// </summary>
         public virtual async Task DeleteAsync(int id)
         {
-            var entity = this._dbContext.Set<TEntity>().Find(id);
+            var entity = await this._dbContext.Set<TEntity>().FindAsync(id);
 
             if (entity == null)
-                throw new KeyNotFoundException($"{typeof(TEntity).Name} with id {id} not found.");
+                throw new NotFoundException($"{typeof(TEntity).Name} with id {id} not found.");
 
             this._dbContext.Set<TEntity>().Remove(entity);
             await this._dbContext.SaveChangesAsync();

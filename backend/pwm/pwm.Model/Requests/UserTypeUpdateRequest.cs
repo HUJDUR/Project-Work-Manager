@@ -1,7 +1,6 @@
 namespace pwm.Model.Requests
 {
-    public class UserTypeUpdateRequest
+    public class UserTypeUpdateRequest : UserTypeInsertRequest
     {
-        public string Type { get; set; } = string.Empty;
     }
 }

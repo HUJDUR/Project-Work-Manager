@@ -57,6 +57,10 @@ class _Body extends StatelessWidget {
           _InputBar(provider: provider),
           const SizedBox(height: AppSpacing.gap),
           _MetricRow(provider: provider),
+          if (provider.explanation != null) ...[
+            const SizedBox(height: AppSpacing.gap),
+            _ExplanationBanner(text: provider.explanation!),
+          ],
           const SizedBox(height: AppSpacing.gap),
           Expanded(child: _WorkTypeTable(provider: provider)),
         ],
@@ -90,21 +94,27 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
-        OutlinedButton(
-          onPressed:
-              provider.canEstimate && !provider.estimating ? provider.estimate : null,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.accent,
-            side: BorderSide(color: AppColors.accent),
-            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
+        Tooltip(
+          message: provider.canEstimate
+              ? 'Estimate'
+              : 'Pick a project type, an expected tonnage and a deadline first.',
+          child: OutlinedButton(
+            onPressed: provider.canEstimate && !provider.estimating
+                ? provider.estimate
+                : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accent,
+              side: BorderSide(color: AppColors.accent),
+              padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
+            ),
+            child: provider.estimating
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Estimate'),
           ),
-          child: provider.estimating
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Estimate'),
         ),
       ],
     );
@@ -285,6 +295,38 @@ class _MetricCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The "why" behind the numbers above - explainable recommendations, not a
+/// bare figure the office has to trust blind.
+class _ExplanationBanner extends StatelessWidget {
+  const _ExplanationBanner({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, size: 16, color: AppColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+            ),
           ),
         ],
       ),

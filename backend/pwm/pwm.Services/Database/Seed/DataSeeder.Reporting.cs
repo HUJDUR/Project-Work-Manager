@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.Services.Database.Seed

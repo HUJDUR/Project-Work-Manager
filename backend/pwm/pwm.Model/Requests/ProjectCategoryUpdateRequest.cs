@@ -1,9 +1,6 @@
-using System;
-
 namespace pwm.Model.Requests
 {
-    public class ProjectCategoryUpdateRequest
+    public class ProjectCategoryUpdateRequest : ProjectCategoryInsertRequest
     {
-        public string Name { get; set; } = string.Empty;
     }
 }

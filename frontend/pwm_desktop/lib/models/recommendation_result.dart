@@ -11,6 +11,7 @@ class RecommendationResult {
   const RecommendationResult({
     required this.hasEstimate,
     this.message,
+    this.explanation,
     required this.sampleSize,
     required this.accuracyPercent,
     required this.totalHours,
@@ -24,6 +25,10 @@ class RecommendationResult {
   final bool hasEstimate;
 
   final String? message;
+
+  /// Set only when [hasEstimate] is true: plain-language account of what the
+  /// estimate is based on, so it is never shown as a bare number.
+  final String? explanation;
 
   final int sampleSize;
   final double accuracyPercent;

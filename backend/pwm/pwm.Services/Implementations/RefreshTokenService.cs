@@ -1,6 +1,3 @@
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
@@ -16,8 +13,11 @@ namespace pwm.Services.Implementations
             _dbContext = dbContext;
         }
 
-        public async Task IssueAsync(int userId, string token, DateTime expiresAt)
+        public async Task RotateAsync(int userId, string token, DateTime expiresAt)
         {
+            // The drop and the new token commit in one SaveChangesAsync rather than two.
+            await RemoveStaleTokensAsync(userId);
+
             _dbContext.RefreshTokens.Add(new RefreshToken
             {
                 UserId = userId,
@@ -36,18 +36,25 @@ namespace pwm.Services.Implementations
 
         public async Task DeleteAllUserRefreshTokensAsync(int userId)
         {
-            // Also clears anything left behind by an abandoned session
-            var tokens = await _dbContext.RefreshTokens
+            await RemoveStaleTokensAsync(userId);
+            await _dbContext.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Stages the user's own tokens, plus anything expired for anyone, for removal -
+        /// shared by a rotate (which adds the new token before saving) and a full sign-out
+        /// (which saves right away).
+        /// </summary>
+        private async Task RemoveStaleTokensAsync(int userId)
+        {
+            var stale = await _dbContext.RefreshTokens
                 .Where(x => x.UserId == userId || x.ExpiresAt < DateTime.UtcNow)
                 .ToListAsync();
 
-            if (tokens.Count == 0)
+            if (stale.Count > 0)
             {
-                return;
+                _dbContext.RefreshTokens.RemoveRange(stale);
             }
-
-            _dbContext.RefreshTokens.RemoveRange(tokens);
-            await _dbContext.SaveChangesAsync();
         }
     }
 }

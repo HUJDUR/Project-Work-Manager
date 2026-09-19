@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
+using pwm.Model.Access;
 using pwm.Services;
 using pwm.Services.Database;
 using pwm.Services.Database.Seed;
@@ -211,37 +212,43 @@ static async Task RunSeedAsync(IServiceProvider services, bool force)
 
     var db = scope.ServiceProvider.GetRequiredService<PWMDbContext>();
     var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-    Console.WriteLine("Applying migrations...");
+    logger.LogInformation("Applying migrations...");
     await db.Database.MigrateAsync();
 
     if (force)
     {
-        Console.WriteLine("Clearing existing data...");
+        logger.LogInformation("Clearing existing data...");
     }
 
     var seeded = await seeder.SeedAsync(force);
 
     if (!seeded)
     {
-        Console.WriteLine("Database already contains data. Run with --seed --force to replace it.");
+        logger.LogInformation("Database already contains data. Run with --seed --force to replace it.");
         return;
     }
 
-    Console.WriteLine("Seed complete:");
-    Console.WriteLine($"  Countries               {await db.Countries.CountAsync()}");
-    Console.WriteLine($"  Cities                  {await db.Cities.CountAsync()}");
-    Console.WriteLine($"  Companies               {await db.Companies.CountAsync()}");
-    Console.WriteLine($"  Users                   {await db.Users.CountAsync()}");
-    Console.WriteLine($"  UserOperations          {await db.UserOperations.CountAsync()}");
-    Console.WriteLine($"  Projects                {await db.Projects.CountAsync()}");
-    Console.WriteLine($"  WorkLogs                {await db.WorkLogs.CountAsync()}");
-    Console.WriteLine($"  WorkLogDetails          {await db.WorkLogDetails.CountAsync()}");
-    Console.WriteLine($"  TruckLoads              {await db.TruckLoads.CountAsync()}");
-    Console.WriteLine($"  TruckLoadDetails        {await db.TruckLoadDetails.CountAsync()}");
-    Console.WriteLine($"  MonthlyHourReports      {await db.MonthlyHourReports.CountAsync()}");
-    Console.WriteLine($"  MonthlyHourReportDetails{await db.MonthlyHourReportDetails.CountAsync()}");
-    Console.WriteLine($"  Notifications           {await db.Notifications.CountAsync()}");
-    Console.WriteLine($"  ActivityLogs            {await db.ActivityLogs.CountAsync()}");
-    Console.WriteLine($"All seeded users share the password: {DataSeeder.DefaultPassword}");
+    logger.LogInformation(
+        "Seed complete: Countries={Countries} Cities={Cities} Companies={Companies} Users={Users} " +
+        "UserOperations={UserOperations} Projects={Projects} WorkLogs={WorkLogs} WorkLogDetails={WorkLogDetails} " +
+        "TruckLoads={TruckLoads} TruckLoadDetails={TruckLoadDetails} MonthlyHourReports={MonthlyHourReports} " +
+        "MonthlyHourReportDetails={MonthlyHourReportDetails} Notifications={Notifications} ActivityLogs={ActivityLogs}",
+        await db.Countries.CountAsync(),
+        await db.Cities.CountAsync(),
+        await db.Companies.CountAsync(),
+        await db.Users.CountAsync(),
+        await db.UserOperations.CountAsync(),
+        await db.Projects.CountAsync(),
+        await db.WorkLogs.CountAsync(),
+        await db.WorkLogDetails.CountAsync(),
+        await db.TruckLoads.CountAsync(),
+        await db.TruckLoadDetails.CountAsync(),
+        await db.MonthlyHourReports.CountAsync(),
+        await db.MonthlyHourReportDetails.CountAsync(),
+        await db.Notifications.CountAsync(),
+        await db.ActivityLogs.CountAsync());
+
+    logger.LogInformation("All seeded users share the password: {DefaultPassword}", DataSeeder.DefaultPassword);
 }

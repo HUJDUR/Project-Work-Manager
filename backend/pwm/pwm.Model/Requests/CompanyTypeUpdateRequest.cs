@@ -1,7 +1,6 @@
 namespace pwm.Model.Requests
 {
-    public class CompanyTypeUpdateRequest
+    public class CompanyTypeUpdateRequest : CompanyTypeInsertRequest
     {
-        public string Name { get; set; } = string.Empty;
     }
 }

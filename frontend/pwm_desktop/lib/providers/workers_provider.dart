@@ -339,21 +339,25 @@ class WorkersProvider extends ChangeNotifier {
     final wanted = operationIds.toSet();
     final current = held.map((row) => row.operationTypeId).toSet();
 
-    for (final operationTypeId in wanted.difference(current)) {
-      await _userOperations
-          .insert({'userId': userId, 'operationTypeId': operationTypeId});
-    }
+    await Future.wait(wanted.difference(current).map(
+          (operationTypeId) => _userOperations
+              .insert({'userId': userId, 'operationTypeId': operationTypeId}),
+        ));
 
-    for (final row in held.where((row) => !wanted.contains(row.operationTypeId))) {
-      await _userOperations.remove(row.id);
-    }
+    await Future.wait(
+      held
+          .where((row) => !wanted.contains(row.operationTypeId))
+          .map((row) => _userOperations.remove(row.id)),
+    );
   }
 
   /// Removes the qualifications first: they point at the account.
   Future<void> deleteWorker(int id) async {
-    for (final row in _qualifications.where((row) => row.userId == id)) {
-      await _userOperations.remove(row.id);
-    }
+    await Future.wait(
+      _qualifications
+          .where((row) => row.userId == id)
+          .map((row) => _userOperations.remove(row.id)),
+    );
 
     await _users.remove(id);
   }

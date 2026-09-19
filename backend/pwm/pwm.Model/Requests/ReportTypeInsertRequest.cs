@@ -6,7 +6,7 @@ namespace pwm.Model.Requests
     /// <c>pwm.Model.Enums.ReportType</c>, which <c>ReportService</c> branches on. A row added
     /// here has no matching case in that switch, so it lists but can never actually run.
     /// </summary>
-    public class ReportTypeInsertRequest
+    public class ReportTypeInsertRequest : IReportTypeRequest
     {
         public int Id { get; set; }
 
