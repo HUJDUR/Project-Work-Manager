@@ -69,12 +69,24 @@ namespace pwm.Services
         /// <summary>
         /// Dynamic LINQ's <c>OrderBy(string)</c> takes an expression, not just a property
         /// name, so an unchecked <see cref="BaseSearchObject.SortBy"/> is a SQL/expression
-        /// injection vector straight from the query string. Only a real, public property
-        /// of <typeparamref name="TEntity"/> (optionally followed by "asc"/"desc") is let through.
+        /// injection vector straight from the query string. Only real, public properties
+        /// of <typeparamref name="TEntity"/> (each optionally followed by "asc"/"desc") are
+        /// let through - <c>SortBy</c> may name several, comma-separated, for a tie-break
+        /// sort such as <c>"Surname, Name"</c>.
         /// </summary>
         private static string SafeSortBy(string sortBy)
         {
-            var propertyName = sortBy.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? sortBy;
+            var clauses = sortBy
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(SafeSortClause);
+
+            return string.Join(", ", clauses);
+        }
+
+        private static string SafeSortClause(string clause)
+        {
+            var tokens = clause.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var propertyName = tokens.FirstOrDefault() ?? clause;
 
             var property = typeof(TEntity)
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -85,8 +97,8 @@ namespace pwm.Services
                 throw new ClientException($"Cannot sort {typeof(TEntity).Name} by \"{propertyName}\".");
             }
 
-            var direction = sortBy.Contains("desc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";
-            return $"{property.Name} {direction}";
+            var descending = tokens.Skip(1).Any(t => t.Equals("desc", StringComparison.OrdinalIgnoreCase));
+            return $"{property.Name} {(descending ? "desc" : "asc")}";
         }
 
         /// <summary>

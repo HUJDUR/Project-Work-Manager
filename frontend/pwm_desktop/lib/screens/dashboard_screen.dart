@@ -200,6 +200,12 @@ class _ErrorState extends StatelessWidget {
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, size: 18),
               label: const Text('Try again'),
+              // FilledButton.icon's default padding is asymmetric (more room
+              // after the label than before the icon), which visibly shifts
+              // the icon+text group left of the button's true center.
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+              ),
             ),
           ],
         ),
