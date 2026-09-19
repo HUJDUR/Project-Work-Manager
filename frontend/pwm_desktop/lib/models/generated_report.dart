@@ -17,15 +17,33 @@ enum ReportType {
       .firstWhere((type) => type.value == value, orElse: () => monthlyWorkHours);
 }
 
-/// A report that was produced once. The PDF itself is not stored — downloading
-/// it again re-runs [parameters], so it can never disagree with the work logs.
-/// Who ran it and when is the `ActivityLog` entry pointing back here, not a column.
+/// Mirrors `pwm.Model.Enums.ReportStatus` - a row's place in the queue-and-build
+/// pipeline `ReportService`/`pwm.Worker` push it through. Unknown values fall
+/// back to `completed` rather than throwing, since that is the reading that
+/// asks nothing further of a row this client does not yet recognise.
+enum ReportRunStatus {
+  pending,
+  processing,
+  completed,
+  failed;
+
+  static ReportRunStatus fromName(String? value) => ReportRunStatus.values.firstWhere(
+        (status) => status.name.toLowerCase() == (value ?? '').toLowerCase(),
+        orElse: () => completed,
+      );
+}
+
+/// One run of a report. `pwm.Worker` - a separate process, off RabbitMQ - is
+/// what actually renders the PDF and stores it; this row is what the API hands
+/// back meanwhile, and what the Recent Reports list reads for its status badge.
 @JsonSerializable()
 class GeneratedReport {
   const GeneratedReport({
     required this.id,
     required this.reportTypeId,
     required this.parameters,
+    required this.status,
+    this.errorMessage,
   });
 
   final int id;
@@ -36,8 +54,16 @@ class GeneratedReport {
   /// The request that produced it, as JSON.
   final String parameters;
 
+  final String status;
+
+  /// Set only when [status] is "Failed".
+  final String? errorMessage;
+
   @JsonKey(includeFromJson: false, includeToJson: false)
   ReportType get reportType => ReportType.fromValue(reportTypeId);
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  ReportRunStatus get runStatus => ReportRunStatus.fromName(status);
 
   factory GeneratedReport.fromJson(Map<String, dynamic> json) =>
       _$GeneratedReportFromJson(json);

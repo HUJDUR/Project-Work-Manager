@@ -2,14 +2,16 @@ using Microsoft.AspNetCore.Mvc;
 using pwm.Model.Access;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
+using pwm.Model.Responses;
 using pwm.Services.Interfaces;
 using pwm.WebAPI.Filters;
 
 namespace pwm.WebAPI.Controllers
 {
     /// <summary>
-    /// Builds the PDFs. Nothing is stored but the request that produced one, so a
-    /// download always reflects the current work logs - see <c>GeneratedReport</c>.
+    /// Queues a report; <c>pwm.Worker</c> is the separate process that actually
+    /// builds the PDF, off RabbitMQ. Nothing here waits for it - poll <c>Status</c>
+    /// and call <c>Download</c> once it answers "Completed".
     /// </summary>
     [ApiController]
     [Route("[controller]")]
@@ -27,35 +29,41 @@ namespace pwm.WebAPI.Controllers
         // A project manager reads transports only - the monthly hours report is not theirs.
         [HttpPost("MonthlyWorkHours")]
         [Authorization(Roles.Admin, Roles.Finances)]
-        public async Task<IActionResult> MonthlyWorkHours(
+        public async Task<ActionResult<ReportQueuedResponse>> MonthlyWorkHours(
             [FromBody] MonthlyWorkHoursReportRequest request)
         {
-            var content = await _reportService.MonthlyWorkHoursAsync(request, Author());
+            var queued = await _reportService.MonthlyWorkHoursAsync(request, Author());
 
-            return File(content, "application/pdf",
-                $"monthly-work-hours-{request.Year}-{request.Month:00}.pdf");
+            return Accepted(queued);
         }
 
         [HttpPost("TransportLoads")]
         [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
-        public async Task<IActionResult> TransportLoads(
+        public async Task<ActionResult<ReportQueuedResponse>> TransportLoads(
             [FromBody] TransportLoadsReportRequest request)
         {
-            var content = await _reportService.TransportLoadsAsync(request, Author());
+            var queued = await _reportService.TransportLoadsAsync(request, Author());
 
-            return File(content, "application/pdf", "transport-loads.pdf");
+            return Accepted(queued);
+        }
+
+        /// <summary>What the Reports screen polls while a PDF is being built.</summary>
+        [HttpGet("{generatedReportId}/Status")]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
+        public async Task<ReportStatusResponse> Status(int generatedReportId)
+        {
+            return await _reportService.GetStatusAsync(generatedReportId, _currentUser.Role);
         }
 
         /// <summary>
-        /// Re-downloads a report from the parameters it was first run with. The
-        /// attribute cannot see which report this is, so narrowing a project
+        /// The attribute cannot see which report this is, so narrowing a project
         /// manager away from a monthly hours report happens in the service instead.
         /// </summary>
         [HttpGet("{generatedReportId}/Download")]
         [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
         public async Task<IActionResult> Download(int generatedReportId)
         {
-            var (content, fileName) = await _reportService.RerunAsync(generatedReportId, _currentUser.Role);
+            var (content, fileName) = await _reportService.DownloadAsync(generatedReportId, _currentUser.Role);
 
             return File(content, "application/pdf", fileName);
         }

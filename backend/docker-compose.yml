@@ -1,4 +1,42 @@
 services:
+  rabbitmq:
+    # Pinned, not `:management` alone, which floats to whatever is newest.
+    image: rabbitmq:3.13-management
+    container_name: pwm-rabbitmq
+    hostname: pwm-rabbitmq
+    ports:
+      # AMQP, for the API (on the host, via `dotnet run`) and the worker
+      # container alike; 15672 is the management UI, for a human to look at
+      # the queue while reproducing a problem.
+      - "5672:5672"
+      - "15672:15672"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  worker:
+    # pwm.Worker is its own container and its own process - see the notes on
+    # section 3.2: a BackgroundService inside pwm.WebAPI would not qualify.
+    build:
+      context: ./pwm
+      dockerfile: pwm.Worker/Dockerfile
+    container_name: pwm-worker
+    environment:
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is not set}"
+      ConnectionStrings__PWMConnection: "Server=sqlserver,1433;Database=210050;User Id=sa;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
   sqlserver:
     # Pinned to the build (16.0.4250.1) this project was seeded and tested against,
     # rather than 2022-latest, which moves.

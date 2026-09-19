@@ -777,10 +777,25 @@ class _RecentTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    report.title,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          report.title,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      if (report.status != ReportRunStatus.completed) ...[
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: report.status == ReportRunStatus.failed
+                              ? report.errorMessage ?? 'The report could not be generated.'
+                              : 'pwm.Worker has not finished this one yet.',
+                          child: _StatusPill(status: report.status),
+                        ),
+                      ],
+                    ],
                   ),
                   Text(
                     report.summary,
@@ -807,6 +822,39 @@ class _RecentTile extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A row still queued, being rendered by `pwm.Worker`, or one it could not
+/// finish - "Completed" rows show no badge at all, so this only ever appears
+/// while there is something the office might want to know about.
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.status});
+
+  final ReportRunStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, accent) = switch (status) {
+      ReportRunStatus.pending => ('Queued', AppColors.textMuted),
+      ReportRunStatus.processing => ('Generating', AppColors.accent),
+      ReportRunStatus.failed => ('Failed', AppColors.danger),
+      ReportRunStatus.completed => ('', AppColors.textMuted),
+    };
+
+    final (background, foreground) = AppColors.chip(accent);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: foreground),
       ),
     );
   }

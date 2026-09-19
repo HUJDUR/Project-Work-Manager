@@ -36,10 +36,13 @@ class _FakeProvider<T> extends BaseProvider<T> {
   }
 }
 
-/// The PDF endpoints. Nothing here decodes a PDF — the bytes only have to be the
-/// same object the provider hands to the preview.
+/// The PDF endpoints. Nothing here decodes a PDF — the bytes only have to be
+/// the same object the provider hands to the preview. `status` answers
+/// "Completed" immediately, standing in for `pwm.Worker` having already
+/// rendered it by the time a test's `await` gets here.
 class _FakeReportProvider extends ReportProvider {
   final List<Map<String, dynamic>> calls = [];
+  final Map<int, Uint8List> _contentById = {};
 
   static final monthlyBytes = Uint8List.fromList(utf8.encode('%PDF-monthly'));
   static final transportBytes = Uint8List.fromList(utf8.encode('%PDF-transport'));
@@ -48,8 +51,10 @@ class _FakeReportProvider extends ReportProvider {
   /// Set to make the next call fail the way a dead API would.
   Object? failure;
 
+  int _nextId = 100;
+
   @override
-  Future<Uint8List> monthlyWorkHours({
+  Future<ReportQueueState> monthlyWorkHours({
     required int year,
     required int month,
     int? userId,
@@ -63,11 +68,14 @@ class _FakeReportProvider extends ReportProvider {
       'projectId': projectId,
     });
     if (failure case final error?) throw error;
-    return monthlyBytes;
+
+    final id = _nextId++;
+    _contentById[id] = monthlyBytes;
+    return ReportQueueState(id: id, status: 'Completed');
   }
 
   @override
-  Future<Uint8List> transportLoads({
+  Future<ReportQueueState> transportLoads({
     int? projectId,
     DateTime? dateFrom,
     DateTime? dateTo,
@@ -79,14 +87,21 @@ class _FakeReportProvider extends ReportProvider {
       'dateTo': dateTo?.toIso8601String(),
     });
     if (failure case final error?) throw error;
-    return transportBytes;
+
+    final id = _nextId++;
+    _contentById[id] = transportBytes;
+    return ReportQueueState(id: id, status: 'Completed');
   }
+
+  @override
+  Future<ReportQueueState> status(int generatedReportId) async =>
+      ReportQueueState(id: generatedReportId, status: 'Completed');
 
   @override
   Future<Uint8List> download(int generatedReportId) async {
     calls.add({'action': 'Download', 'id': generatedReportId});
     if (failure case final error?) throw error;
-    return rerunBytes;
+    return _contentById[generatedReportId] ?? rerunBytes;
   }
 }
 
@@ -148,17 +163,20 @@ final _generated = [
     id: 9,
     reportTypeId: 1,
     parameters: '{"Year":2026,"Month":6,"UserId":2,"ProjectId":null}',
+    status: 'Completed',
   ),
   GeneratedReport(
     id: 8,
     reportTypeId: 2,
     parameters:
         '{"ProjectId":1,"DateFrom":"2026-06-01T00:00:00","DateTo":"2026-06-30T23:59:59"}',
+    status: 'Completed',
   ),
   GeneratedReport(
     id: 7,
     reportTypeId: 2,
     parameters: '{"ProjectId":null,"DateFrom":null,"DateTo":null}',
+    status: 'Completed',
   ),
 ];
 
@@ -272,7 +290,7 @@ void main() {
 
       await provider.generate();
 
-      expect(_reports.calls.single, {
+      expect(_reports.calls.first, {
         'action': 'MonthlyWorkHours',
         'year': 2026,
         'month': 6,
@@ -295,7 +313,7 @@ void main() {
 
       await provider.generate();
 
-      final call = _reports.calls.single;
+      final call = _reports.calls.first;
       expect(call['action'], 'TransportLoads');
       expect(call['projectId'], isNull);
       expect(DateTime.parse(call['dateFrom'] as String), DateTime(2026, 6, 1));

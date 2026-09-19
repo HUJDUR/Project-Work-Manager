@@ -1,18 +1,20 @@
 using FluentValidation;
 using Mapster;
 using MapsterMapper;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using pwm.Common.Services.CryptoService;
 using pwm.Model.Requests;
 using pwm.Services.Implementations;
 using pwm.Services.Interfaces;
+using pwm.Services.Messaging;
 using pwm.Services.Validators;
 
 namespace pwm.Services
 {
     public static class ServiceRegistration
     {
-        public static IServiceCollection AddPwmServices(this IServiceCollection services)
+        public static IServiceCollection AddPwmServices(this IServiceCollection services, IConfiguration configuration)
         {
             // QuestPDF is free below the revenue threshold this project sits under.
             QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -20,6 +22,13 @@ namespace pwm.Services
             services.AddSingleton(TypeAdapterConfig.GlobalSettings);
             services.AddSingleton<ICryptoService, CryptoService>();
             services.AddScoped<IMapper, ServiceMapper>();
+
+            // pwm.Worker is the only thing that ever builds a report - see ReportBuilder -
+            // so only the publisher half of the queue is registered here.
+            var rabbitMqOptions = new RabbitMqOptions();
+            configuration.GetSection("RabbitMq").Bind(rabbitMqOptions);
+            services.AddSingleton(rabbitMqOptions);
+            services.AddSingleton<IReportQueuePublisher, RabbitMqReportPublisher>();
 
             // Fallback validator for every request type without a dedicated one
             services.AddTransient(typeof(IValidator<>), typeof(DefaultValidator<>));

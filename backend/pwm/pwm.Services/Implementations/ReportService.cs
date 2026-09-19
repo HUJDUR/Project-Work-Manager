@@ -2,31 +2,34 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ReportKind = pwm.Model.Enums.ReportType;
 using pwm.Model.Access;
+using pwm.Model.Enums;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
+using pwm.Model.Responses;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
-using pwm.Services.Reporting;
+using pwm.Services.Messaging;
 
 namespace pwm.Services.Implementations
 {
+    /// <summary>
+    /// Queues a report and records the run; <c>pwm.Worker</c> is the separate
+    /// process - off RabbitMQ, never in this one - that actually renders the PDF.
+    /// See <c>pwm.Services.Reporting.ReportBuilder</c> for that half of the work,
+    /// and <c>GeneratedReport.Status</c> for the state a row moves through.
+    /// </summary>
     public class ReportService : IReportService
     {
-        /// <summary>
-        /// A worker's day is regular up to this many hours; everything over eight
-        /// hours on a date is overtime. The rule lives here, on the server, because
-        /// the monthly report and the desktop have to agree about it.
-        /// </summary>
-        public const double RegularHoursPerDay = 8;
-
         private readonly PWMDbContext _dbContext;
+        private readonly IReportQueuePublisher _publisher;
 
-        public ReportService(PWMDbContext dbContext)
+        public ReportService(PWMDbContext dbContext, IReportQueuePublisher publisher)
         {
             _dbContext = dbContext;
+            _publisher = publisher;
         }
 
-        public async Task<byte[]> MonthlyWorkHoursAsync(
+        public async Task<ReportQueuedResponse> MonthlyWorkHoursAsync(
             MonthlyWorkHoursReportRequest request, int generatedById)
         {
             if (request.Month is < 1 or > 12)
@@ -34,14 +37,16 @@ namespace pwm.Services.Implementations
                 throw new ClientException("Month has to be between 1 and 12.");
             }
 
-            var document = await BuildMonthlyWorkHoursAsync(request);
+            var reportId = await QueueAsync(ReportKind.MonthlyWorkHours, request, generatedById);
 
-            await RecordAsync(ReportKind.MonthlyWorkHours, request, generatedById);
-
-            return document;
+            return new ReportQueuedResponse
+            {
+                GeneratedReportId = reportId,
+                Status = ReportStatus.Pending.ToString(),
+            };
         }
 
-        public async Task<byte[]> TransportLoadsAsync(
+        public async Task<ReportQueuedResponse> TransportLoadsAsync(
             TransportLoadsReportRequest request, int generatedById)
         {
             if (request.DateFrom.HasValue && request.DateTo.HasValue
@@ -50,156 +55,84 @@ namespace pwm.Services.Implementations
                 throw new ClientException("The date range starts after it ends.");
             }
 
-            var document = await BuildTransportLoadsAsync(request);
+            var reportId = await QueueAsync(ReportKind.TransportLoads, request, generatedById);
 
-            await RecordAsync(ReportKind.TransportLoads, request, generatedById);
-
-            return document;
+            return new ReportQueuedResponse
+            {
+                GeneratedReportId = reportId,
+                Status = ReportStatus.Pending.ToString(),
+            };
         }
 
-        public async Task<(byte[] Content, string FileName)> RerunAsync(int generatedReportId, string? callerRole)
+        public async Task<ReportStatusResponse> GetStatusAsync(int generatedReportId, string? callerRole)
+        {
+            var report = await FindAuthorizedAsync(generatedReportId, callerRole);
+
+            return new ReportStatusResponse
+            {
+                Id = report.Id,
+                Status = report.Status.ToString(),
+                ErrorMessage = report.ErrorMessage,
+            };
+        }
+
+        public async Task<(byte[] Content, string FileName)> DownloadAsync(int generatedReportId, string? callerRole)
+        {
+            var report = await FindAuthorizedAsync(generatedReportId, callerRole);
+
+            if (report.Status != ReportStatus.Completed || report.Content is null)
+            {
+                throw new ClientException(report.Status switch
+                {
+                    ReportStatus.Failed => $"This report could not be generated: {report.ErrorMessage}",
+                    ReportStatus.Completed =>
+                        "This report predates PDF storage and can no longer be downloaded.",
+                    _ => "This report is still being generated. Try again shortly.",
+                });
+            }
+
+            var fileName = (ReportKind)report.ReportTypeId switch
+            {
+                ReportKind.MonthlyWorkHours => $"monthly-work-hours-{report.Id}.pdf",
+                ReportKind.TransportLoads => $"transport-loads-{report.Id}.pdf",
+                _ => $"report-{report.Id}.pdf",
+            };
+
+            return (report.Content, fileName);
+        }
+
+        /// <summary>
+        /// The download route has no report type of its own for <c>[Authorization]</c>
+        /// to see, so a project manager is narrowed away from a monthly hours report
+        /// here instead, against the type of the report actually being asked for.
+        /// </summary>
+        private async Task<GeneratedReport> FindAuthorizedAsync(int generatedReportId, string? callerRole)
         {
             var report = await _dbContext.GeneratedReports
                 .FirstOrDefaultAsync(x => x.Id == generatedReportId)
                 ?? throw new ClientException($"Report {generatedReportId} does not exist.");
 
-            // The download route has no report type of its own for [Authorization] to
-            // see, so the same narrowing MonthlyWorkHours applies at generation time
-            // is repeated here, against the type of the report actually being rebuilt.
             if (callerRole == Roles.ProjectManager && report.ReportTypeId == (int)ReportKind.MonthlyWorkHours)
             {
                 throw new ForbiddenException("You cannot download the monthly work hours report.");
             }
 
-            // A rerun is the same report, not a new one, so nothing is recorded.
-            return (ReportKind)report.ReportTypeId switch
-            {
-                ReportKind.MonthlyWorkHours => (
-                    await BuildMonthlyWorkHoursAsync(
-                        Read<MonthlyWorkHoursReportRequest>(report.Parameters)),
-                    $"monthly-work-hours-{report.Id}.pdf"),
-
-                ReportKind.TransportLoads => (
-                    await BuildTransportLoadsAsync(
-                        Read<TransportLoadsReportRequest>(report.Parameters)),
-                    $"transport-loads-{report.Id}.pdf"),
-
-                _ => throw new ClientException("That report type cannot be rebuilt."),
-            };
-        }
-
-        private async Task<byte[]> BuildMonthlyWorkHoursAsync(MonthlyWorkHoursReportRequest request)
-        {
-            var from = new DateTime(request.Year, request.Month, 1);
-            var to = from.AddMonths(1);
-
-            var blocks = await _dbContext.WorkLogDetails
-                .Include(x => x.WorkLog).ThenInclude(x => x.User)
-                .Include(x => x.Project)
-                .Include(x => x.OperationType)
-                .Where(x => x.StartedAt >= from && x.StartedAt < to)
-                .Where(x => request.UserId == null || x.WorkLog.UserId == request.UserId)
-                .Where(x => request.ProjectId == null || x.ProjectId == request.ProjectId)
-                .OrderBy(x => x.StartedAt)
-                .ToListAsync();
-
-            var rows = SplitRegularAndOvertime(blocks)
-                .GroupBy(x => x.Block.WorkLog.User)
-                .Select(worker => new MonthlyWorkHoursRow
-                {
-                    WorkerName = $"{worker.Key.Name} {worker.Key.Surname}".Trim(),
-                    RegularHours = Round(worker.Sum(x => x.Regular)),
-                    OvertimeHours = Round(worker.Sum(x => x.Overtime)),
-                    ByProject = worker
-                        .GroupBy(x => x.Block.Project.Name)
-                        .Select(project => new MonthlyWorkHoursProjectRow
-                        {
-                            ProjectName = project.Key,
-                            Hours = Round(project.Sum(x => x.Block.Hours)),
-                        })
-                        .OrderByDescending(project => project.Hours)
-                        .ToList(),
-                })
-                .OrderBy(row => row.WorkerName)
-                .ToList();
-
-            var worker = request.UserId is null
-                ? "All workers"
-                : await NameOfUserAsync(request.UserId.Value);
-            var project = request.ProjectId is null
-                ? "All projects"
-                : await NameOfProjectAsync(request.ProjectId.Value);
-
-            return MonthlyWorkHoursDocument.Render(from, worker, project, rows);
-        }
-
-        private async Task<byte[]> BuildTransportLoadsAsync(TransportLoadsReportRequest request)
-        {
-            var details = await _dbContext.TruckLoadDetails
-                .Include(x => x.TruckLoad).ThenInclude(x => x.TransportCompany)
-                .Include(x => x.TruckLoad).ThenInclude(x => x.TruckLoadStatus)
-                .Include(x => x.Project)
-                .Where(x => request.ProjectId == null || x.ProjectId == request.ProjectId)
-                .Where(x => request.DateFrom == null || x.TruckLoad.LoadDate >= request.DateFrom)
-                .Where(x => request.DateTo == null || x.TruckLoad.LoadDate <= request.DateTo)
-                .OrderByDescending(x => x.TruckLoad.LoadDate)
-                .ToListAsync();
-
-            var rows = details
-                .Select(detail => new TransportLoadRow
-                {
-                    LoadDate = detail.TruckLoad.LoadDate,
-                    ProjectName = detail.Project.Name,
-                    ProjectCode = detail.Project.Code,
-                    CarrierName = detail.TruckLoad.TransportCompany.Name,
-                    DriverName =
-                        $"{detail.TruckLoad.DriverName} {detail.TruckLoad.DriverSurname}".Trim(),
-                    VehicleRegistration = detail.TruckLoad.VehicleRegistration,
-                    NetWeight = detail.NetoWeight,
-                    Status = detail.TruckLoad.TruckLoadStatus.Name,
-                })
-                .ToList();
-
-            var project = request.ProjectId is null
-                ? "All projects"
-                : await NameOfProjectAsync(request.ProjectId.Value);
-
-            return TransportLoadsDocument.Render(
-                request.DateFrom, request.DateTo, project, rows);
+            return report;
         }
 
         /// <summary>
-        /// Walks each worker's day in start order, handing out the first eight hours as
-        /// regular and everything after as overtime. A block that straddles the boundary
-        /// is split across both.
+        /// Writes the Pending row and its ActivityLog - who ran it and when, the
+        /// same way a synchronous run always recorded it - then hands the row's id
+        /// to RabbitMQ. A broker that cannot be reached fails the row rather than
+        /// leaving it Pending forever with nothing to ever pick it up.
         /// </summary>
-        private static IEnumerable<(WorkLogDetail Block, double Regular, double Overtime)>
-            SplitRegularAndOvertime(IEnumerable<WorkLogDetail> blocks)
-        {
-            var usedPerWorkerDay = new Dictionary<(int UserId, DateTime Day), double>();
-
-            foreach (var block in blocks.OrderBy(x => x.StartedAt))
-            {
-                var key = (block.WorkLog.UserId, block.StartedAt.Date);
-                var used = usedPerWorkerDay.GetValueOrDefault(key);
-
-                var regular = Math.Clamp(RegularHoursPerDay - used, 0, block.Hours);
-                usedPerWorkerDay[key] = used + block.Hours;
-
-                yield return (block, regular, block.Hours - regular);
-            }
-        }
-
-        /// <summary>
-        /// Records the run. The report row holds only what it was asked for; who ran it
-        /// and when is the ActivityLog entry pointing back at it.
-        /// </summary>
-        private async Task RecordAsync(ReportKind type, object request, int generatedById)
+        private async Task<int> QueueAsync(ReportKind type, object request, int generatedById)
         {
             var report = new GeneratedReport
             {
                 ReportTypeId = (int)type,
                 Parameters = JsonSerializer.Serialize(request),
+                Status = ReportStatus.Pending,
             };
 
             var reportType = await _dbContext.ReportTypes
@@ -228,25 +161,21 @@ namespace pwm.Services.Implementations
             }
 
             await _dbContext.SaveChangesAsync();
-        }
 
-        private static T Read<T>(string parameters) where T : new() =>
-            JsonSerializer.Deserialize<T>(parameters) ?? new T();
+            try
+            {
+                await _publisher.PublishAsync(new ReportGenerationMessage(report.Id));
+            }
+            catch (Exception ex)
+            {
+                report.Status = ReportStatus.Failed;
+                report.ErrorMessage = "Could not reach the report queue.";
+                await _dbContext.SaveChangesAsync();
 
-        private static double Round(double value) => Math.Round(value, 2);
+                throw new ClientException("The report could not be queued. Try again shortly.", ex);
+            }
 
-        private async Task<string> NameOfUserAsync(int id)
-        {
-            var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == id);
-
-            return user is null ? $"User {id}" : $"{user.Name} {user.Surname}".Trim();
-        }
-
-        private async Task<string> NameOfProjectAsync(int id)
-        {
-            var project = await _dbContext.Projects.FirstOrDefaultAsync(x => x.Id == id);
-
-            return project is null ? $"Project {id}" : $"{project.Code} - {project.Name}";
+            return report.Id;
         }
     }
 }
