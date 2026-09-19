@@ -1,5 +1,3 @@
-using System;
-
 namespace pwm.Model.Responses
 {
     public class NotificationResponse

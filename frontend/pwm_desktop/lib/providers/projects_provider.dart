@@ -289,19 +289,18 @@ class ProjectsProvider extends ChangeNotifier {
   }
 
   Future<void> _loadCounters() async {
-    final counts = await Future.wait([
+    final results = await Future.wait([
       _countAll(),
       _countByStatus(_statusIdOf(deliveredStatus)),
       _countByStatus(_statusIdOf(rejectedStatus)),
       _countByStatus(_statusIdOf(inProductionStatus)),
+      _loadNextCode(),
     ]);
 
-    _totalCount = counts[0];
-    _deliveredCount = counts[1];
-    _cancelledCount = counts[2];
-    _inProductionCount = counts[3];
-
-    await _loadNextCode();
+    _totalCount = results[0] as int;
+    _deliveredCount = results[1] as int;
+    _cancelledCount = results[2] as int;
+    _inProductionCount = results[3] as int;
   }
 
   /// The shop numbers projects `yy-nnn`, restarting each year — the same rule

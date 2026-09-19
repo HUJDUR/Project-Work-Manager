@@ -1,5 +1,3 @@
-using System;
-
 namespace pwm.Model.Requests
 {
     public class UserInsertRequest

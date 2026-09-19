@@ -54,11 +54,17 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
 
     try {
       final dropdownFields = widget.config.fields.where((f) => f.isDropdown);
-      final options = await Future.wait(
-        dropdownFields.map((f) async => MapEntry(f.key, await f.loadOptions!())),
-      );
+      final results = await Future.wait([
+        Future.wait(
+          dropdownFields.map((f) async => MapEntry(f.key, await f.loadOptions!())),
+        ),
+        // Newest first, so a row just added shows at the top of the list it
+        // was added from rather than wherever the table's own order puts it.
+        _provider.getAll(filter: {'sortBy': 'Id desc'}),
+      ]);
 
-      final rows = await _provider.getAll();
+      final options = results[0] as List<MapEntry<String, List<DropdownOption>>>;
+      final rows = results[1] as List<T>;
 
       setState(() {
         _dropdownOptions = Map.fromEntries(options);

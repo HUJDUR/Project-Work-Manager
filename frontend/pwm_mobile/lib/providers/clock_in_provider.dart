@@ -331,12 +331,15 @@ class ClockInProvider extends ChangeNotifier {
   }
 
   Future<List<OperationType>> _qualifiedOperations(int userId) async {
-    final qualifications =
-        await _userOperations.getAll(filter: {'userId': userId});
+    final results = await Future.wait([
+      _userOperations.getAll(filter: {'userId': userId}),
+      _operationTypes.getAll(),
+    ]);
+    final qualifications = results[0] as List<UserOperation>;
     final allowed =
         qualifications.map((row) => row.operationTypeId).toSet();
 
-    final operations = await _operationTypes.getAll();
+    final operations = results[1] as List<OperationType>;
 
     return operations.where((operation) => allowed.contains(operation.id)).toList()
       ..sort((a, b) => a.name.compareTo(b.name));

@@ -7,13 +7,14 @@ import 'screens/login_screen.dart';
 import 'utils/api_client_exception.dart';
 import 'utils/app_theme.dart';
 
-/// Skips [LoginScreen] and comes up already signed in as [_devEmail], so a
-/// screen several taps in is one hot restart away. Set this to false to get
-/// sign-in back — the screen is built and nothing else has to change.
+/// Set this to true only for a local, throwaway debugging session, to skip
+/// [LoginScreen] and come up already signed in as [_devEmail] - a screen
+/// several taps in is one hot restart away.
 /// The API side has its own switch, `pwm.WebAPI/DevSettings.BypassAuthentication`,
-/// which stops endpoints checking the token but does **not** stop `/Access/Login`
-/// checking the password, so this is still a real sign-in.
-const bool bypassLogin = true;
+/// which must stay off too; it stops endpoints checking the token but does
+/// **not** stop `/Access/Login` checking the password, so this is still a
+/// real sign-in.
+const bool bypassLogin = false;
 
 /// Faruk Tufekcic, a seeded production worker (Painter, id 20) — picked once at
 /// random from the active shop floor and **kept**, so every run shows the same

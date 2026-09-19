@@ -1,6 +1,6 @@
 namespace pwm.Model.Requests
 {
-    public class ReportTypeUpdateRequest
+    public class ReportTypeUpdateRequest : IReportTypeRequest
     {
         public string Description { get; set; } = string.Empty;
     }

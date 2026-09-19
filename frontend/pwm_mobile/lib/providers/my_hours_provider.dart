@@ -143,8 +143,11 @@ class MyHoursProvider extends ChangeNotifier {
   /// Throws [ApiClientException] the way every other call does, so the day
   /// screen can show the API's own wording.
   Future<List<WorkEntry>> entriesFor(WorkDay day) async {
-    final operations = await _operationNamesOnce();
-    await _cacheProjects(day.projectIds);
+    final results = await Future.wait([
+      _operationNamesOnce(),
+      _cacheProjects(day.projectIds),
+    ]);
+    final operations = results[0] as Map<int, String>;
 
     return day.blocks.map((block) {
       final project = _projectCache[block.projectId];

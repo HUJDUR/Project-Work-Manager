@@ -35,15 +35,23 @@ namespace pwm.WebAPI.Filters
                 context.HttpContext.Response.StatusCode = (int)HttpStatusCode.Forbidden;
                 _logger.LogWarning("Forbidden: {Message}", fe.Message);
             }
-            else if (context.Exception is ClinetException ce)
+            else if (context.Exception is ClientException ce)
             {
                 context.ModelState.AddModelError("clientError", ce.Message);
                 context.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 _logger.LogWarning("Client rule: {Message}", ce.Message);
             }
+            else if (context.Exception is NotFoundException nfe)
+            {
+                context.ModelState.AddModelError("notFound", nfe.Message);
+                context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                _logger.LogWarning("Not found: {Message}", nfe.Message);
+            }
             else
             {
-                //context.ModelState.AddModelError("serverError", context.Exception.Message);
+                // Never the real exception message here: it can carry a stack trace,
+                // a connection string, or some other internal detail a client has no
+                // business seeing. That detail still reaches the log, just not the response.
                 context.ModelState.AddModelError("serverError", "Server side error, please check logs.");
                 context.HttpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
                 _logger.LogError(context.Exception, "Unhandled exception.");
@@ -55,10 +63,10 @@ namespace pwm.WebAPI.Filters
                     c => c.Key,
                     c => c.Value!.Errors.Select(z => z.ErrorMessage).ToList());
 
-            // Single human-readable line for mobile/clients; "clientError" is used for ClinetException.
+            // Single human-readable line for mobile/clients; "clientError" is used for ClientException.
             var allMessages = list.Values.SelectMany(v => v).Where(m => !string.IsNullOrWhiteSpace(m)).ToList();
             var message = allMessages.FirstOrDefault()
-                ?? (context.Exception is ClinetException ? context.Exception.Message : null)
+                ?? (context.Exception is ClientException ? context.Exception.Message : null)
                 ?? "Request could not be processed.";
 
             context.Result = new JsonResult(new

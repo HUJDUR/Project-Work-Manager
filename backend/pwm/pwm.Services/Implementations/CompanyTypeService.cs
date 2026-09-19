@@ -1,8 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using FluentValidation;
 using MapsterMapper;
+using Microsoft.EntityFrameworkCore;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
@@ -23,7 +21,7 @@ namespace pwm.Services.Implementations
         {
         }
 
-        protected override IEnumerable<CompanyType> ApplyFilters(IEnumerable<CompanyType> query, CompanyTypeSearchObject? search)
+        protected override IQueryable<CompanyType> ApplyFilters(IQueryable<CompanyType> query, CompanyTypeSearchObject? search)
         {
             if (search == null)
             {
@@ -33,7 +31,7 @@ namespace pwm.Services.Implementations
             if (!string.IsNullOrWhiteSpace(search.Name))
             {
                 var name = search.Name;
-                query = query.Where(x => x.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(x => EF.Functions.Like(x.Name, $"%{name}%"));
             }
 
             return query;

@@ -6,7 +6,6 @@ using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
 using pwm.Services.Interfaces;
 using pwm.WebAPI.Filters;
-using pwm.WebAPI.Services.CurrentUser;
 
 namespace pwm.WebAPI.Controllers
 {

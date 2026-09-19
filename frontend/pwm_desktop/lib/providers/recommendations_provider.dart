@@ -60,6 +60,9 @@ class RecommendationsProvider extends ChangeNotifier {
 
   int get sampleSize => _result?.sampleSize ?? 0;
   double get accuracyPercent => _result?.accuracyPercent ?? 0;
+
+  /// Set only when [hasEstimate] is true - the plain-language "why" behind the numbers.
+  String? get explanation => _result != null && _result!.hasEstimate ? _result!.explanation : null;
   double get totalHours => _result?.totalHours ?? 0;
   int get estimatedWorkers => _result?.estimatedWorkers ?? 0;
   int get estimatedDurationDays => _result?.estimatedDurationDays ?? 0;

@@ -3,11 +3,24 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:pwm_desktop/screens/widgets/placeholder_body.dart';
 import 'package:pwm_desktop/utils/app_theme.dart';
 
 Color _colourOf(WidgetTester tester, String text) =>
     tester.widget<Text>(find.text(text)).style!.color!;
+
+/// Reads the global palette on every build, the same way a real screen would -
+/// just without needing one, since the toggle only cares that *something*
+/// already on screen repaints.
+class _Probe extends StatelessWidget {
+  const _Probe();
+
+  static const caption = 'palette probe';
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(caption, style: TextStyle(color: AppColors.textSecondary));
+  }
+}
 
 void main() {
   tearDown(() => AppColors.palette = AppColors.paletteFor(ThemeController.defaultMode));
@@ -30,22 +43,23 @@ void main() {
             theme: AppTheme.light(),
             darkTheme: AppTheme.dark(),
             themeMode: theme.mode,
-            home: Scaffold(body: PlaceholderBody(title: 'Reports')),
+            // Not const: a const subtree here would never rebuild on toggle, which
+            // is exactly the bug this test exists to catch.
+            home: Scaffold(body: _Probe()),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    const caption = 'Pick Dashboard from the navigation to see the implemented screen.';
-    expect(_colourOf(tester, caption), AppPalette.dark.textSecondary);
+    expect(_colourOf(tester, _Probe.caption), AppPalette.dark.textSecondary);
 
     controller.toggle();
     await tester.pumpAndSettle();
 
     // The colour is read from a global palette, so this only holds while nothing
     // between the toggle and the text blocks the rebuild.
-    expect(_colourOf(tester, caption), AppPalette.light.textSecondary);
+    expect(_colourOf(tester, _Probe.caption), AppPalette.light.textSecondary);
   });
 
   test('no widget of this project is const-constructed', () {

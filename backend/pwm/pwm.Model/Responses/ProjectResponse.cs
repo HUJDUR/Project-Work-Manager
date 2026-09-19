@@ -1,4 +1,3 @@
-using System;
 using pwm.Model.Enums;
 
 namespace pwm.Model.Responses

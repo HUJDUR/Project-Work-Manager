@@ -220,9 +220,21 @@ LookupTableConfig<ReportTypeLookup> _reportTypes() => LookupTableConfig<ReportTy
       columns: [
         LookupColumn('Description', (row, ctx) => row.description),
       ],
-      fields: const [
-        LookupField(key: 'id', label: 'Id', numeric: true, showOnlyOnInsert: true),
-        LookupField(key: 'description', label: 'Description'),
+      fields: [
+        // A picker over the fixed ReportType enum, not a raw id field: the API
+        // needs the row's id set explicitly (ReportTypes.Id is
+        // ValueGeneratedNever, mirroring that enum), but a form asking the
+        // office to type a database id is exactly what it should never do.
+        // Naming the kind instead of its number keeps the two in step.
+        LookupField(
+          key: 'id',
+          label: 'Report kind',
+          showOnlyOnInsert: true,
+          loadOptions: () async => [
+            for (final kind in ReportType.values) DropdownOption(kind.value, kind.label),
+          ],
+        ),
+        const LookupField(key: 'description', label: 'Description'),
       ],
       valuesOf: (row) => {'id': row.id, 'description': row.description},
     );

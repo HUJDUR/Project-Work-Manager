@@ -70,7 +70,7 @@ namespace pwm.Services.Reporting
             container.Row(row =>
             {
                 row.RelativeItem()
-                    .Text($"Generated {Date(System.DateTime.Now)}")
+                    .Text($"Generated {Date(System.DateTime.UtcNow)}")
                     .FontSize(8).FontColor(Muted);
 
                 row.RelativeItem().AlignRight().Text(text =>

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using FluentValidation;
 using MapsterMapper;
@@ -32,7 +28,7 @@ namespace pwm.Services.Implementations
             return Task.FromResult<IQueryable<TruckLoad>>(query.Include(x => x.TransportCompany));
         }
 
-        protected override IEnumerable<TruckLoad> ApplyFilters(IEnumerable<TruckLoad> query, TruckLoadSearchObject? search)
+        protected override IQueryable<TruckLoad> ApplyFilters(IQueryable<TruckLoad> query, TruckLoadSearchObject? search)
         {
             if (search == null)
             {
@@ -43,11 +39,10 @@ namespace pwm.Services.Implementations
             {
                 var needle = search.Search;
                 query = query.Where(x =>
-                    x.DriverName.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || x.DriverSurname.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || x.VehicleRegistration.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || (x.TransportCompany != null
-                        && x.TransportCompany.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)));
+                    EF.Functions.Like(x.DriverName, $"%{needle}%")
+                    || EF.Functions.Like(x.DriverSurname, $"%{needle}%")
+                    || EF.Functions.Like(x.VehicleRegistration, $"%{needle}%")
+                    || (x.TransportCompany != null && EF.Functions.Like(x.TransportCompany.Name, $"%{needle}%")));
             }
 
             if (search.TruckLoadStatusId.HasValue)
@@ -63,7 +58,7 @@ namespace pwm.Services.Implementations
             if (!string.IsNullOrWhiteSpace(search.VehicleRegistration))
             {
                 var vehicleRegistration = search.VehicleRegistration;
-                query = query.Where(x => x.VehicleRegistration.Contains(vehicleRegistration, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(x => EF.Functions.Like(x.VehicleRegistration, $"%{vehicleRegistration}%"));
             }
 
             if (search.DateFrom.HasValue)

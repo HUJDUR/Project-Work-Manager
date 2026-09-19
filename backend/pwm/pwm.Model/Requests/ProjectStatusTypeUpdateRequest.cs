@@ -1,7 +1,6 @@
 namespace pwm.Model.Requests
 {
-    public class ProjectStatusTypeUpdateRequest
+    public class ProjectStatusTypeUpdateRequest : ProjectStatusTypeInsertRequest
     {
-        public string Name { get; set; } = string.Empty;
     }
 }

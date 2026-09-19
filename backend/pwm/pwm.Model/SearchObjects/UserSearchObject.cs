@@ -1,5 +1,3 @@
-using System;
-
 namespace pwm.Model.SearchObjects
 {
     public class UserSearchObject : BaseSearchObject

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'layouts/master_screen.dart';
@@ -9,20 +10,20 @@ import 'providers/providers.dart';
 import 'screens/login_screen.dart';
 import 'utils/app_theme.dart';
 
-/// TEMPORARY: sign-in is on hold while the rest of the app is built, so the app
-/// opens straight on [MasterScreen] as the seeded administrator. Set this to
-/// false to get [LoginScreen] back — nothing else has to change.
-/// The API side has its own switch, `pwm.WebAPI/DevSettings.BypassAuthentication`.
-const bool bypassLogin = true;
+/// Set this to true only for a local, throwaway debugging session, to skip
+/// [LoginScreen] and open straight on [MasterScreen] as the seeded
+/// administrator — the API side has its own switch,
+/// `pwm.WebAPI/DevSettings.BypassAuthentication`, which must stay off too.
+const bool bypassLogin = false;
 const String _devEmail = 'nadir.hujdur@pwm.ba';
 const String _devPassword = 'test';
 
 /// The window the app opens in. The OS title bar is hidden because the app draws
 /// its own into the top bar - see `layouts/window_chrome.dart`.
+const _windowSize = Size(1280, 800);
 const _windowOptions = WindowOptions(
-  size: Size(1280, 800),
+  size: _windowSize,
   minimumSize: Size(1100, 700),
-  center: true,
   title: 'Project Work Manager',
   backgroundColor: Colors.transparent,
   titleBarStyle: TitleBarStyle.hidden,
@@ -32,9 +33,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
 
-  // Shown only once it is sized and stripped of its title bar, so the frame is
-  // never on screen.
+  // Shown only once it is sized, positioned and stripped of its title bar, so
+  // the frame is never on screen.
   unawaited(windowManager.waitUntilReadyToShow(_windowOptions, () async {
+    await _centerOnPrimaryDisplay();
     await windowManager.show();
     await windowManager.focus();
   }));
@@ -70,6 +72,29 @@ void main() async {
       child: PwmDesktopApp(),
     ),
   );
+}
+
+/// window_manager's own `center: true`/`.center()` centers the window on
+/// whichever display the mouse cursor happens to be over, not the primary
+/// display (see its `calcWindowPosition`). On a multi-monitor setup with
+/// differently sized/scaled screens, that can place the window using another
+/// monitor's bounds while the OS still opens it on the primary one - landing
+/// it mostly off-screen. Centering explicitly on the primary display's own
+/// visible area sidesteps that.
+Future<void> _centerOnPrimaryDisplay() async {
+  final display = await screenRetriever.getPrimaryDisplay();
+  final visibleSize = display.visibleSize ?? display.size;
+  final visiblePosition = display.visiblePosition ?? Offset.zero;
+
+  final x = visiblePosition.dx + (visibleSize.width - _windowSize.width) / 2;
+  final y = visiblePosition.dy + (visibleSize.height - _windowSize.height) / 2;
+
+  await windowManager.setBounds(Rect.fromLTWH(
+    x,
+    y,
+    _windowSize.width,
+    _windowSize.height,
+  ));
 }
 
 class PwmDesktopApp extends StatelessWidget {

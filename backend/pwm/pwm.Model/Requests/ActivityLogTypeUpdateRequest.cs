@@ -1,7 +1,6 @@
 namespace pwm.Model.Requests
 {
-    public class ActivityLogTypeUpdateRequest
+    public class ActivityLogTypeUpdateRequest : ActivityLogTypeInsertRequest
     {
-        public string Name { get; set; } = string.Empty;
     }
 }

@@ -4,8 +4,6 @@ using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Services.Interfaces;
 using pwm.WebAPI.Filters;
-using pwm.WebAPI.Services.CurrentUser;
-using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.WebAPI.Controllers
 {
@@ -48,20 +46,16 @@ namespace pwm.WebAPI.Controllers
             return File(content, "application/pdf", "transport-loads.pdf");
         }
 
-        /// <summary>Re-downloads a report from the parameters it was first run with.</summary>
+        /// <summary>
+        /// Re-downloads a report from the parameters it was first run with. The
+        /// attribute cannot see which report this is, so narrowing a project
+        /// manager away from a monthly hours report happens in the service instead.
+        /// </summary>
         [HttpGet("{generatedReportId}/Download")]
         [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
         public async Task<IActionResult> Download(int generatedReportId)
         {
-            // The attribute cannot see which report this is, so the narrowing that
-            // keeps MonthlyWorkHours away from a project manager is repeated here.
-            if (_currentUser.Role == Roles.ProjectManager
-                && await _reportService.TypeOfAsync(generatedReportId) == (int)ReportKind.MonthlyWorkHours)
-            {
-                throw new ForbiddenException("You cannot download the monthly work hours report.");
-            }
-
-            var (content, fileName) = await _reportService.RerunAsync(generatedReportId);
+            var (content, fileName) = await _reportService.RerunAsync(generatedReportId, _currentUser.Role);
 
             return File(content, "application/pdf", fileName);
         }

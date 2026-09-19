@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using FluentValidation;
 using MapsterMapper;
 using pwm.Model.Requests;
@@ -23,7 +20,7 @@ namespace pwm.Services.Implementations
         {
         }
 
-        protected override IEnumerable<TruckLoadDetail> ApplyFilters(IEnumerable<TruckLoadDetail> query, TruckLoadDetailSearchObject? search)
+        protected override IQueryable<TruckLoadDetail> ApplyFilters(IQueryable<TruckLoadDetail> query, TruckLoadDetailSearchObject? search)
         {
             if (search == null)
             {

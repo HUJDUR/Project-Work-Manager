@@ -1,4 +1,3 @@
-using System;
 using pwm.Model.Responses;
 
 namespace pwm.Model.Access

@@ -1,23 +1,13 @@
-using System.Security.Claims;
 using pwm.Model.Access;
 using pwm.WebAPI.Services.AccessManager;
 
 namespace pwm.WebAPI.Services.CurrentUser
 {
     /// <summary>
-    /// Who is calling, read from the token rather than from the route or the body.
-    /// Anything a user does to their own data resolves the id through this.
+    /// Reads <see cref="ICurrentUser"/> off the request's claims. The interface lives
+    /// in pwm.Model.Access so the service layer can depend on it too; this
+    /// implementation stays here because it needs <see cref="IHttpContextAccessor"/>.
     /// </summary>
-    public interface ICurrentUser
-    {
-        int? Id { get; }
-
-        string? Role { get; }
-
-        /// <summary>Shop floor: may write their own work logs and nobody else's.</summary>
-        bool IsWorker { get; }
-    }
-
     public class CurrentUser : ICurrentUser
     {
         private readonly IHttpContextAccessor _httpContextAccessor;

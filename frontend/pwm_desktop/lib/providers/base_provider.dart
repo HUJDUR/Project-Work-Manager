@@ -154,7 +154,7 @@ abstract class BaseProvider<T> with ChangeNotifier {
       );
     }
 
-    // 400 Bad Request - business rules (ClinetException), validation, etc.
+    // 400 Bad Request - business rules (ClientException), validation, etc.
     throw ApiClientException(
       parsed ?? 'Request could not be completed. Please try again.',
     );

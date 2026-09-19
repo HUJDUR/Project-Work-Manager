@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace pwm.Services.Reporting
 {
     /// <summary>One worker's month: the payroll line, plus where the hours went.</summary>

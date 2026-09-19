@@ -163,19 +163,24 @@ class _MessageCardState extends State<_MessageCard> {
             const SizedBox(height: 20),
             Row(
               children: [
-                FilledButton.icon(
-                  onPressed: _sending || !provider.canSend ? null : _send,
-                  icon: _sending
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.send_outlined, size: 18),
-                  label: const Text('Send Notification'),
-                  style: FilledButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                Tooltip(
+                  message: provider.canSend
+                      ? 'Send Notification'
+                      : 'Pick at least one recipient first.',
+                  child: FilledButton.icon(
+                    onPressed: _sending || !provider.canSend ? null : _send,
+                    icon: _sending
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send_outlined, size: 18),
+                    label: const Text('Send Notification'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 22, vertical: 18),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),

@@ -247,14 +247,18 @@ class ReportsProvider extends ChangeNotifier {
   }
 
   Future<void> _fetchRecent() async {
-    final result = await _generatedReports.get(filter: {
-      'page': 1,
-      'pageSize': recentCount,
-      'includeTotalCount': false,
-      'sortBy': recentSortBy,
-    });
+    final results = await Future.wait([
+      _generatedReports.get(filter: {
+        'page': 1,
+        'pageSize': recentCount,
+        'includeTotalCount': false,
+        'sortBy': recentSortBy,
+      }),
+      _fetchRuns(),
+    ]);
 
-    final runs = await _fetchRuns();
+    final result = results[0] as PageResult<GeneratedReport>;
+    final runs = results[1] as Map<int, ActivityLog>;
 
     _recent = [
       for (final report in result.items) _toRecent(report, runs[report.id]),

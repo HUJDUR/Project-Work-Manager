@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
@@ -42,17 +38,17 @@ namespace pwm.Services.Implementations
         {
             if (request.Tonnes <= 0)
             {
-                throw new ClinetException("Expected tonnage has to be greater than zero.");
+                throw new ClientException("Expected tonnage has to be greater than zero.");
             }
 
             if (request.WorkingDays <= 0)
             {
-                throw new ClinetException("The deadline has to be at least one working day.");
+                throw new ClientException("The deadline has to be at least one working day.");
             }
 
             var category = await _dbContext.ProjectCategories
                 .FirstOrDefaultAsync(x => x.Id == request.ProjectCategoryId)
-                ?? throw new ClinetException(
+                ?? throw new ClientException(
                     $"Project category {request.ProjectCategoryId} does not exist.");
 
             // Only a completed project has a known outcome to learn from.
@@ -85,9 +81,7 @@ namespace pwm.Services.Implementations
 
             var operationTypes = await _dbContext.OperationTypes.ToDictionaryAsync(x => x.Id, x => x.Name);
 
-            // Project.Weight is kilograms - see project_details_screen.dart's "kg" suffix -
-            // but the request and this estimate are both in tonnes, so every past project's
-            // weight is converted before it goes anywhere near a regression.
+            // Project.Weight is stored in kilograms; the request and this estimate use tonnes.
             var tonnesById = pastProjects.ToDictionary(x => x.Id, x => x.Weight / 1000.0);
 
             // Every work type that was ever booked against this category, so a project
@@ -146,6 +140,16 @@ namespace pwm.Services.Implementations
                 .ToArray();
 
             var accuracy = RSquared(totalPoints);
+            var accuracyPercent = Math.Round(Math.Clamp(accuracy, 0, 1) * 100, 1);
+
+            // The one sentence that answers "why this number" - shown next to the
+            // estimate rather than left for the sample size and accuracy cards to
+            // imply on their own.
+            var explanation =
+                $"Estimated by fitting a linear trend between tonnage and hours per work " +
+                $"type across {pastProjects.Count} past delivered \"{category.Name}\" " +
+                $"project{(pastProjects.Count == 1 ? "" : "s")}; that trend explains about " +
+                $"{accuracyPercent:0.#}% of the variation in the hours those projects actually took.";
 
             var typicalCrewSize = Math.Max(1, (int)Math.Round(pastProjects
                 .Select(x => blocks.Where(b => b.ProjectId == x.Id).Select(b => b.UserId).Distinct().Count())
@@ -156,7 +160,8 @@ namespace pwm.Services.Implementations
             {
                 HasEstimate = true,
                 SampleSize = pastProjects.Count,
-                AccuracyPercent = Math.Round(Math.Clamp(accuracy, 0, 1) * 100, 1),
+                AccuracyPercent = accuracyPercent,
+                Explanation = explanation,
                 TotalHours = Math.Round(totalHours, 1),
                 EstimatedWorkers = Math.Max(1,
                     (int)Math.Ceiling(totalHours / (request.WorkingDays * HoursPerWorkerPerDay))),
@@ -173,7 +178,6 @@ namespace pwm.Services.Implementations
         /// </summary>
         private static (double Slope, double Intercept) FitLine((double X, double Y)[] points)
         {
-            var n = points.Length;
             var meanX = points.Average(p => p.X);
             var meanY = points.Average(p => p.Y);
 

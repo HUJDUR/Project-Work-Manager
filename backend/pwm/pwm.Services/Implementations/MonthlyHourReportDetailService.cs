@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using FluentValidation;
 using MapsterMapper;
-using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
 using pwm.Services.Database;
@@ -19,7 +14,7 @@ namespace pwm.Services.Implementations
         {
         }
 
-        protected override IEnumerable<MonthlyHourReportDetail> ApplyFilters(IEnumerable<MonthlyHourReportDetail> query, MonthlyHourReportDetailSearchObject? search)
+        protected override IQueryable<MonthlyHourReportDetail> ApplyFilters(IQueryable<MonthlyHourReportDetail> query, MonthlyHourReportDetailSearchObject? search)
         {
             if (search == null)
             {

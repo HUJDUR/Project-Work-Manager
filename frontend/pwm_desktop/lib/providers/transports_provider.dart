@@ -323,11 +323,13 @@ class TransportsProvider extends ChangeNotifier {
   ) async {
     final kept = lines.where((line) => !line.isNew).map((line) => line.id).toSet();
 
-    for (final line in originalLines.where((line) => !kept.contains(line.id))) {
-      await _truckLoadDetails.remove(line.id);
-    }
+    await Future.wait(
+      originalLines
+          .where((line) => !kept.contains(line.id))
+          .map((line) => _truckLoadDetails.remove(line.id)),
+    );
 
-    for (final line in lines) {
+    await Future.wait(lines.map((line) {
       final body = {
         'truckLoadId': truckLoadId,
         'projectId': line.projectId,
@@ -337,12 +339,10 @@ class TransportsProvider extends ChangeNotifier {
         'unloadColor': line.unloadColor,
       };
 
-      if (line.isNew) {
-        await _truckLoadDetails.insert(body);
-      } else {
-        await _truckLoadDetails.update(line.id, body);
-      }
-    }
+      return line.isNew
+          ? _truckLoadDetails.insert(body)
+          : _truckLoadDetails.update(line.id, body);
+    }));
   }
 
   /// The cargo goes with the truck: `TruckLoadDetails` cascades from

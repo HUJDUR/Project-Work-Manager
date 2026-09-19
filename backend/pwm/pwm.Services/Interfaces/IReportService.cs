@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using pwm.Model.Requests;
 
 namespace pwm.Services.Interfaces
@@ -13,10 +12,12 @@ namespace pwm.Services.Interfaces
 
         Task<byte[]> TransportLoadsAsync(TransportLoadsReportRequest request, int generatedById);
 
-        /// <summary>Rebuilds a report from the parameters it was first run with.</summary>
-        Task<(byte[] Content, string FileName)> RerunAsync(int generatedReportId);
-
-        /// <summary>Which report a past run was, so a caller can check it against their role.</summary>
-        Task<int> TypeOfAsync(int generatedReportId);
+        /// <summary>
+        /// Rebuilds a report from the parameters it was first run with. A project
+        /// manager cannot rebuild a monthly hours report - <paramref name="callerRole"/>
+        /// is what lets this check that, since the download route has no report type
+        /// of its own for <c>[Authorization]</c> to see.
+        /// </summary>
+        Task<(byte[] Content, string FileName)> RerunAsync(int generatedReportId, string? callerRole);
     }
 }

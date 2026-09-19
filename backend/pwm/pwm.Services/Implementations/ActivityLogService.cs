@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using FluentValidation;
 using MapsterMapper;
-using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
 using pwm.Services.Database;
@@ -19,7 +14,7 @@ namespace pwm.Services.Implementations
         {
         }
 
-        protected override IEnumerable<ActivityLog> ApplyFilters(IEnumerable<ActivityLog> query, ActivityLogSearchObject? search)
+        protected override IQueryable<ActivityLog> ApplyFilters(IQueryable<ActivityLog> query, ActivityLogSearchObject? search)
         {
             if (search == null)
             {

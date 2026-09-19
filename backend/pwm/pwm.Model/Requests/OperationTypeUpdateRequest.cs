@@ -1,9 +1,6 @@
-using System;
-
 namespace pwm.Model.Requests
 {
-    public class OperationTypeUpdateRequest
+    public class OperationTypeUpdateRequest : OperationTypeInsertRequest
     {
-        public string Name { get; set; } = string.Empty;
     }
 }

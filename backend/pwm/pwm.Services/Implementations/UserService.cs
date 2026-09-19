@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
@@ -81,14 +77,14 @@ namespace pwm.Services.Implementations
             await _profileValidator.ValidateAndThrowAsync(request);
 
             var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId)
-                ?? throw new ClinetException("That account no longer exists.");
+                ?? throw new ClientException("That account no longer exists.");
 
             var email = request.Email.Trim();
             var taken = await _dbContext.Users
                 .AnyAsync(x => x.Id != userId && x.Email == email);
             if (taken)
             {
-                throw new ClinetException("Another account already uses that e-mail address.");
+                throw new ClientException("Another account already uses that e-mail address.");
             }
 
             if (!string.IsNullOrEmpty(request.NewPassword))
@@ -97,7 +93,7 @@ namespace pwm.Services.Implementations
                     user.PasswordHash, user.PasswordSalt, request.CurrentPassword ?? string.Empty);
                 if (!matches)
                 {
-                    throw new ClinetException("Your current password is not right.");
+                    throw new ClientException("Your current password is not right.");
                 }
 
                 var salt = _cryptoService.GenerateSalt();
@@ -116,7 +112,7 @@ namespace pwm.Services.Implementations
             return _mapper.Map<UserResponse>(user);
         }
 
-        protected override IEnumerable<User> ApplyFilters(IEnumerable<User> query, UserSearchObject? search)
+        protected override IQueryable<User> ApplyFilters(IQueryable<User> query, UserSearchObject? search)
         {
             if (search == null)
             {
@@ -127,29 +123,28 @@ namespace pwm.Services.Implementations
             {
                 var needle = search.Search;
                 query = query.Where(x =>
-                    x.Name.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || x.Surname.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || x.Email.Contains(needle, StringComparison.OrdinalIgnoreCase)
-                    || (x.JobTitle != null
-                        && x.JobTitle.Contains(needle, StringComparison.OrdinalIgnoreCase)));
+                    EF.Functions.Like(x.Name, $"%{needle}%")
+                    || EF.Functions.Like(x.Surname, $"%{needle}%")
+                    || EF.Functions.Like(x.Email, $"%{needle}%")
+                    || (x.JobTitle != null && EF.Functions.Like(x.JobTitle, $"%{needle}%")));
             }
 
             if (!string.IsNullOrWhiteSpace(search.Name))
             {
                 var name = search.Name;
-                query = query.Where(x => x.Name.Contains(name, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(x => EF.Functions.Like(x.Name, $"%{name}%"));
             }
 
             if (!string.IsNullOrWhiteSpace(search.Surname))
             {
                 var surname = search.Surname;
-                query = query.Where(x => x.Surname.Contains(surname, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(x => EF.Functions.Like(x.Surname, $"%{surname}%"));
             }
 
             if (!string.IsNullOrWhiteSpace(search.Email))
             {
                 var email = search.Email;
-                query = query.Where(x => x.Email.Contains(email, StringComparison.OrdinalIgnoreCase));
+                query = query.Where(x => EF.Functions.Like(x.Email, $"%{email}%"));
             }
 
             if (search.UserTypeId.HasValue)
