@@ -6,7 +6,6 @@ import 'table_pager.dart';
 
 const _columns = <_Column>[
   _Column('Worker', 4),
-  _Column('Job Title', 3),
   _Column('Role', 3),
   _Column('Phone', 2),
   _Column('Operations', 3),
@@ -125,19 +124,17 @@ class _WorkerRowTile extends StatelessWidget {
           children: [
             Expanded(flex: _columns[0].flex, child: _Worker(row: row)),
             _columnGap,
-            Expanded(flex: _columns[1].flex, child: _Cell(row.jobTitle)),
+            Expanded(flex: _columns[1].flex, child: _RoleChip(role: row.roleName)),
             _columnGap,
-            Expanded(flex: _columns[2].flex, child: _RoleChip(role: row.roleName)),
-            _columnGap,
-            Expanded(flex: _columns[3].flex, child: _Cell(row.phoneNumber ?? '—')),
+            Expanded(flex: _columns[2].flex, child: _Cell(row.phoneNumber ?? '—')),
             _columnGap,
             Expanded(
-              flex: _columns[4].flex,
+              flex: _columns[3].flex,
               child: _Operations(operations: row.operations),
             ),
             _columnGap,
             Expanded(
-              flex: _columns[5].flex,
+              flex: _columns[4].flex,
               child: _StatusChip(isActive: row.isActive),
             ),
             SizedBox(

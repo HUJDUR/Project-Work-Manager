@@ -20,10 +20,6 @@ namespace pwm.Services.Database
         [MaxLength(20)]
         public string? PhoneNumber { get; set; }
 
-        [MaxLength(100)]
-        [Required]
-        public string? JobTitle { get; set; }
-
         [Required]
         [MaxLength(100)]
         [EmailAddress]

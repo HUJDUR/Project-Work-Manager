@@ -10,8 +10,6 @@ namespace pwm.Model.Responses
 
         public string? PhoneNumber { get; set; }
 
-        public string? JobTitle { get; set; }
-
         public string Email { get; set; } = string.Empty;
 
         public int UserTypeId { get; set; }

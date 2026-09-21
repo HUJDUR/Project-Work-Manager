@@ -1,3 +1,4 @@
+using pwm.Model.Access;
 using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.Services.Database.Seed
@@ -117,12 +118,12 @@ namespace pwm.Services.Database.Seed
             // One "Generated report" type per report, so the log says which one was run.
             _activityLogTypes =
             [
-                new ActivityLogType { Name = "Log In" },
-                new ActivityLogType { Name = "Log out" },
-                new ActivityLogType { Name = "Message sent" },
+                new ActivityLogType { Name = ActivityLogTypeNames.LogIn },
+                new ActivityLogType { Name = ActivityLogTypeNames.LogOut },
+                new ActivityLogType { Name = ActivityLogTypeNames.MessageSent },
                 new ActivityLogType { Name = ReportLogTypeName("Monthly Work Hours") },
                 new ActivityLogType { Name = ReportLogTypeName("Transport & Loads") },
-                new ActivityLogType { Name = "Marked messages as read" },
+                new ActivityLogType { Name = ActivityLogTypeNames.MarkedMessagesAsRead },
             ];
             await AddRangeAsync(_activityLogTypes);
         }

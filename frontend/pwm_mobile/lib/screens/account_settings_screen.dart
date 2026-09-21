@@ -21,7 +21,7 @@ Future<void> openAccountSettings(BuildContext context, {UserProvider? users}) {
 /// What a worker may change about themselves, which is **two things**: the
 /// number they are reached on, and their password.
 ///
-/// Name, surname, e-mail, job title and role are shown but not editable. That is
+/// Name, surname, e-mail and role are shown but not editable. That is
 /// narrower than the desktop's version of this screen, where the office edits
 /// its own name and e-mail — on the shop floor those identify the account to
 /// everyone else, so they stay an administrator's job on the Workers screen.
@@ -85,6 +85,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _passwordError = _checkPasswords());
   }
 
+  /// The confirm field is just empty so far, not actually wrong - shown as an
+  /// unfinished (red, captionless) field rather than as an error message.
+  bool get _unconfirmedPassword =>
+      _passwordError == PasswordRules.confirmationNeeded;
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -137,7 +142,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 _ReadOnlyRow(label: 'First name', value: user.name),
                 _ReadOnlyRow(label: 'Surname', value: user.surname),
                 _ReadOnlyRow(label: 'E-mail', value: user.email),
-                _ReadOnlyRow(label: 'Job title', value: user.jobTitle ?? ''),
                 _ReadOnlyRow(label: 'Role', value: role, isLast: true),
                 const SizedBox(height: 14),
                 Text(
@@ -190,13 +194,16 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   label: 'Confirm new password',
                   controller: _confirmPassword,
                   onChanged: _recheckPasswords,
+                  hasError: _unconfirmedPassword,
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  _passwordError ?? PasswordRules.describe,
+                  _unconfirmedPassword
+                      ? PasswordRules.describe
+                      : (_passwordError ?? PasswordRules.describe),
                   style: TextStyle(
                     fontSize: 12,
-                    color: _passwordError == null
+                    color: _passwordError == null || _unconfirmedPassword
                         ? AppColors.textSecondary
                         : AppColors.danger,
                   ),
@@ -272,7 +279,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         name: user.name,
         surname: user.surname,
         email: user.email,
-        jobTitle: user.jobTitle,
         phoneNumber: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
         currentPassword: newPassword == null ? null : _currentPassword.text,
         newPassword: newPassword,
@@ -446,11 +452,16 @@ class _PasswordField extends StatefulWidget {
     required this.label,
     required this.controller,
     required this.onChanged,
+    this.hasError = false,
   });
 
   final String label;
   final TextEditingController controller;
   final VoidCallback onChanged;
+
+  /// True for an unfinished confirm field - a red outline with no caption of
+  /// its own, since nothing has actually been typed wrong yet.
+  final bool hasError;
 
   @override
   State<_PasswordField> createState() => _PasswordFieldState();
@@ -478,6 +489,11 @@ class _PasswordFieldState extends State<_PasswordField> {
             color: AppColors.textMuted,
           ),
         ),
+        // The theme's own errorBorder colour, with the caption suppressed -
+        // this reaches for the field's built-in error styling on purpose,
+        // rather than duplicating that colour and border shape by hand.
+        errorText: widget.hasError ? '' : null,
+        errorStyle: const TextStyle(fontSize: 0, height: 0),
       ),
     );
   }

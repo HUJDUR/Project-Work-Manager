@@ -65,8 +65,7 @@ const _activeUsers = [
       surname: 'Alagic',
       email: 'vedran@pwm.ba',
       userTypeId: 3,
-      isActive: true,
-      jobTitle: 'Welder'),
+      isActive: true),
   User(
       id: 2,
       name: 'Selma',

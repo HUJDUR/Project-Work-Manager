@@ -70,19 +70,20 @@ void main() {
     await tester.tap(find.text('Sign in').last);
     await tester.pumpAndSettle();
 
-    expect(find.text('Enter your email address.'), findsOneWidget);
+    expect(find.text('Enter your email or username.'), findsOneWidget);
     expect(find.text('Enter your password.'), findsOneWidget);
     expect(auth.calls, isEmpty);
   });
 
-  testWidgets('rejects an address that is not one', (tester) async {
+  testWidgets('signs in with a username instead of an email', (tester) async {
     final auth = _FakeAuthProvider();
-    await _pumpLogin(tester, auth);
+    var signedIn = false;
 
-    await _signIn(tester, 'admin', 'test');
+    await _pumpLogin(tester, auth, onSignedIn: () => signedIn = true);
+    await _signIn(tester, 'NadirHujdur', 'test');
 
-    expect(find.text('That does not look like an email address.'), findsOneWidget);
-    expect(auth.calls, isEmpty);
+    expect(auth.calls, [(email: 'NadirHujdur', password: 'test')]);
+    expect(signedIn, isTrue);
   });
 
   testWidgets('shows the wording the API refused the credentials with', (tester) async {

@@ -27,7 +27,6 @@ class _FakeUsers extends UserProvider {
     required String surname,
     required String email,
     String? phoneNumber,
-    String? jobTitle,
     String? currentPassword,
     String? newPassword,
   }) async {
@@ -36,7 +35,6 @@ class _FakeUsers extends UserProvider {
       'surname': surname,
       'email': email,
       'phoneNumber': phoneNumber,
-      'jobTitle': jobTitle,
       'currentPassword': currentPassword,
       'newPassword': newPassword,
     });
@@ -55,7 +53,6 @@ User _user({String? phoneNumber = '+387 61 234 567'}) => User(
       userTypeId: 5,
       isActive: true,
       phoneNumber: phoneNumber,
-      jobTitle: 'Painter',
     );
 
 /// The session is static, so every test has to put it back.
@@ -138,11 +135,10 @@ void main() {
       await _pump(tester, AccountSettingsScreen(userProvider: _FakeUsers()));
 
       expect(find.text('Faruk Tufekcic'), findsOneWidget);
-      expect(find.text('Painter'), findsOneWidget);
       expect(find.text('Production worker'), findsWidgets);
 
-      // Name, surname, e-mail, job title and role are facts, not fields — the
-      // one editable text field besides the three password ones is the phone.
+      // Name, surname, e-mail and role are facts, not fields — the one
+      // editable text field besides the three password ones is the phone.
       final editable = tester
           .widgetList<TextField>(find.byType(TextField))
           .where((field) => !field.obscureText)
@@ -168,7 +164,6 @@ void main() {
         'surname': 'Tufekcic',
         'email': 'faruk.tufekcic@pwm.ba',
         'phoneNumber': '+387 62 999 111',
-        'jobTitle': 'Painter',
         // Nothing was typed into the password fields.
         'currentPassword': null,
         'newPassword': null,
@@ -205,8 +200,8 @@ void main() {
       final users = _FakeUsers();
       await _pump(tester, AccountSettingsScreen(userProvider: users));
 
-      await _typePassword(tester, 'New password', 'Welder2026');
-      await _typePassword(tester, 'Confirm new password', 'Welder2026');
+      await _typePassword(tester, 'New password', 'Welder2026!');
+      await _typePassword(tester, 'Confirm new password', 'Welder2026!');
       await _saveChanges(tester);
 
       expect(users.writes, isEmpty);
@@ -223,12 +218,12 @@ void main() {
       await _pump(tester, AccountSettingsScreen(userProvider: users));
 
       await _typePassword(tester, 'Current password', 'test');
-      await _typePassword(tester, 'New password', 'Welder2026');
-      await _typePassword(tester, 'Confirm new password', 'Welder2026');
+      await _typePassword(tester, 'New password', 'Welder2026!');
+      await _typePassword(tester, 'Confirm new password', 'Welder2026!');
       await _saveChanges(tester);
 
       expect(users.writes.single['currentPassword'], 'test');
-      expect(users.writes.single['newPassword'], 'Welder2026');
+      expect(users.writes.single['newPassword'], 'Welder2026!');
     });
 
     testWidgets('a refused save keeps the API\'s own wording', (tester) async {

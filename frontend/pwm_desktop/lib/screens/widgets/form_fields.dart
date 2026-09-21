@@ -33,6 +33,63 @@ InputDecoration appInputDecoration(
       isDense: true,
     );
 
+/// A password field with the same show/hide eye button the login screen uses,
+/// so every place an account's password is typed behaves the same way.
+class PasswordField extends StatefulWidget {
+  const PasswordField({
+    super.key,
+    required this.controller,
+    required this.label,
+    this.hintText,
+    this.onChanged,
+    this.hasError = false,
+    this.focusNode,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String? hintText;
+  final ValueChanged<String>? onChanged;
+  final FocusNode? focusNode;
+
+  /// True for an unfinished confirm field - a red outline with no caption of
+  /// its own, since nothing has actually been typed wrong yet.
+  final bool hasError;
+
+  @override
+  State<PasswordField> createState() => _PasswordFieldState();
+}
+
+class _PasswordFieldState extends State<PasswordField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      focusNode: widget.focusNode,
+      obscureText: _obscure,
+      onChanged: widget.onChanged,
+      decoration: appInputDecoration(widget.label, hintText: widget.hintText).copyWith(
+        suffixIcon: IconButton(
+          onPressed: () => setState(() => _obscure = !_obscure),
+          tooltip: _obscure ? 'Show password' : 'Hide password',
+          icon: Icon(
+            _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+            size: 19,
+            color: AppColors.textMuted,
+          ),
+        ),
+        // The theme's own errorBorder colour, with the caption suppressed -
+        // this reaches for the field's built-in error styling on purpose,
+        // rather than duplicating that colour and border shape by hand.
+        errorText: widget.hasError ? '' : null,
+        errorStyle: const TextStyle(fontSize: 0, height: 0),
+      ),
+    );
+  }
+}
+
 /// A hairline "-" between two fields that belong together, such as a date and
 /// the times booked against it.
 class FieldSeparator extends StatelessWidget {

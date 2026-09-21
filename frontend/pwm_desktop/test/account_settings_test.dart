@@ -22,7 +22,6 @@ class _FakeUserProvider extends UserProvider {
     required String surname,
     required String email,
     String? phoneNumber,
-    String? jobTitle,
     String? currentPassword,
     String? newPassword,
   }) async {
@@ -31,7 +30,6 @@ class _FakeUserProvider extends UserProvider {
       'surname': surname,
       'email': email,
       'phoneNumber': phoneNumber,
-      'jobTitle': jobTitle,
       'currentPassword': currentPassword,
       'newPassword': newPassword,
     });
@@ -45,7 +43,6 @@ class _FakeUserProvider extends UserProvider {
       userTypeId: 1,
       isActive: true,
       phoneNumber: phoneNumber,
-      jobTitle: jobTitle,
     );
   }
 }
@@ -58,7 +55,6 @@ const _signedIn = User(
   userTypeId: 1,
   isActive: true,
   phoneNumber: '+387 61 000 000',
-  jobTitle: 'Shop manager',
 );
 
 late _FakeUserProvider _users;
@@ -99,15 +95,17 @@ void main() {
   });
 
   group('PasswordRules', () {
-    test('wants eight characters with a mix of cases and a number', () {
-      expect(PasswordRules.validate('Sh0rt'), 'At least 8 characters.');
-      expect(PasswordRules.validate('lowercase1'), 'Needs an upper-case letter.');
-      expect(PasswordRules.validate('UPPERCASE1'), 'Needs a lower-case letter.');
-      expect(PasswordRules.validate('NoDigitsHere'), 'Needs a number.');
+    test('wants eight characters with a mix of cases, a number and a special '
+        'character', () {
+      expect(PasswordRules.validate('Sh0rt!'), 'At least 8 characters.');
+      expect(PasswordRules.validate('lowercase1!'), 'Needs an upper-case letter.');
+      expect(PasswordRules.validate('UPPERCASE1!'), 'Needs a lower-case letter.');
+      expect(PasswordRules.validate('NoDigitsHere!'), 'Needs a number.');
+      expect(PasswordRules.validate('Fabrika22'), 'Needs a special character.');
       expect(PasswordRules.validate(''), 'A password is required.');
       expect(PasswordRules.validate(null), 'A password is required.');
 
-      expect(PasswordRules.validate('Fabrika22'), isNull);
+      expect(PasswordRules.validate('Fabrika22!'), isNull);
     });
 
     test('lets an untouched field through when editing', () {
@@ -181,8 +179,6 @@ void main() {
           'Nadir');
       expect(tester.widget<TextField>(_field('Surname')).controller?.text,
           'Hujdur');
-      expect(tester.widget<TextField>(_field('Job title')).controller?.text,
-          'Shop manager');
 
       // The role is shown but cannot be edited from here.
       expect(find.text('Role: '), findsOneWidget);
@@ -202,7 +198,6 @@ void main() {
       final body = _users.saved.single;
       expect(body['name'], 'Nadira');
       expect(body['email'], 'admin@pwm.ba');
-      expect(body['jobTitle'], 'Shop manager');
       // Untouched, so the API keeps the password it has.
       expect(body['newPassword'], isNull);
       expect(body['currentPassword'], isNull);
@@ -226,8 +221,8 @@ void main() {
     testWidgets('refuses a confirmation that does not match', (tester) async {
       await _open(tester);
 
-      await tester.enterText(_field('New password'), 'Fabrika22');
-      await tester.enterText(_field('Confirm new password'), 'Fabrika23');
+      await tester.enterText(_field('New password'), 'Fabrika22!');
+      await tester.enterText(_field('Confirm new password'), 'Fabrika23!');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
@@ -239,8 +234,8 @@ void main() {
         (tester) async {
       await _open(tester);
 
-      await tester.enterText(_field('New password'), 'Fabrika22');
-      await tester.enterText(_field('Confirm new password'), 'Fabrika22');
+      await tester.enterText(_field('New password'), 'Fabrika22!');
+      await tester.enterText(_field('Confirm new password'), 'Fabrika22!');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
@@ -253,7 +248,7 @@ void main() {
 
       final body = _users.saved.single;
       expect(body['currentPassword'], 'test');
-      expect(body['newPassword'], 'Fabrika22');
+      expect(body['newPassword'], 'Fabrika22!');
     });
 
     testWidgets('shows the API wording when the save is refused', (tester) async {

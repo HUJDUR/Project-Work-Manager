@@ -65,6 +65,7 @@ class LookupTableConfig<T> {
     required this.columns,
     required this.fields,
     required this.valuesOf,
+    this.readOnlyReason,
   });
 
   final String title;
@@ -76,6 +77,14 @@ class LookupTableConfig<T> {
 
   /// The form's initial values when editing a row - keyed the same as [fields].
   final Map<String, dynamic> Function(T row) valuesOf;
+
+  /// Set only for `ActivityLogType`: why its table has no Add/edit/delete, shown
+  /// as a banner in place of those controls. The API backs this with the same
+  /// restriction (`ActivityLogTypeController` has no write actions), so this is
+  /// what explains a read-only screen rather than what causes one.
+  final String? readOnlyReason;
+
+  bool get isReadOnly => readOnlyReason != null;
 
   List<LookupField> fieldsFor({required bool isNew}) =>
       isNew ? fields : fields.where((f) => !f.showOnlyOnInsert).toList();
@@ -92,6 +101,7 @@ LookupTableConfig<T> simpleNameTable<T>({
   required String Function(T) nameOf,
   String fieldKey = 'name',
   String fieldLabel = 'Name',
+  String? readOnlyReason,
 }) {
   return LookupTableConfig<T>(
     title: title,
@@ -105,5 +115,6 @@ LookupTableConfig<T> simpleNameTable<T>({
       LookupField(key: fieldKey, label: fieldLabel),
     ],
     valuesOf: (row) => {fieldKey: nameOf(row)},
+    readOnlyReason: readOnlyReason,
   );
 }

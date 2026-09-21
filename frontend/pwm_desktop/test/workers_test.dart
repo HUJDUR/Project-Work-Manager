@@ -61,7 +61,6 @@ User _user({
   required String name,
   required String surname,
   required int userTypeId,
-  String jobTitle = 'Welder',
   bool isActive = true,
 }) =>
     User(
@@ -71,29 +70,27 @@ User _user({
       email: '${name.toLowerCase()}.${surname.toLowerCase()}@pwm.ba',
       userTypeId: userTypeId,
       isActive: isActive,
-      jobTitle: jobTitle,
       phoneNumber: '+3876110010$id',
     );
 
 /// One administrator, two managers, six active workers and one who has left,
 /// in the surname-then-name order the API sorts them by.
 final _users = [
-  _user(id: 2, name: 'Amar', surname: 'Begic', userTypeId: 2, jobTitle: 'Production manager'),
-  _user(id: 3, name: 'Selma', surname: 'Delic', userTypeId: 2, jobTitle: 'Project manager'),
-  _user(id: 9, name: 'Lejla', surname: 'Hodzic', userTypeId: 3, jobTitle: 'Quality controller'),
-  _user(id: 1, name: 'Nadir', surname: 'Hujdur', userTypeId: 1, jobTitle: 'System administrator'),
-  _user(id: 8, name: 'Vedad', surname: 'Imamovic', userTypeId: 3, jobTitle: 'Assembler'),
+  _user(id: 2, name: 'Amar', surname: 'Begic', userTypeId: 2),
+  _user(id: 3, name: 'Selma', surname: 'Delic', userTypeId: 2),
+  _user(id: 9, name: 'Lejla', surname: 'Hodzic', userTypeId: 3),
+  _user(id: 1, name: 'Nadir', surname: 'Hujdur', userTypeId: 1),
+  _user(id: 8, name: 'Vedad', surname: 'Imamovic', userTypeId: 3),
   _user(id: 4, name: 'Emir', surname: 'Kovacevic', userTypeId: 3),
-  _user(id: 6, name: 'Adnan', surname: 'Mujic', userTypeId: 3, jobTitle: 'Locksmith'),
-  _user(id: 5, name: 'Damir', surname: 'Softic', userTypeId: 3, jobTitle: 'CNC operator'),
+  _user(id: 6, name: 'Adnan', surname: 'Mujic', userTypeId: 3),
+  _user(id: 5, name: 'Damir', surname: 'Softic', userTypeId: 3),
   _user(
       id: 10,
       name: 'Mirza',
       surname: 'Tufekcic',
       userTypeId: 3,
-      jobTitle: 'Warehouse operator',
       isActive: false),
-  _user(id: 7, name: 'Haris', surname: 'Zulic', userTypeId: 3, jobTitle: 'Painter'),
+  _user(id: 7, name: 'Haris', surname: 'Zulic', userTypeId: 3),
 ];
 
 /// What `UserService.ApplyFilters` does with a `UserSearchObject`.
@@ -102,8 +99,7 @@ bool _applyUserFilters(User user, Map<String, dynamic> filter) {
   if (needle != null) {
     final matches = user.name.toLowerCase().contains(needle) ||
         user.surname.toLowerCase().contains(needle) ||
-        user.email.toLowerCase().contains(needle) ||
-        (user.jobTitle?.toLowerCase().contains(needle) ?? false);
+        user.email.toLowerCase().contains(needle);
     if (!matches) return false;
   }
 
@@ -164,7 +160,6 @@ void main() {
       final row = provider.rows.firstWhere((row) => row.id == 4);
       expect(row.fullName, 'Emir Kovacevic');
       expect(row.roleName, 'Production worker');
-      expect(row.jobTitle, 'Welder');
       expect(row.initials, 'EK');
       // The ids ride along so the details form can prefill.
       expect(row.roleId, 3);
@@ -214,7 +209,7 @@ void main() {
       expect(_lastPageRequest()['search'], 'kovacevic');
       expect(provider.rows.single.id, 4);
 
-      await provider.setSearch('cnc');
+      await provider.setSearch('softic');
       expect(provider.rows.single.fullName, 'Damir Softic');
 
       await provider.setSearch('selma.delic@pwm.ba');
@@ -259,7 +254,6 @@ void main() {
         email: 'ivana.peric@pwm.ba',
         userTypeId: 3,
         isActive: true,
-        jobTitle: 'Welder',
         password: 'test',
         operationIds: const [1, 3],
       );
@@ -339,7 +333,6 @@ void main() {
     expect(find.text('6'), findsOneWidget);
 
     expect(find.text('Nadir Hujdur'), findsOneWidget);
-    expect(find.text('System administrator'), findsOneWidget);
     expect(find.text('Assembly, Grinding'), findsOneWidget);
     expect(find.text('+1 more'), findsOneWidget);
     // Nine current workers over two pages of eight; the last one by name waits.
@@ -398,7 +391,7 @@ void main() {
       expect(field('Confirm password'), findsOneWidget);
       expect(
         find.text('At least 8 characters, with an upper-case letter, a '
-            'lower-case letter and a number.'),
+            'lower-case letter, a number and a special character.'),
         findsOneWidget,
       );
     });
@@ -418,8 +411,8 @@ void main() {
     testWidgets('refuses a confirmation that does not match', (tester) async {
       await openBlankForm(tester);
 
-      await tester.enterText(field('Password'), 'Fabrika22');
-      await tester.enterText(field('Confirm password'), 'Fabrika23');
+      await tester.enterText(field('Password'), 'Fabrika22!');
+      await tester.enterText(field('Confirm password'), 'Fabrika23!');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
@@ -441,14 +434,14 @@ void main() {
         (tester) async {
       await openBlankForm(tester);
 
-      await tester.enterText(field('Password'), 'Fabrika22');
-      await tester.enterText(field('Confirm password'), 'Fabrika22');
+      await tester.enterText(field('Password'), 'Fabrika22!');
+      await tester.enterText(field('Confirm password'), 'Fabrika22!');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
       await tester.pumpAndSettle();
 
       final body = _userRows.inserted.single;
       expect(body['email'], 'amina@pwm.ba');
-      expect(body['password'], 'Fabrika22');
+      expect(body['password'], 'Fabrika22!');
       // The confirmation is a form field, not something the API knows about.
       expect(body.containsKey('confirmPassword'), isFalse);
     });

@@ -1,6 +1,7 @@
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using pwm.Model.Access;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
@@ -14,14 +15,17 @@ namespace pwm.Services.Implementations
         : BaseReadService<Notification, NotificationResponse, NotificationSearchObject>, INotificationService
     {
         private readonly IValidator<NotificationSendRequest> _sendValidator;
+        private readonly IActivityLogService _activityLogService;
 
         public NotificationService(
             PWMDbContext dbContext,
             IMapper mapper,
-            IValidator<NotificationSendRequest> sendValidator)
+            IValidator<NotificationSendRequest> sendValidator,
+            IActivityLogService activityLogService)
             : base(mapper, dbContext)
         {
             _sendValidator = sendValidator;
+            _activityLogService = activityLogService;
         }
 
         protected override IQueryable<Notification> ApplyFilters(IQueryable<Notification> query, NotificationSearchObject? search)
@@ -54,7 +58,7 @@ namespace pwm.Services.Implementations
         /// One row per recipient, unread and stamped now. No recipients means every
         /// account that still works - that is what the screen's "All workers" sends.
         /// </summary>
-        public async Task<NotificationSendResponse> SendAsync(NotificationSendRequest request)
+        public async Task<NotificationSendResponse> SendAsync(int senderId, NotificationSendRequest request)
         {
             ArgumentNullException.ThrowIfNull(request);
             await _sendValidator.ValidateAndThrowAsync(request);
@@ -90,6 +94,8 @@ namespace pwm.Services.Implementations
 
             await _dbContext.Notifications.AddRangeAsync(notifications);
             await _dbContext.SaveChangesAsync();
+
+            await _activityLogService.RecordAsync(senderId, ActivityLogTypeNames.MessageSent);
 
             return new NotificationSendResponse { SentCount = recipients.Count };
         }
@@ -133,6 +139,7 @@ namespace pwm.Services.Implementations
             if (unread.Count > 0)
             {
                 await _dbContext.SaveChangesAsync();
+                await _activityLogService.RecordAsync(userId, ActivityLogTypeNames.MarkedMessagesAsRead);
             }
 
             return new NotificationMarkReadResponse { MarkedCount = unread.Count };

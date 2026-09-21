@@ -135,17 +135,30 @@ namespace pwm.Services.Database.Seed
         }
 
         /// <summary>The office, by name; the shop floor below is generated.</summary>
-        private static readonly (string Name, string Surname, string Role, string JobTitle)[] NamedStaff =
+        private static readonly (string Name, string Surname, string Role)[] NamedStaff =
         [
             // Nadir runs projects as well, but Admin already reaches everything a
             // project manager can, and an account holds exactly one type.
-            ("Nadir", "Hujdur", "Admin", "System administrator"),
-            ("Nadira", "Stupar", "Finances", "Head of finances"),
-            ("Kenan", "Fajic", "Project manager", "Project manager"),
-            ("Zuhdija", "Delic", "Project manager", "Project manager"),
-            ("Vedad", "Kahrimanovic", "Work preparation", "Work preparation engineer"),
-            ("Nevres", "Smajlovic", "Work preparation", "Work preparation engineer"),
-            ("Ismail", "Brkic", "Work preparation", "Technical preparation"),
+            ("Nadir", "Hujdur", "Admin"),
+            ("Nadira", "Stupar", "Finances"),
+            ("Kenan", "Fajic", "Project manager"),
+            ("Zuhdija", "Delic", "Project manager"),
+            ("Vedad", "Kahrimanovic", "Work preparation"),
+            ("Nevres", "Smajlovic", "Work preparation"),
+            ("Ismail", "Brkic", "Work preparation"),
+        ];
+
+        /// <summary>
+        /// Fixed logins for grading/testing: the username is Name+Surname (see
+        /// <c>UserService.AuthenticateAsync</c>), so an empty surname makes the
+        /// username exactly "desktop" / "mobile" - the pair the project checklist
+        /// expects. One office role and one shop-floor role, so each is reachable
+        /// from the app it is named after.
+        /// </summary>
+        private static readonly (string Name, string Surname, string Role, string Email)[] DemoAccounts =
+        [
+            ("Desktop", "", "Admin", "desktop@pwm.ba"),
+            ("Mobile", "", "Production worker", "mobile@pwm.ba"),
         ];
 
         private const int ProductionWorkerCount = 30;
@@ -167,27 +180,27 @@ namespace pwm.Services.Database.Seed
             "Vehabovic", "Zahirovic", "Zulic", "Beganovic",
         ];
 
-        private static readonly string[] ShopFloorTitles =
-        [
-            "Welder", "CNC operator", "Locksmith", "Painter", "Assembler",
-            "Grinder", "Warehouse operator", "Quality controller", "Fitter",
-        ];
-
         private async Task SeedUsersAsync()
         {
             var users = new List<User>();
             var phone = 100;
 
-            foreach (var (name, surname, role, jobTitle) in NamedStaff)
+            foreach (var (name, surname, role) in NamedStaff)
             {
                 users.Add(CreateUser(name, surname, Email(name, surname),
-                    $"+3876110{phone++}", jobTitle, FindUserType(role).Id));
+                    $"+3876110{phone++}", FindUserType(role).Id));
+            }
+
+            foreach (var (name, surname, role, email) in DemoAccounts)
+            {
+                users.Add(CreateUser(name, surname, email,
+                    $"+3876110{phone++}", FindUserType(role).Id));
             }
 
             var productionWorker = FindUserType("Production worker").Id;
             var taken = new HashSet<string>(users.Select(u => u.Email));
 
-            while (users.Count < NamedStaff.Length + ProductionWorkerCount)
+            while (users.Count < NamedStaff.Length + DemoAccounts.Length + ProductionWorkerCount)
             {
                 var name = Pick(WorkerFirstNames);
                 var surname = Pick(WorkerSurnames);
@@ -199,7 +212,7 @@ namespace pwm.Services.Database.Seed
                 }
 
                 users.Add(CreateUser(name, surname, email, $"+3876110{phone++}",
-                    Pick(ShopFloorTitles), productionWorker,
+                    productionWorker,
                     // Roughly one in ten has left the shop
                     isActive: _random.Next(10) != 0));
             }
@@ -269,7 +282,6 @@ namespace pwm.Services.Database.Seed
             string surname,
             string email,
             string phoneNumber,
-            string jobTitle,
             int userTypeId,
             bool isActive = true)
         {
@@ -281,7 +293,6 @@ namespace pwm.Services.Database.Seed
                 Surname = surname,
                 Email = email,
                 PhoneNumber = phoneNumber,
-                JobTitle = jobTitle,
                 UserTypeId = userTypeId,
                 IsActive = isActive,
                 PasswordHash = hash,

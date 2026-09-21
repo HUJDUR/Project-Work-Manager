@@ -279,7 +279,6 @@ class WorkersProvider extends ChangeNotifier {
         surname: user.surname,
         initials: user.initials,
         email: user.email,
-        jobTitle: user.jobTitle ?? '—',
         roleId: user.userTypeId,
         roleName: roleById[user.userTypeId]?.type ?? 'Unknown',
         isActive: user.isActive,
@@ -306,7 +305,6 @@ class WorkersProvider extends ChangeNotifier {
     required int userTypeId,
     required bool isActive,
     String? phoneNumber,
-    String? jobTitle,
     String? password,
     List<int> operationIds = const [],
   }) async {
@@ -317,7 +315,6 @@ class WorkersProvider extends ChangeNotifier {
       'userTypeId': userTypeId,
       'isActive': isActive,
       'phoneNumber': phoneNumber,
-      'jobTitle': jobTitle,
       // Required on insert; on update the API keeps the old one when it is null.
       if (password != null && password.isNotEmpty) 'password': password,
     };

@@ -7,8 +7,11 @@ namespace pwm.Services.Interfaces
 {
     public interface IUserService : IBaseCRUDService<UserResponse, UserSearchObject, UserInsertRequest, UserUpdateRequest>
     {
-        /// <summary>Returns the account when the password matches, otherwise null.</summary>
-        Task<AuthenticatedUser?> AuthenticateAsync(string email, string password);
+        /// <summary>
+        /// Returns the account when <paramref name="emailOrUsername"/> matches its e-mail or
+        /// its name+surname username and the password matches, otherwise null.
+        /// </summary>
+        Task<AuthenticatedUser?> AuthenticateAsync(string emailOrUsername, string password);
 
         /// <summary>The same shape as <see cref="AuthenticateAsync"/>, for refreshing a token.</summary>
         Task<AuthenticatedUser?> GetAuthenticatedUserAsync(int id);

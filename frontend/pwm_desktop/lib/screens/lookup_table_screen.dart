@@ -150,16 +150,21 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
                     ],
                   ),
                 ),
-                FilledButton.icon(
-                  onPressed: _status == _LoadStatus.ready ? () => _openForm() : null,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                if (!widget.config.isReadOnly)
+                  FilledButton.icon(
+                    onPressed: _status == _LoadStatus.ready ? () => _openForm() : null,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    ),
                   ),
-                ),
               ],
             ),
+            if (widget.config.readOnlyReason != null) ...[
+              const SizedBox(height: AppSpacing.gap),
+              _ReadOnlyBanner(text: widget.config.readOnlyReason!),
+            ],
             const SizedBox(height: AppSpacing.gap),
             Expanded(child: _body()),
           ],
@@ -176,8 +181,8 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
           config: widget.config,
           rows: _rows,
           ctx: _ctx,
-          onTap: _openForm,
-          onDelete: _delete,
+          onTap: widget.config.isReadOnly ? null : _openForm,
+          onDelete: widget.config.isReadOnly ? null : _delete,
         ),
     };
   }
@@ -195,8 +200,13 @@ class _Table<T> extends StatelessWidget {
   final LookupTableConfig<T> config;
   final List<T> rows;
   final Map<String, Map<int, String>> ctx;
-  final ValueChanged<T> onTap;
-  final ValueChanged<T> onDelete;
+
+  /// Null on a read-only table - the row then has no tap target at all.
+  final ValueChanged<T>? onTap;
+
+  /// Null on a read-only table - the trailing delete column is dropped rather
+  /// than shown disabled, so a read-only list looks read-only at a glance.
+  final ValueChanged<T>? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +235,7 @@ class _Table<T> extends StatelessWidget {
                       ),
                     ),
                   ),
-                const SizedBox(width: 40),
+                if (onDelete != null) const SizedBox(width: 40),
               ],
             ),
           ),
@@ -244,9 +254,11 @@ class _Table<T> extends StatelessWidget {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final row = rows[index];
+                      final onTap = this.onTap;
+                      final onDelete = this.onDelete;
 
                       return InkWell(
-                        onTap: () => onTap(row),
+                        onTap: onTap == null ? null : () => onTap(row),
                         child: Padding(
                           padding:
                               const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -260,21 +272,54 @@ class _Table<T> extends StatelessWidget {
                                     style: const TextStyle(fontSize: 13.5),
                                   ),
                                 ),
-                              SizedBox(
-                                width: 40,
-                                child: IconButton(
-                                  onPressed: () => onDelete(row),
-                                  tooltip: 'Delete',
-                                  icon: Icon(Icons.delete_outline,
-                                      size: 18, color: AppColors.danger),
+                              if (onDelete != null)
+                                SizedBox(
+                                  width: 40,
+                                  child: IconButton(
+                                    onPressed: () => onDelete(row),
+                                    tooltip: 'Delete',
+                                    icon: Icon(Icons.delete_outline,
+                                        size: 18, color: AppColors.danger),
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ),
                       );
                     },
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Why a table has no Add/edit/delete - the same visual `RecommendationsScreen`
+/// uses to explain a number rather than just showing it.
+class _ReadOnlyBanner extends StatelessWidget {
+  const _ReadOnlyBanner({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.accentSoft,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.lock_outline, size: 16, color: AppColors.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+            ),
           ),
         ],
       ),

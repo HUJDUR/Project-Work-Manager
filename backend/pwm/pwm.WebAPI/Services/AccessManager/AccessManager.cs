@@ -17,6 +17,7 @@ namespace pwm.WebAPI.Services.AccessManager
     {
         private readonly IUserService _userService;
         private readonly IRefreshTokenService _refreshTokenService;
+        private readonly IActivityLogService _activityLogService;
         private readonly string _jwtSecret;
         private readonly string? _jwtIssuer;
         private readonly string? _jwtAudience;
@@ -26,10 +27,12 @@ namespace pwm.WebAPI.Services.AccessManager
         public AccessManager(
             IUserService userService,
             IRefreshTokenService refreshTokenService,
+            IActivityLogService activityLogService,
             IConfiguration configuration)
         {
             _userService = userService;
             _refreshTokenService = refreshTokenService;
+            _activityLogService = activityLogService;
 
             // The signing key is a secret, so it comes from JWT_SECRET in backend/.env
             // alone - the same resolution Program.cs's AddJwtAuthentication uses to
@@ -47,20 +50,26 @@ namespace pwm.WebAPI.Services.AccessManager
 
         public async Task<UserLoginResponse> LoginAsync(UserLoginRequest request)
         {
-            if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+            if (string.IsNullOrWhiteSpace(request.EmailOrUsername) || string.IsNullOrWhiteSpace(request.Password))
             {
-                throw new ClientException("Email and password are required.");
+                throw new ClientException("Email/username and password are required.");
             }
 
-            var authenticated = await _userService.AuthenticateAsync(request.Email.Trim(), request.Password);
+            var authenticated = await _userService.AuthenticateAsync(request.EmailOrUsername.Trim(), request.Password);
 
-            // Same message for an unknown email and a wrong password: it must not say which
+            // Same message for an unknown identifier and a wrong password: it must not say which
             if (authenticated == null)
             {
-                throw new ClientException("Incorrect email or password.");
+                throw new ClientException("Incorrect email/username or password.");
             }
 
-            return await IssueTokensAsync(authenticated);
+            var response = await IssueTokensAsync(authenticated);
+
+            // Recorded here, not inside IssueTokensAsync: LoginWithRefreshTokenAsync shares
+            // that method too, and a silent token refresh is not a fresh "Log In".
+            await _activityLogService.RecordAsync(authenticated.User.Id, ActivityLogTypeNames.LogIn);
+
+            return response;
         }
 
         public async Task<UserLoginResponse> LoginWithRefreshTokenAsync(RefreshAccessTokenRequest request)
@@ -102,6 +111,7 @@ namespace pwm.WebAPI.Services.AccessManager
             if (stored != null)
             {
                 await _refreshTokenService.DeleteAllUserRefreshTokensAsync(stored.UserId);
+                await _activityLogService.RecordAsync(stored.UserId, ActivityLogTypeNames.LogOut);
             }
         }
 

@@ -48,11 +48,46 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   final _currentPassword = TextEditingController();
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
+  final _currentPasswordFocus = FocusNode();
+  final _newPasswordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
 
   late final UserProvider _users = widget.userProvider ?? UserProvider();
 
   bool _saving = false;
   String? _error;
+
+  /// False until Save has been pressed once. `FormBuilder`'s own
+  /// `autovalidateMode` validates every field the moment any one of them
+  /// changes, not just the one being typed in - so each field is instead
+  /// re-checked by hand, on its own `onChanged`, and only once there is
+  /// something on screen worth keeping in step.
+  bool _saveAttempted = false;
+
+  /// Fields that have been focused and then left, each the first time it
+  /// happens - from then on that one field validates live too, the same
+  /// as every field does once Save has been pressed.
+  final _touchedFields = <String>{};
+
+  final _nameFocus = FocusNode();
+  final _surnameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+
+  /// Validates a field the moment it is left, not only once Save is pressed -
+  /// so leaving a broken field behind (typed, then emptied again) is caught
+  /// on the way out rather than staying silent until submit.
+  void _onFieldBlurred(String name, FocusNode node) {
+    if (node.hasFocus) return;
+    _touchedFields.add(name);
+    _formKey.currentState?.fields[name]?.validate(focusOnInvalid: false);
+  }
+
+  /// Re-validates one field in isolation - never the whole form, which would
+  /// surface every other untouched field's error along with it.
+  void _revalidateField(String name) {
+    if (!_saveAttempted && !_touchedFields.contains(name)) return;
+    _formKey.currentState?.fields[name]?.validate(focusOnInvalid: false);
+  }
 
   /// What is wrong with the password section, shown under it. Null until a save
   /// has been refused, then kept in step as the fields are corrected.
@@ -71,11 +106,37 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     setState(() => _passwordError = _checkPasswords());
   }
 
+  /// Checks the trio the moment any one of them is left, not only once Save
+  /// is pressed - same treatment leaving the name/e-mail fields already gets.
+  void _onPasswordFieldBlurred(FocusNode node) {
+    if (node.hasFocus) return;
+    setState(() => _passwordError = _checkPasswords());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _nameFocus.addListener(() => _onFieldBlurred('name', _nameFocus));
+    _surnameFocus.addListener(() => _onFieldBlurred('surname', _surnameFocus));
+    _emailFocus.addListener(() => _onFieldBlurred('email', _emailFocus));
+    _currentPasswordFocus
+        .addListener(() => _onPasswordFieldBlurred(_currentPasswordFocus));
+    _newPasswordFocus.addListener(() => _onPasswordFieldBlurred(_newPasswordFocus));
+    _confirmPasswordFocus
+        .addListener(() => _onPasswordFieldBlurred(_confirmPasswordFocus));
+  }
+
   @override
   void dispose() {
     _currentPassword.dispose();
     _newPassword.dispose();
     _confirmPassword.dispose();
+    _currentPasswordFocus.dispose();
+    _newPasswordFocus.dispose();
+    _confirmPasswordFocus.dispose();
+    _nameFocus.dispose();
+    _surnameFocus.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 
@@ -136,6 +197,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                           confirmPassword: _confirmPassword,
                           passwordError: _passwordError,
                           onPasswordChanged: _recheckPasswords,
+                          onFieldChanged: _revalidateField,
+                          nameFocus: _nameFocus,
+                          surnameFocus: _surnameFocus,
+                          emailFocus: _emailFocus,
+                          currentPasswordFocus: _currentPasswordFocus,
+                          newPasswordFocus: _newPasswordFocus,
+                          confirmPasswordFocus: _confirmPasswordFocus,
                         ),
                       ),
                     ),
@@ -147,6 +215,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   Future<void> _save() async {
+    _saveAttempted = true;
+
     final passwordError = _checkPasswords();
     final detailsValid = _formKey.currentState?.saveAndValidate() ?? false;
 
@@ -170,7 +240,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         surname: (values['surname'] as String).trim(),
         email: (values['email'] as String).trim(),
         phoneNumber: _trimToNull(values['phoneNumber']),
-        jobTitle: _trimToNull(values['jobTitle']),
         // Only sent when the password is actually being changed.
         currentPassword: newPassword == null ? null : _currentPassword.text,
         newPassword: newPassword,
@@ -215,6 +284,13 @@ class _Form extends StatelessWidget {
     required this.confirmPassword,
     required this.passwordError,
     required this.onPasswordChanged,
+    required this.onFieldChanged,
+    required this.nameFocus,
+    required this.surnameFocus,
+    required this.emailFocus,
+    required this.currentPasswordFocus,
+    required this.newPasswordFocus,
+    required this.confirmPasswordFocus,
   });
 
   final GlobalKey<FormBuilderState> formKey;
@@ -227,6 +303,17 @@ class _Form extends StatelessWidget {
   final String? passwordError;
   final VoidCallback onPasswordChanged;
 
+  /// Re-validates the one named field - never the whole form, which would
+  /// surface every other untouched field's error along with it.
+  final ValueChanged<String> onFieldChanged;
+
+  final FocusNode nameFocus;
+  final FocusNode surnameFocus;
+  final FocusNode emailFocus;
+  final FocusNode currentPasswordFocus;
+  final FocusNode newPasswordFocus;
+  final FocusNode confirmPasswordFocus;
+
   @override
   Widget build(BuildContext context) {
     return FormBuilder(
@@ -236,7 +323,6 @@ class _Form extends StatelessWidget {
         'surname': user.surname,
         'email': user.email,
         'phoneNumber': user.phoneNumber,
-        'jobTitle': user.jobTitle,
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -255,34 +341,47 @@ class _Form extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.gap),
                 Row(
+                  // Top-aligned, not centred: a validator error grows only
+                  // the field it belongs to, and centring would sink its
+                  // neighbour to match instead of leaving it where it started.
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: FormBuilderTextField(
                         name: 'name',
+                        focusNode: nameFocus,
                         decoration: appInputDecoration('First name'),
                         validator: FormBuilderValidators.required(
                           errorText: 'A first name is required.',
                         ),
+                        onChanged: (_) => onFieldChanged('name'),
                       ),
                     ),
                     const SizedBox(width: formFieldGap),
                     Expanded(
                       child: FormBuilderTextField(
                         name: 'surname',
+                        focusNode: surnameFocus,
                         decoration: appInputDecoration('Surname'),
                         validator: FormBuilderValidators.required(
                           errorText: 'A surname is required.',
                         ),
+                        onChanged: (_) => onFieldChanged('surname'),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: formFieldGap),
+                // Wider than formFieldGap: a validator error appends its own
+                // line under the field, and the ordinary gap reads as
+                // cramped once that red text sits right above what follows.
+                const SizedBox(height: formFieldGap + 10),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: FormBuilderTextField(
                         name: 'email',
+                        focusNode: emailFocus,
                         decoration: appInputDecoration('E-mail'),
                         validator: FormBuilderValidators.compose([
                           FormBuilderValidators.required(
@@ -292,6 +391,7 @@ class _Form extends StatelessWidget {
                             errorText: 'That is not an e-mail address.',
                           ),
                         ]),
+                        onChanged: (_) => onFieldChanged('email'),
                       ),
                     ),
                     const SizedBox(width: formFieldGap),
@@ -306,12 +406,7 @@ class _Form extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: formFieldGap),
-                FormBuilderTextField(
-                  name: 'jobTitle',
-                  decoration: appInputDecoration('Job title', hintText: 'Not set'),
-                ),
-                const SizedBox(height: formFieldGap),
+                const SizedBox(height: formFieldGap + 10),
                 // Read-only on purpose: an account cannot promote itself.
                 _ReadOnlyRow(label: 'Role', value: role),
               ],
@@ -333,6 +428,9 @@ class _Form extends StatelessWidget {
                   confirmPassword: confirmPassword,
                   error: passwordError,
                   onChanged: onPasswordChanged,
+                  currentPasswordFocus: currentPasswordFocus,
+                  newPasswordFocus: newPasswordFocus,
+                  confirmPasswordFocus: confirmPasswordFocus,
                 ),
               ],
             ),
@@ -353,6 +451,9 @@ class _PasswordFields extends StatelessWidget {
     required this.confirmPassword,
     required this.error,
     required this.onChanged,
+    required this.currentPasswordFocus,
+    required this.newPasswordFocus,
+    required this.confirmPasswordFocus,
   });
 
   final TextEditingController currentPassword;
@@ -360,46 +461,56 @@ class _PasswordFields extends StatelessWidget {
   final TextEditingController confirmPassword;
   final String? error;
   final VoidCallback onChanged;
+  final FocusNode currentPasswordFocus;
+  final FocusNode newPasswordFocus;
+  final FocusNode confirmPasswordFocus;
 
   @override
   Widget build(BuildContext context) {
+    // The confirm field is just empty so far, not actually wrong - shown as
+    // an unfinished (red, captionless) field rather than as an error message.
+    final unconfirmed = error == PasswordRules.confirmationNeeded;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
+        PasswordField(
           controller: currentPassword,
-          obscureText: true,
+          focusNode: currentPasswordFocus,
+          label: 'Current password',
           onChanged: (_) => onChanged(),
-          decoration: appInputDecoration('Current password'),
         ),
         const SizedBox(height: formFieldGap),
         Row(
           children: [
             Expanded(
-              child: TextField(
+              child: PasswordField(
                 controller: newPassword,
-                obscureText: true,
+                focusNode: newPasswordFocus,
+                label: 'New password',
                 onChanged: (_) => onChanged(),
-                decoration: appInputDecoration('New password'),
               ),
             ),
             const SizedBox(width: formFieldGap),
             Expanded(
-              child: TextField(
+              child: PasswordField(
                 controller: confirmPassword,
-                obscureText: true,
+                focusNode: confirmPasswordFocus,
+                label: 'Confirm new password',
                 onChanged: (_) => onChanged(),
-                decoration: appInputDecoration('Confirm new password'),
+                hasError: unconfirmed,
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
-          error ?? PasswordRules.describe,
+          unconfirmed ? PasswordRules.describe : (error ?? PasswordRules.describe),
           style: TextStyle(
             fontSize: 12,
-            color: error == null ? AppColors.textSecondary : AppColors.danger,
+            color: error == null || unconfirmed
+                ? AppColors.textSecondary
+                : AppColors.danger,
           ),
         ),
       ],

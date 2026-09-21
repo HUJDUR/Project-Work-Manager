@@ -19,7 +19,8 @@ namespace pwm.Services.Validators
                     .WithMessage($"At least {MinLength} characters.")
                 .Matches("[A-Z]").WithMessage("Needs an upper-case letter.")
                 .Matches("[a-z]").WithMessage("Needs a lower-case letter.")
-                .Matches("[0-9]").WithMessage("Needs a number.");
+                .Matches("[0-9]").WithMessage("Needs a number.")
+                .Matches("[!@#$%^&*(),.?\":{}|<>]").WithMessage("Needs a special character.");
         }
     }
 

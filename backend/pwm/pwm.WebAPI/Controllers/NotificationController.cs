@@ -25,7 +25,10 @@ namespace pwm.WebAPI.Controllers
         [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
         public async Task<NotificationSendResponse> Send([FromBody] NotificationSendRequest request)
         {
-            return await _notifications.SendAsync(request);
+            var senderId = _currentUser.Id
+                ?? throw new ForbiddenException("The token carries no user, so there is nothing to send this as.");
+
+            return await _notifications.SendAsync(senderId, request);
         }
 
         /// <summary>Open to every role - rows are scoped to the caller via the token, not an id.</summary>
