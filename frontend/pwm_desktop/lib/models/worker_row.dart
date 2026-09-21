@@ -8,7 +8,6 @@ class WorkerRow {
     required this.surname,
     required this.initials,
     required this.email,
-    required this.jobTitle,
     required this.roleId,
     required this.roleName,
     required this.isActive,
@@ -22,10 +21,6 @@ class WorkerRow {
   final String surname;
   final String initials;
   final String email;
-
-  /// Em dash when the account has none, so the table can print it as is.
-  final String jobTitle;
-
   final int roleId;
 
   /// Administrator, Manager or Worker.

@@ -177,27 +177,19 @@ class _LoginScreenState extends State<LoginScreen> {
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 28),
-            _FieldLabel('Email'),
+            _FieldLabel('Email or username'),
             TextFormField(
               controller: _emailController,
               autofocus: true,
               enabled: !isBusy,
-              keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.next,
               decoration: _fieldDecoration(
-                hint: 'name@pwm.ba',
-                icon: Icons.mail_outline,
+                hint: 'name@pwm.ba or NameSurname',
+                icon: Icons.person_outline,
               ),
-              validator: (value) {
-                final email = value?.trim() ?? '';
-                if (email.isEmpty) {
-                  return 'Enter your email address.';
-                }
-                if (!email.contains('@')) {
-                  return 'That does not look like an email address.';
-                }
-                return null;
-              },
+              validator: (value) => (value?.trim() ?? '').isEmpty
+                  ? 'Enter your email or username.'
+                  : null,
             ),
             const SizedBox(height: 18),
             _FieldLabel('Password'),

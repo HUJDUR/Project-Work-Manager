@@ -1,4 +1,5 @@
 using MapsterMapper;
+using Microsoft.EntityFrameworkCore;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
 using pwm.Services.Database;
@@ -12,6 +13,26 @@ namespace pwm.Services.Implementations
         public ActivityLogService(PWMDbContext dbContext, IMapper mapper)
             : base(mapper, dbContext)
         {
+        }
+
+        public async Task RecordAsync(int userId, string activityLogTypeName)
+        {
+            var logType = await _dbContext.ActivityLogTypes
+                .FirstOrDefaultAsync(x => x.Name == activityLogTypeName);
+
+            if (logType is null)
+            {
+                return;
+            }
+
+            _dbContext.ActivityLogs.Add(new ActivityLog
+            {
+                UserId = userId,
+                ActivityLogTypeId = logType.Id,
+                Date = DateTime.UtcNow,
+            });
+
+            await _dbContext.SaveChangesAsync();
         }
 
         protected override IQueryable<ActivityLog> ApplyFilters(IQueryable<ActivityLog> query, ActivityLogSearchObject? search)

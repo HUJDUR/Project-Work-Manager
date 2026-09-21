@@ -53,11 +53,15 @@ class AdministrationScreen extends StatelessWidget {
             const SizedBox(height: AppSpacing.gap),
             Expanded(
               child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
+                // A fixed column count stretches into three huge, mostly-empty
+                // cards on a wide monitor; capping each card's width instead
+                // lets more columns fit as the window grows, with every card
+                // staying the same compact height regardless of column count.
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 360,
                   mainAxisSpacing: AppSpacing.gap,
                   crossAxisSpacing: AppSpacing.gap,
-                  childAspectRatio: 2.6,
+                  mainAxisExtent: 96,
                 ),
                 itemCount: _tiles.length,
                 itemBuilder: (context, index) => _TileView(tile: _tiles[index]),
@@ -158,6 +162,8 @@ LookupTableConfig<ActivityLogType> _activityLogTypes() => simpleNameTable<Activi
       createProvider: () => ActivityLogTypeProvider(),
       idOf: (row) => row.id,
       nameOf: (row) => row.name,
+      readOnlyReason: "These six activity types are wired into the app's code. "
+          "Changing anything would break the application.",
     );
 
 LookupTableConfig<UserType> _userTypes() => simpleNameTable<UserType>(
@@ -168,6 +174,8 @@ LookupTableConfig<UserType> _userTypes() => simpleNameTable<UserType>(
       nameOf: (row) => row.type,
       fieldKey: 'type',
       fieldLabel: 'Type',
+      readOnlyReason: "These five roles are wired into the app's code. "
+          "Changing anything would break the application.",
     );
 
 LookupTableConfig<OperationType> _operationTypes() => simpleNameTable<OperationType>(
@@ -201,6 +209,8 @@ LookupTableConfig<ProjectStatusType> _projectStatusTypes() =>
       createProvider: () => ProjectStatusTypeProvider(),
       idOf: (row) => row.id,
       nameOf: (row) => row.name,
+      readOnlyReason: "These statuses are wired into the app's code. "
+          "Changing anything would break the application.",
     );
 
 LookupTableConfig<TruckLoadStatusType> _truckLoadStatusTypes() =>
@@ -237,6 +247,8 @@ LookupTableConfig<ReportTypeLookup> _reportTypes() => LookupTableConfig<ReportTy
         const LookupField(key: 'description', label: 'Description'),
       ],
       valuesOf: (row) => {'id': row.id, 'description': row.description},
+      readOnlyReason: "These report types are wired into the app's code. "
+          "Changing anything would break the application.",
     );
 
 LookupTableConfig<Country> _countries() => LookupTableConfig<Country>(

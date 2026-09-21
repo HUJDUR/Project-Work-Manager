@@ -1,3 +1,4 @@
+using pwm.Model.Access;
 using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.Services.Database.Seed
@@ -184,10 +185,10 @@ namespace pwm.Services.Database.Seed
         {
             var logs = new List<ActivityLog>();
 
-            var login = FindLogType("Log In").Id;
-            var logout = FindLogType("Log out").Id;
-            var messageSent = FindLogType("Message sent").Id;
-            var markedRead = FindLogType("Marked messages as read").Id;
+            var login = FindLogType(ActivityLogTypeNames.LogIn).Id;
+            var logout = FindLogType(ActivityLogTypeNames.LogOut).Id;
+            var messageSent = FindLogType(ActivityLogTypeNames.MessageSent).Id;
+            var markedRead = FindLogType(ActivityLogTypeNames.MarkedMessagesAsRead).Id;
 
             // A shift is a day on the shop floor, so it opens and closes a session
             foreach (var workLog in _workLogs)

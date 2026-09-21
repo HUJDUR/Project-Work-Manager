@@ -11,7 +11,7 @@ abstract final class PasswordRules {
   /// Shown under the field, so the rules are known before they are broken.
   static const String describe =
       'At least $minLength characters, with an upper-case letter, a lower-case '
-      'letter and a number.';
+      'letter, a number and a special character.';
 
   /// The complaint about [value], or null when it passes.
   static String? validate(String? value) {
@@ -29,6 +29,9 @@ abstract final class PasswordRules {
     }
     if (!password.contains(RegExp('[0-9]'))) {
       return 'Needs a number.';
+    }
+    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
+      return 'Needs a special character.';
     }
 
     return null;
@@ -68,12 +71,17 @@ abstract final class PasswordRules {
     return null;
   }
 
+  /// Not shown as text anywhere - a screen compares against this to tell an
+  /// unfinished confirmation apart from an actual mismatch, and renders the
+  /// confirm field as unfinished (a red, empty field) instead of an error.
+  static const String confirmationNeeded = 'Type the password again.';
+
   /// Checks the second field against the first.
   static String? confirm(String? value, String? password) {
     final typedPassword = password ?? '';
     if (typedPassword.isEmpty) return null;
 
-    if ((value ?? '').isEmpty) return 'Type the password again.';
+    if ((value ?? '').isEmpty) return confirmationNeeded;
     if (value != typedPassword) return 'The two passwords do not match.';
 
     return null;

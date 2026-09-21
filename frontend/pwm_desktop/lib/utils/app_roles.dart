@@ -25,6 +25,16 @@ abstract final class AppRoles {
   /// theirs, so they are turned away at sign-in rather than shown an empty shell.
   static bool usesDesktop(String role) => role != productionWorker;
 
+  /// The two operations every office role (all but Production worker) is
+  /// qualified for - what `DataSeeder.Organisation` seeds every one of them
+  /// with. Every other `OperationType` is shop-floor-only.
+  static const Set<String> officeOperations = {'Office work', 'Technical preparation'};
+
+  /// Whether `operationName` belongs to the office pair rather than the shop
+  /// floor - used to split the Workers form's "Qualified for" options by role.
+  static bool isOfficeOperation(String operationName) =>
+      officeOperations.contains(operationName);
+
   static bool canOpen(String role, String destination) =>
       !(_blocked[role]?.contains(destination) ?? false);
 

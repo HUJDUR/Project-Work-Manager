@@ -12,7 +12,6 @@ class User {
     required this.userTypeId,
     required this.isActive,
     this.phoneNumber,
-    this.jobTitle,
   });
 
   final int id;
@@ -22,7 +21,6 @@ class User {
   final int userTypeId;
   final bool isActive;
   final String? phoneNumber;
-  final String? jobTitle;
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   String get fullName => '$name $surname'.trim();

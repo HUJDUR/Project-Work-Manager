@@ -37,14 +37,15 @@ class AuthProvider with ChangeNotifier {
 
   bool get isBusy => _isBusy;
 
-  /// Throws [ApiClientException] with the API's own wording when the credentials are refused.
-  Future<void> login(String email, String password) async {
+  /// [emailOrUsername] is matched against the account's e-mail or its name+surname
+  /// username. Throws [ApiClientException] with the API's own wording when refused.
+  Future<void> login(String emailOrUsername, String password) async {
     _isBusy = true;
     notifyListeners();
 
     try {
       _apply(await _requestTokens(_loginEndpoint, {
-        'email': email.trim(),
+        'emailOrUsername': emailOrUsername.trim(),
         'password': password,
       }));
     } finally {

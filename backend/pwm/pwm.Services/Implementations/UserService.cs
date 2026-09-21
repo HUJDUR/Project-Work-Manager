@@ -31,16 +31,22 @@ namespace pwm.Services.Implementations
             _cryptoService = cryptoService;
         }
 
-        public async Task<AuthenticatedUser?> AuthenticateAsync(string email, string password)
+        public async Task<AuthenticatedUser?> AuthenticateAsync(string emailOrUsername, string password)
         {
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            if (string.IsNullOrWhiteSpace(emailOrUsername) || string.IsNullOrWhiteSpace(password))
             {
                 return null;
             }
 
+            var email = emailOrUsername.Trim().ToLower();
+            // Spaces stripped so "Nadir Hujdur" and "nadirhujdur" both match the same account
+            var username = email.Replace(" ", string.Empty);
+
             var user = await _dbContext.Users
                 .Include(x => x.UserType)
-                .FirstOrDefaultAsync(x => x.Email == email);
+                .FirstOrDefaultAsync(x =>
+                    x.Email.ToLower() == email
+                    || (x.Name + x.Surname).ToLower() == username);
 
             if (user == null || !_cryptoService.Verify(user.PasswordHash, user.PasswordSalt, password))
             {
@@ -105,7 +111,6 @@ namespace pwm.Services.Implementations
             user.Surname = request.Surname.Trim();
             user.Email = email;
             user.PhoneNumber = request.PhoneNumber?.Trim();
-            user.JobTitle = request.JobTitle?.Trim();
 
             await _dbContext.SaveChangesAsync();
 
@@ -125,8 +130,7 @@ namespace pwm.Services.Implementations
                 query = query.Where(x =>
                     EF.Functions.Like(x.Name, $"%{needle}%")
                     || EF.Functions.Like(x.Surname, $"%{needle}%")
-                    || EF.Functions.Like(x.Email, $"%{needle}%")
-                    || (x.JobTitle != null && EF.Functions.Like(x.JobTitle, $"%{needle}%")));
+                    || EF.Functions.Like(x.Email, $"%{needle}%"));
             }
 
             if (!string.IsNullOrWhiteSpace(search.Name))

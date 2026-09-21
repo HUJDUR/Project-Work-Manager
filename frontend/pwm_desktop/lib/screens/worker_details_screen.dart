@@ -5,6 +5,7 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 import '../models/models.dart';
 import '../providers/workers_provider.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/app_roles.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
@@ -32,11 +33,45 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
   bool _saving = false;
   String? _error;
 
+  /// False until Save has been pressed once. `FormBuilder`'s own
+  /// `autovalidateMode` validates every field the moment any one of them
+  /// changes, not just the one being typed in - so each field is instead
+  /// re-checked by hand, on its own `onChanged`, and only once there is
+  /// something on screen worth keeping in step.
+  bool _saveAttempted = false;
+
+  /// Fields that have been focused and then left, each the first time it
+  /// happens - from then on that one field validates live too, the same
+  /// as every field does once Save has been pressed.
+  final _touchedFields = <String>{};
+
+  final _nameFocus = FocusNode();
+  final _surnameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+
+  /// Validates a field the moment it is left, not only once Save is pressed -
+  /// so leaving a broken field behind (typed, then emptied again) is caught
+  /// on the way out rather than staying silent until submit.
+  void _onFieldBlurred(String name, FocusNode node) {
+    if (node.hasFocus) return;
+    _touchedFields.add(name);
+    _formKey.currentState?.fields[name]?.validate(focusOnInvalid: false);
+  }
+
+  /// Re-validates one field in isolation - never the whole form, which would
+  /// surface every other untouched field's error along with it.
+  void _revalidateField(String name) {
+    if (!_saveAttempted && !_touchedFields.contains(name)) return;
+    _formKey.currentState?.fields[name]?.validate(focusOnInvalid: false);
+  }
+
   /// The two password fields are driven by controllers this state owns: the
   /// confirmation is checked against the password, and a field's value read back
   /// out of the form is not reliably current while the form is validating.
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
+  final _passwordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
 
   /// What is wrong with the pair, shown under them. Null until a save has been
   /// refused, then kept in step as they are corrected.
@@ -60,7 +95,24 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
     setState(() => _passwordError = _checkPasswords());
   }
 
+  /// Checks the pair the moment either is left, not only once Save is pressed -
+  /// same treatment leaving the name/e-mail fields already gets.
+  void _onPasswordFieldBlurred(FocusNode node) {
+    if (node.hasFocus) return;
+    setState(() => _passwordError = _checkPasswords());
+  }
+
+  /// The confirm field is just empty so far, not actually wrong - shown as an
+  /// unfinished (red, captionless) field rather than as an error message.
+  bool get _unconfirmedPassword =>
+      _passwordError == PasswordRules.confirmationNeeded;
+
   bool get _isNew => widget.row == null;
+
+  /// Which role is currently picked, kept in state (rather than read back from
+  /// the form) so choosing a new one can immediately change which operations
+  /// are offered below it.
+  int? _selectedRoleId;
 
   @override
   void initState() {
@@ -68,18 +120,66 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
 
     final row = widget.row;
 
+    _selectedRoleId = row?.roleId ?? _roleIdOf(WorkersProvider.workerRole);
+
     _initialValue = {
       'name': row?.name,
       'surname': row?.surname,
       'email': row?.email,
       'phoneNumber': row?.phoneNumber,
-      // The table prints an em dash for an account with no job title; the form
-      // should show an empty field rather than that placeholder.
-      'jobTitle': row?.jobTitle == '—' ? null : row?.jobTitle,
-      'userTypeId': row?.roleId ?? _roleIdOf(WorkersProvider.workerRole),
+      'userTypeId': _selectedRoleId,
       'isActive': row?.isActive ?? true,
       'operationIds': row?.operationIds ?? const <int>[],
     };
+
+    _nameFocus.addListener(() => _onFieldBlurred('name', _nameFocus));
+    _surnameFocus.addListener(() => _onFieldBlurred('surname', _surnameFocus));
+    _emailFocus.addListener(() => _onFieldBlurred('email', _emailFocus));
+    _passwordFocus.addListener(() => _onPasswordFieldBlurred(_passwordFocus));
+    _confirmPasswordFocus
+        .addListener(() => _onPasswordFieldBlurred(_confirmPasswordFocus));
+  }
+
+  @override
+  void dispose() {
+    _nameFocus.dispose();
+    _surnameFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
+    _password.dispose();
+    _confirmPassword.dispose();
+    super.dispose();
+  }
+
+  bool get _isProductionRole {
+    final role = widget.provider.roles
+        .where((type) => type.id == _selectedRoleId)
+        .firstOrNull;
+    return role?.type == AppRoles.productionWorker;
+  }
+
+  /// The operations offered under the picked role - the office pair for every
+  /// role but Production worker, the shop floor for that one. See
+  /// `AppRoles.officeOperations` for why the split is exactly these two.
+  List<OperationType> get _availableOperations => widget.provider.operationTypes
+      .where((op) => AppRoles.isOfficeOperation(op.name) != _isProductionRole)
+      .toList();
+
+  /// Switching role can hide operations that were picked under the old one -
+  /// they are dropped rather than left selected but invisible.
+  void _onRoleChanged(int? roleId) {
+    setState(() => _selectedRoleId = roleId);
+    _revalidateField('userTypeId');
+
+    final field = _formKey.currentState?.fields['operationIds'];
+    final visible = _availableOperations.map((op) => op.id).toSet();
+    final current = (field?.value as List<int>?) ?? const <int>[];
+    final pruned = current.where(visible.contains).toList();
+
+    if (pruned.length != current.length) {
+      field?.didChange(pruned);
+    }
   }
 
   int? _roleIdOf(String role) => widget.provider.roles
@@ -107,35 +207,48 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
+              // Top-aligned, not centred: a validator error grows only the
+              // field it belongs to, and centring would sink its neighbour
+              // to match instead of leaving it where it started.
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'name',
                     autofocus: _isNew,
+                    focusNode: _nameFocus,
                     decoration: appInputDecoration('First name'),
                     validator: FormBuilderValidators.required(
                       errorText: 'A first name is required.',
                     ),
+                    onChanged: (_) => _revalidateField('name'),
                   ),
                 ),
                 const SizedBox(width: formFieldGap),
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'surname',
+                    focusNode: _surnameFocus,
                     decoration: appInputDecoration('Surname'),
                     validator: FormBuilderValidators.required(
                       errorText: 'A surname is required.',
                     ),
+                    onChanged: (_) => _revalidateField('surname'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: formFieldGap),
+            // Wider than formFieldGap: a validator error appends its own line
+            // under the field, and the ordinary gap reads as cramped once
+            // that red text is sitting right above the next field's label.
+            const SizedBox(height: formFieldGap + 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'email',
+                    focusNode: _emailFocus,
                     decoration: appInputDecoration('E-mail'),
                     validator: FormBuilderValidators.compose([
                       FormBuilderValidators.required(
@@ -145,6 +258,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
                         errorText: 'That is not an e-mail address.',
                       ),
                     ]),
+                    onChanged: (_) => _revalidateField('email'),
                   ),
                 ),
                 const SizedBox(width: formFieldGap),
@@ -156,33 +270,21 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: formFieldGap),
-            Row(
-              children: [
-                Expanded(
-                  child: FormBuilderTextField(
-                    name: 'jobTitle',
-                    decoration: appInputDecoration('Job title', hintText: 'Optional'),
+            const SizedBox(height: formFieldGap + 10),
+            FormBuilderDropdown<int>(
+              name: 'userTypeId',
+              isExpanded: true,
+              decoration: appInputDecoration('Role'),
+              validator: FormBuilderValidators.required(
+                errorText: 'Pick a role.',
+              ),
+              onChanged: _onRoleChanged,
+              items: [
+                for (final UserType role in provider.roles)
+                  DropdownMenuItem(
+                    value: role.id,
+                    child: Text(role.type, overflow: TextOverflow.ellipsis),
                   ),
-                ),
-                const SizedBox(width: formFieldGap),
-                Expanded(
-                  child: FormBuilderDropdown<int>(
-                    name: 'userTypeId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Role'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Pick a role.',
-                    ),
-                    items: [
-                      for (final UserType role in provider.roles)
-                        DropdownMenuItem(
-                          value: role.id,
-                          child: Text(role.type, overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: formSectionGap),
@@ -191,37 +293,34 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
             Row(
               children: [
                 Expanded(
-                  child: TextField(
+                  child: PasswordField(
                     controller: _password,
-                    obscureText: true,
+                    focusNode: _passwordFocus,
+                    label: 'Password',
+                    hintText:
+                        _isNew ? null : 'Leave blank to keep the current one',
                     onChanged: (_) => _recheckPasswords(),
-                    decoration: appInputDecoration(
-                      'Password',
-                      hintText:
-                          _isNew ? null : 'Leave blank to keep the current one',
-                    ),
                   ),
                 ),
                 const SizedBox(width: formFieldGap),
                 Expanded(
-                  child: TextField(
+                  child: PasswordField(
                     controller: _confirmPassword,
-                    obscureText: true,
+                    focusNode: _confirmPasswordFocus,
+                    label: 'Confirm password',
+                    hintText: _isNew ? null : 'Only if you are changing it',
                     onChanged: (_) => _recheckPasswords(),
-                    decoration: appInputDecoration(
-                      'Confirm password',
-                      hintText: _isNew ? null : 'Only if you are changing it',
-                    ),
+                    hasError: _unconfirmedPassword,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              _passwordError ?? PasswordRules.describe,
+              _unconfirmedPassword ? PasswordRules.describe : (_passwordError ?? PasswordRules.describe),
               style: TextStyle(
                 fontSize: 12,
-                color: _passwordError == null
+                color: _passwordError == null || _unconfirmedPassword
                     ? AppColors.textSecondary
                     : AppColors.danger,
               ),
@@ -233,11 +332,17 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Which operations this person may book hours against. Office staff need none.',
+              _isProductionRole
+                  ? 'Which shop-floor operations this person may book hours against.'
+                  : 'Office roles are limited to Office work and Technical preparation.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
+            // Re-keyed on the role, so switching from one bucket to the other
+            // rebuilds the chip list fresh rather than reusing chip state
+            // (and its own internal selection bookkeeping) across the swap.
             FormBuilderFilterChips<int>(
+              key: ValueKey(_isProductionRole),
               name: 'operationIds',
               decoration: const InputDecoration(
                   border: InputBorder.none,
@@ -249,7 +354,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
               spacing: 8,
               runSpacing: 4,
               options: [
-                for (final OperationType operation in provider.operationTypes)
+                for (final OperationType operation in _availableOperations)
                   FormBuilderChipOption(
                     value: operation.id,
                     child: Text(operation.name),
@@ -284,6 +389,8 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
   }
 
   Future<void> _save() async {
+    _saveAttempted = true;
+
     final passwordError = _checkPasswords();
     final detailsValid = _formKey.currentState?.saveAndValidate() ?? false;
 
@@ -308,7 +415,6 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
         userTypeId: values['userTypeId'] as int,
         isActive: values['isActive'] as bool? ?? true,
         phoneNumber: _trimToNull(values['phoneNumber']),
-        jobTitle: _trimToNull(values['jobTitle']),
         password: _password.text.isEmpty ? null : _password.text,
         operationIds: (values['operationIds'] as List<int>?) ?? const [],
       );

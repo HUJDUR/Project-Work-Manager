@@ -78,13 +78,49 @@ on the row. The desktop app polls `GET /Report/{id}/Status` until it reads
    Scalar API reference is available at `/scalar` and migrations are applied
    automatically on startup.
 
+### Test accounts
+
+Sign in with either the account's e-mail or its username (first name + surname,
+no space, e.g. `NadirHujdur` - the sign-in form takes either). Every seeded
+account shares the same password.
+
+| Context | Username | Password |
+| --- | --- | --- |
+| Desktop verzija | `desktop` | `test` |
+| Mobilna verzija | `mobile` | `test` |
+
+`desktop` is a fixed Admin account (`Name="Desktop"`, empty surname, so the
+username is exactly `desktop`) and `mobile` is a fixed Production worker
+account, both seeded by `DataSeeder.Organisation.DemoAccounts`; a production
+worker's account is turned away from the desktop app, since no desktop screen
+is theirs, so `mobile` only works from the mobile app.
+
+Every other role also has a seeded account, for testing role-specific
+behaviour:
+
+| Role | E-mail | Username | Password |
+| --- | --- | --- | --- |
+| Admin | `nadir.hujdur@pwm.ba` | `NadirHujdur` | `test` |
+| Finances | `nadira.stupar@pwm.ba` | `NadiraStupar` | `test` |
+| Project manager | `kenan.fajic@pwm.ba` | `KenanFajic` | `test` |
+| Work preparation | `vedad.kahrimanovic@pwm.ba` | `VedadKahrimanovic` | `test` |
+| Production worker | `armin.karic@pwm.ba` | `ArminKaric` | `test` |
+
+All five of those also work from the mobile app. 30 more `Production worker`
+accounts are seeded with random Bosnian names on the
+`firstname.surname@pwm.ba` pattern (about one in ten inactive, to exercise
+the deactivated-account path) - see `DataSeeder.Organisation.cs` for the full
+name pools, or query the `Users` table after seeding.
+
 ### Notes
 
 - The connection string in `appsettings.json` carries everything except the
   password, which always comes from `.env`/`DB_PASSWORD`.
-- `pwm.WebAPI/DevSettings.BypassAuthentication` must stay `false` outside a
-  local, throwaway debugging session — flipping it on turns off every
-  `[Authorization]` check for the whole API.
+- `pwm.WebAPI/DevSettings.BypassAuthenticationRequested` must stay `false`
+  outside a local, throwaway debugging session — flipping it on turns off
+  every `[Authorization]` check for the whole API. It only ever takes effect
+  under `ASPNETCORE_ENVIRONMENT=Development`, so leaving it on by mistake
+  cannot disable auth in a deployed environment.
 - `pwm.Worker` runs only in Docker, built from `pwm.Worker/Dockerfile` with
   build context `backend/pwm` (it needs its sibling projects visible to
   restore). After changing anything it or `pwm.Services/Reporting` depends

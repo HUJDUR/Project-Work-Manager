@@ -20,7 +20,6 @@ class UserProvider extends BaseProvider<User> {
     required String surname,
     required String email,
     String? phoneNumber,
-    String? jobTitle,
     String? currentPassword,
     String? newPassword,
   }) async {
@@ -30,7 +29,6 @@ class UserProvider extends BaseProvider<User> {
       'surname': surname,
       'email': email,
       'phoneNumber': phoneNumber,
-      'jobTitle': jobTitle,
       'currentPassword': currentPassword,
       'newPassword': newPassword,
     });
