@@ -17,6 +17,7 @@ class AppPalette {
     required this.danger,
     required this.dangerSoft,
     required this.dangerBorder,
+    required this.success,
     required this.tooltipSurface,
     required this.tooltipText,
     required this.fieldBorder,
@@ -36,6 +37,11 @@ class AppPalette {
   final Color danger;
   final Color dangerSoft;
   final Color dangerBorder;
+
+  /// The one green in either palette - a saved/succeeded toast's top line,
+  /// nothing else. [accent] stays the app's one "primary" blue everywhere
+  /// else, so this is never reached for a button or a link.
+  final Color success;
 
   /// A tooltip floats over the chart, so it cannot borrow the card's colours:
   /// in light it inverts to a dark slate, and in dark it lifts clear of the
@@ -67,6 +73,7 @@ class AppPalette {
     danger: Color(0xFFB91C1C),
     dangerSoft: Color(0xFFFEF2F2),
     dangerBorder: Color(0xFFFECACA),
+    success: Color(0xFF10B981),
     tooltipSurface: Color(0xFF1F2937),
     tooltipText: Color(0xFFF9FAFB),
     fieldBorder: Color(0xFFDCE0E6),
@@ -87,6 +94,7 @@ class AppPalette {
     danger: Color(0xFFF87171),
     dangerSoft: Color(0xFF2E1A1A),
     dangerBorder: Color(0xFF5B2A2A),
+    success: Color(0xFF34D399),
     tooltipSurface: Color(0xFF333B47),
     tooltipText: Color(0xFFF2F4F7),
     fieldBorder: Color(0xFF323945),
@@ -123,6 +131,7 @@ abstract final class AppColors {
   static Color get danger => palette.danger;
   static Color get dangerSoft => palette.dangerSoft;
   static Color get dangerBorder => palette.dangerBorder;
+  static Color get success => palette.success;
 
   static const series = <Color>[
     Color(0xFF2563EB),

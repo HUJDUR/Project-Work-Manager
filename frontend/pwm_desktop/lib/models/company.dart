@@ -7,6 +7,7 @@ class Company {
   const Company({
     required this.id,
     required this.name,
+    required this.countryId,
     required this.cityId,
     required this.address,
     required this.companyTypeId,
@@ -16,6 +17,7 @@ class Company {
 
   final int id;
   final String name;
+  final int countryId;
   final int cityId;
   final String address;
   final int companyTypeId;

@@ -13,6 +13,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Stahlbau Meyer GmbH",
+                    CountryId = FindCity("Munich").CountryId,
                     CityId = FindCity("Munich").Id,
                     Address = "Industriestrasse 14",
                     VAT = "DE811234567",
@@ -22,6 +23,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Nordmetall AG",
+                    CountryId = FindCity("Hamburg").CountryId,
                     CityId = FindCity("Hamburg").Id,
                     Address = "Hafenweg 8",
                     VAT = "DE822345678",
@@ -31,6 +33,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Wiener Metallwerke GmbH",
+                    CountryId = FindCity("Vienna").CountryId,
                     CityId = FindCity("Vienna").Id,
                     Address = "Ringstrasse 102",
                     VAT = "ATU12345678",
@@ -40,6 +43,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Adria Konstrukcije d.o.o.",
+                    CountryId = FindCity("Zagreb").CountryId,
                     CityId = FindCity("Zagreb").Id,
                     Address = "Slavonska avenija 45",
                     VAT = "HR12345678901",
@@ -49,6 +53,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Alpina Systems GmbH",
+                    CountryId = FindCity("Stuttgart").CountryId,
                     CityId = FindCity("Stuttgart").Id,
                     Address = "Weilimdorfer Strasse 61",
                     VAT = "DE833456789",
@@ -58,6 +63,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "TransBalkan Logistika d.o.o.",
+                    CountryId = FindCity("Tuzla").CountryId,
                     CityId = FindCity("Tuzla").Id,
                     Address = "Magistralni put bb",
                     VAT = "BA200123450001",
@@ -67,6 +73,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Euro Spedicija d.o.o.",
+                    CountryId = FindCity("Sarajevo").CountryId,
                     CityId = FindCity("Sarajevo").Id,
                     Address = "Rajlovacka cesta 22",
                     VAT = "BA200234560002",
@@ -76,6 +83,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Meyer Baustelle Nord",
+                    CountryId = FindCity("Hamburg").CountryId,
                     CityId = FindCity("Hamburg").Id,
                     Address = "Billbrookdeich 210",
                     VAT = "DE844567890",
@@ -85,6 +93,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Nordmetall Montageplatz",
+                    CountryId = FindCity("Munich").CountryId,
                     CityId = FindCity("Munich").Id,
                     Address = "Lerchenauer Strasse 76",
                     VAT = "DE855678901",
@@ -94,6 +103,7 @@ namespace pwm.Services.Database.Seed
                 new Company
                 {
                     Name = "Adria Gradiliste Jug",
+                    CountryId = FindCity("Ljubljana").CountryId,
                     CityId = FindCity("Ljubljana").Id,
                     Address = "Letaliska cesta 33",
                     VAT = "SI66778899",

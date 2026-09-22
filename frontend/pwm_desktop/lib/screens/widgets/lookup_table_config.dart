@@ -3,10 +3,16 @@ import '../../providers/base_provider.dart';
 /// One choice in a foreign-key dropdown - a row from another lookup table,
 /// reduced to what a form needs to show and to send.
 class DropdownOption {
-  const DropdownOption(this.id, this.label);
+  const DropdownOption(this.id, this.label, {this.groupId});
 
   final int id;
   final String label;
+
+  /// Set when this option belongs to a group another field narrows by - e.g.
+  /// a city's countryId, so `LookupField.dependsOn` can filter the city list
+  /// down to the country picked in the parent field. Null for an option with
+  /// no such parent.
+  final int? groupId;
 }
 
 /// One field of a lookup table's add/edit form. [key] doubles as the JSON
@@ -21,6 +27,7 @@ class LookupField {
     this.required = true,
     this.showOnlyOnInsert = false,
     this.loadOptions,
+    this.dependsOn,
   });
 
   final String key;
@@ -40,6 +47,12 @@ class LookupField {
   /// Set for a foreign key: how to fetch the rows it may point at. Loaded once
   /// per form, and reused to resolve the column showing this field in the list.
   final Future<List<DropdownOption>> Function()? loadOptions;
+
+  /// Key of another field in the same form whose value narrows this field's
+  /// options - e.g. Company's `cityId` depends on `countryId`, so only cities
+  /// whose `DropdownOption.groupId` matches the picked country show up. Null
+  /// for a field whose options are not filtered by another field.
+  final String? dependsOn;
 
   bool get isDropdown => loadOptions != null;
 }

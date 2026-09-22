@@ -121,6 +121,12 @@ namespace pwm.Services.Database
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Company>()
+                .HasOne(x => x.Country)
+                .WithMany()
+                .HasForeignKey(x => x.CountryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Company>()
                 .HasOne(x => x.City)
                 .WithMany()
                 .HasForeignKey(x => x.CityId)

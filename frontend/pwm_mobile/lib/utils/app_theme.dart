@@ -18,6 +18,7 @@ class AppPalette {
     required this.danger,
     required this.dangerSoft,
     required this.dangerBorder,
+    required this.success,
     required this.fieldBorder,
     required this.fieldFill,
     required this.chipTint,
@@ -39,6 +40,12 @@ class AppPalette {
   final Color danger;
   final Color dangerSoft;
   final Color dangerBorder;
+
+  /// The one green in either palette - a saved/succeeded toast's top line,
+  /// nothing else. [accent] stays the app's one "primary" blue everywhere
+  /// else, so this is never reached for a button or a link.
+  final Color success;
+
   final Color fieldBorder;
 
   /// The ground inside an input. The desktop fills its fields with the page's
@@ -68,6 +75,7 @@ class AppPalette {
     danger: Color(0xFFB91C1C),
     dangerSoft: Color(0xFFFEF2F2),
     dangerBorder: Color(0xFFFECACA),
+    success: Color(0xFF10B981),
     fieldBorder: Color(0xFFDCE0E6),
     // The grey the desktop uses for its page, borrowed for the field itself.
     fieldFill: Color(0xFFF6F7F9),
@@ -88,6 +96,7 @@ class AppPalette {
     danger: Color(0xFFF87171),
     dangerSoft: Color(0xFF2E1A1A),
     dangerBorder: Color(0xFF5B2A2A),
+    success: Color(0xFF34D399),
     fieldBorder: Color(0xFF323945),
     // A shade *below* the card, so a field reads as a well rather than a raised tile.
     fieldFill: Color(0xFF12161B),
@@ -120,6 +129,7 @@ abstract final class AppColors {
   static Color get danger => palette.danger;
   static Color get dangerSoft => palette.dangerSoft;
   static Color get dangerBorder => palette.dangerBorder;
+  static Color get success => palette.success;
   static Color get fieldBorder => palette.fieldBorder;
   static Color get fieldFill => palette.fieldFill;
 

@@ -172,8 +172,8 @@ void main() {
       expect(request['pageSize'], WorkersProvider.pageSize);
       expect(request['includeTotalCount'], isTrue);
       expect(request['sortBy'], WorkersProvider.sortBy);
-      // Accounts of people who have left are hidden until the funnel says so.
-      expect(request['isActive'], isTrue);
+      // Everyone shows by default; leavers are hidden only once asked.
+      expect(request.containsKey('isActive'), isFalse);
 
       expect(provider.rows.first.fullName, 'Amar Begic');
     });
@@ -195,13 +195,13 @@ void main() {
       expect(selma.operations, isEmpty);
     });
 
-    test('hides accounts of people who have left until asked', () async {
-      expect(provider.rows.any((row) => row.fullName == 'Mirza Tufekcic'), isFalse);
-
-      await provider.setActiveOnly(false);
-
-      expect(_lastPageRequest().containsKey('isActive'), isFalse);
+    test('shows everyone by default, hiding leavers only once asked', () async {
       expect(provider.matchCount, 10);
+
+      await provider.setActiveOnly(true);
+
+      expect(_lastPageRequest()['isActive'], isTrue);
+      expect(provider.matchCount, 9);
     });
 
     test('sends the search box down as the search object', () async {
@@ -229,7 +229,7 @@ void main() {
 
       await provider.setPage(2);
       expect(provider.page, 2);
-      expect(provider.rows.length, 1);
+      expect(provider.rows.length, 2);
 
       await provider.setRole(3);
       expect(provider.page, 1);
@@ -238,13 +238,13 @@ void main() {
     test('clears every filter at once', () async {
       await provider.setSearch('emir');
       await provider.setRole(3);
-      await provider.setActiveOnly(false);
+      await provider.setActiveOnly(true);
       expect(provider.hasFilters, isTrue);
 
       await provider.clearFilters();
 
       expect(provider.hasFilters, isFalse);
-      expect(provider.matchCount, 9);
+      expect(provider.matchCount, 10);
     });
 
     test('posts a new account with its password and qualifications', () async {

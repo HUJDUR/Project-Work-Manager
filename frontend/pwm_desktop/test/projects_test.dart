@@ -95,14 +95,21 @@ const _companies = [
   Company(
       id: 1,
       name: 'Stahlbau Meyer GmbH',
+      countryId: 1,
       cityId: 1,
       address: 'Werkstr. 1',
       companyTypeId: 1),
   Company(
-      id: 2, name: 'Nordmetall AG', cityId: 1, address: 'Hafenweg 2', companyTypeId: 1),
+      id: 2,
+      name: 'Nordmetall AG',
+      countryId: 1,
+      cityId: 1,
+      address: 'Hafenweg 2',
+      companyTypeId: 1),
   Company(
       id: 3,
       name: 'TransBalkan Logistika',
+      countryId: 1,
       cityId: 1,
       address: 'Put 3',
       companyTypeId: 2),

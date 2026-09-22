@@ -12,6 +12,12 @@ namespace pwm.Services.Database
         [MaxLength(200)]
         public string Name { get; set; } = string.Empty;
 
+        public int CountryId { get; set; }
+
+        [ForeignKey(nameof(CountryId))]
+        [Required]
+        public Country Country { get; set; } = null!;
+
         public int CityId { get; set; }
 
         [ForeignKey(nameof(CityId))]

@@ -121,6 +121,9 @@ namespace pwm.Services.Database.Migrations
                     b.Property<int>("CompanyTypeId")
                         .HasColumnType("int");
 
+                    b.Property<int>("CountryId")
+                        .HasColumnType("int");
+
                     b.Property<string>("EORI")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -139,6 +142,8 @@ namespace pwm.Services.Database.Migrations
                     b.HasIndex("CityId");
 
                     b.HasIndex("CompanyTypeId");
+
+                    b.HasIndex("CountryId");
 
                     b.ToTable("Companies", (string)null);
                 });
@@ -826,9 +831,17 @@ namespace pwm.Services.Database.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("pwm.Services.Database.Country", "Country")
+                        .WithMany()
+                        .HasForeignKey("CountryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.Navigation("City");
 
                     b.Navigation("CompanyType");
+
+                    b.Navigation("Country");
                 });
 
             modelBuilder.Entity("pwm.Services.Database.GeneratedReport", b =>

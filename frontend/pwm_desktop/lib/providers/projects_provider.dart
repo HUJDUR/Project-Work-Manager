@@ -75,7 +75,7 @@ class ProjectsProvider extends ChangeNotifier {
   List<ProjectCategory> _categoryList = const [];
   List<ProjectStatusType> _statusList = const [];
   List<Company> _customerList = const [];
-  List<Company> _carrierList = const [];
+  List<Company> _deliveryCompanyList = const [];
   List<User> _authorList = const [];
   Map<int, Company> _companyById = const {};
   Map<int, User> _userById = const {};
@@ -101,8 +101,10 @@ class ProjectsProvider extends ChangeNotifier {
   /// Companies of type Customer — who a project can be raised for.
   List<Company> get customers => _customerList;
 
-  /// Companies of any other type — who can carry the goods out.
-  List<Company> get carriers => _carrierList;
+  /// Where a project can be delivered — the customer themselves or one of
+  /// their unload addresses, but never a transport company, which hauls the
+  /// goods rather than receiving them.
+  List<Company> get deliveryCompanies => _deliveryCompanyList;
 
   /// Office accounts, which is who raises a project.
   List<User> get authors => _authorList;
@@ -205,14 +207,20 @@ class ProjectsProvider extends ChangeNotifier {
           .where((type) => type.name.toLowerCase() == 'customer')
           .map((type) => type.id)
           .firstOrNull;
+      final transportTypeId = companyTypes
+          .where((type) => type.name.toLowerCase() == 'transport')
+          .map((type) => type.id)
+          .firstOrNull;
       _customerList = companies
           .where((company) =>
               customerTypeId == null || company.companyTypeId == customerTypeId)
           .toList()
         ..sort((a, b) => a.name.compareTo(b.name));
-      _carrierList = companies
+      // A customer or one of their unload addresses — never a transport
+      // company, which hauls the goods rather than receiving them.
+      _deliveryCompanyList = companies
           .where((company) =>
-              customerTypeId != null && company.companyTypeId != customerTypeId)
+              transportTypeId == null || company.companyTypeId != transportTypeId)
           .toList()
         ..sort((a, b) => a.name.compareTo(b.name));
 

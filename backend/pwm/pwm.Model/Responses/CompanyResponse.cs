@@ -6,6 +6,8 @@ namespace pwm.Model.Responses
 
         public string Name { get; set; } = string.Empty;
 
+        public int CountryId { get; set; }
+
         public int CityId { get; set; }
 
         public string Address { get; set; } = string.Empty;

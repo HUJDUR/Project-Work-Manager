@@ -70,7 +70,7 @@ class WorkersProvider extends ChangeNotifier {
 
   String _search = '';
   int? _roleId;
-  bool _activeOnly = true;
+  bool _activeOnly = false;
   int _page = 1;
 
   WorkersStatusState get status => _status;
@@ -87,7 +87,7 @@ class WorkersProvider extends ChangeNotifier {
   bool get activeOnly => _activeOnly;
   int get page => _page;
 
-  bool get hasFilters => _search.isNotEmpty || _roleId != null || !_activeOnly;
+  bool get hasFilters => _search.isNotEmpty || _roleId != null || _activeOnly;
 
   /// The page the table shows.
   List<WorkerRow> get rows => _rows;
@@ -130,7 +130,7 @@ class WorkersProvider extends ChangeNotifier {
   Future<void> clearFilters() {
     _search = '';
     _roleId = null;
-    _activeOnly = true;
+    _activeOnly = false;
     _page = 1;
     return _loadPage();
   }

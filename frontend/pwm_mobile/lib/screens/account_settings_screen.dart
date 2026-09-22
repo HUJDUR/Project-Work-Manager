@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart';
 import '../providers/user_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
+import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
 
 /// The signed-in worker's own account. Reached from the avatar in the top bar
@@ -293,12 +294,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _newPassword.clear();
       _confirmPassword.clear();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Account updated'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      showSavedSnackBar(context, 'Account updated');
     } catch (error) {
       setState(() {
         _error = error is ApiClientException

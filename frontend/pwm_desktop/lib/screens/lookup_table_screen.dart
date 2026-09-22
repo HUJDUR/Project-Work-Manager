@@ -38,6 +38,12 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
   String? _error;
   List<T> _rows = [];
 
+  /// Which column the table is sorted by, and in which direction - null until
+  /// a header is pressed, so the table starts in the API's own (newest-first)
+  /// order.
+  int? _sortColumnIndex;
+  bool _sortAscending = true;
+
   /// Every dropdown field's options, keyed by `LookupField.key` - loaded once
   /// per screen and handed to both the list (to resolve a foreign key to its
   /// name) and the form (to populate the dropdown itself).
@@ -87,6 +93,41 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
   Map<String, Map<int, String>> get _ctx => _dropdownOptions.map(
         (key, options) => MapEntry(key, {for (final o in options) o.id: o.label}),
       );
+
+  /// [_rows] as the pressed column header asks for it - numerically where a
+  /// column is all numbers, case-insensitively otherwise, and untouched (the
+  /// API's newest-first order) until a header has been pressed at all.
+  List<T> get _sortedRows {
+    final columnIndex = _sortColumnIndex;
+    if (columnIndex == null) return _rows;
+
+    final column = widget.config.columns[columnIndex];
+    final ctx = _ctx;
+    final sorted = [..._rows];
+    sorted.sort((a, b) {
+      final result = _compareCells(column.valueOf(a, ctx), column.valueOf(b, ctx));
+      return _sortAscending ? result : -result;
+    });
+    return sorted;
+  }
+
+  void _onSort(int columnIndex) {
+    setState(() {
+      if (_sortColumnIndex == columnIndex) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortColumnIndex = columnIndex;
+        _sortAscending = true;
+      }
+    });
+  }
+
+  static int _compareCells(String a, String b) {
+    final numA = num.tryParse(a);
+    final numB = num.tryParse(b);
+    if (numA != null && numB != null) return numA.compareTo(numB);
+    return a.toLowerCase().compareTo(b.toLowerCase());
+  }
 
   Future<void> _openForm([T? row]) async {
     final result = await Navigator.of(context).push<String>(
@@ -179,10 +220,13 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
       _LoadStatus.failed => _ErrorState(message: _error!, onRetry: _load),
       _LoadStatus.ready => _Table<T>(
           config: widget.config,
-          rows: _rows,
+          rows: _sortedRows,
           ctx: _ctx,
           onTap: widget.config.isReadOnly ? null : _openForm,
           onDelete: widget.config.isReadOnly ? null : _delete,
+          sortColumnIndex: _sortColumnIndex,
+          sortAscending: _sortAscending,
+          onSort: _onSort,
         ),
     };
   }
@@ -195,6 +239,9 @@ class _Table<T> extends StatelessWidget {
     required this.ctx,
     required this.onTap,
     required this.onDelete,
+    required this.sortColumnIndex,
+    required this.sortAscending,
+    required this.onSort,
   });
 
   final LookupTableConfig<T> config;
@@ -207,6 +254,13 @@ class _Table<T> extends StatelessWidget {
   /// Null on a read-only table - the trailing delete column is dropped rather
   /// than shown disabled, so a read-only list looks read-only at a glance.
   final ValueChanged<T>? onDelete;
+
+  /// Which column [rows] is sorted by, or null before any header is pressed.
+  /// Sorting is purely a client-side reordering of a table already read
+  /// whole, so it works the same whether or not the table is read-only.
+  final int? sortColumnIndex;
+  final bool sortAscending;
+  final ValueChanged<int> onSort;
 
   @override
   Widget build(BuildContext context) {
@@ -221,18 +275,16 @@ class _Table<T> extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Row(
               children: [
-                for (final column in config.columns)
+                for (final (index, column) in config.columns.indexed)
                   Expanded(
-                    child: Text(
-                      column.label,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
+                    child: _HeaderCell(
+                      label: column.label,
+                      sorted: sortColumnIndex == index,
+                      ascending: sortAscending,
+                      onTap: () => onSort(index),
                     ),
                   ),
                 if (onDelete != null) const SizedBox(width: 40),
@@ -290,6 +342,61 @@ class _Table<T> extends StatelessWidget {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One pressable column header. Every column sorts, including on a read-only
+/// table, since sorting only reorders rows already sitting in memory - it
+/// never touches the Add/edit/delete controls a read-only table lacks.
+class _HeaderCell extends StatelessWidget {
+  const _HeaderCell({
+    required this.label,
+    required this.sorted,
+    required this.ascending,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool sorted;
+  final bool ascending;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: sorted ? AppColors.accent : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(
+                sorted
+                    ? (ascending ? Icons.arrow_upward : Icons.arrow_downward)
+                    : Icons.unfold_more,
+                size: 14,
+                color: sorted ? AppColors.accent : AppColors.textMuted,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -391,6 +498,11 @@ class _LookupFormScreenState<T> extends State<_LookupFormScreen<T>> {
   bool _saving = false;
   String? _error;
 
+  /// Every dropdown field's current value, kept outside the form so a field
+  /// with `dependsOn` set can filter its options by another field's value as
+  /// the form is filled in, before it is saved.
+  late final Map<String, dynamic> _liveValues = Map.of(_initialValue);
+
   bool get _isNew => widget.row == null;
 
   List<LookupField> get _fields => widget.config.fieldsFor(isNew: _isNew);
@@ -467,12 +579,29 @@ class _LookupFormScreenState<T> extends State<_LookupFormScreen<T>> {
 
   Widget _fieldWidget(LookupField field) {
     if (field.isDropdown) {
-      final options = widget.dropdownOptions[field.key] ?? const [];
+      final allOptions = widget.dropdownOptions[field.key] ?? const [];
+      final dependsOn = field.dependsOn;
+      final parentValue = dependsOn == null ? null : _liveValues[dependsOn];
+      final options = dependsOn == null
+          ? allOptions
+          : allOptions.where((o) => o.groupId == parentValue).toList();
+
+      // Fields whose options this one's value narrows - reset when it changes,
+      // since whatever they had picked may no longer be one of their options.
+      final dependents = _fields.where((f) => f.dependsOn == field.key).toList();
+
+      final waitingOnParent = dependsOn != null && parentValue == null;
+      final parentLabel =
+          waitingOnParent ? _fields.firstWhere((f) => f.key == dependsOn).label : null;
 
       return FormBuilderDropdown<int>(
         name: field.key,
         isExpanded: true,
-        decoration: appInputDecoration(field.label),
+        enabled: !waitingOnParent,
+        decoration: appInputDecoration(
+          field.label,
+          hintText: parentLabel == null ? null : 'Pick a ${parentLabel.toLowerCase()} first',
+        ),
         validator: FormBuilderValidators.required(
           errorText: 'Pick a ${field.label.toLowerCase()}.',
         ),
@@ -480,6 +609,13 @@ class _LookupFormScreenState<T> extends State<_LookupFormScreen<T>> {
           for (final option in options)
             DropdownMenuItem(value: option.id, child: Text(option.label)),
         ],
+        onChanged: (value) => setState(() {
+          _liveValues[field.key] = value;
+          for (final dependent in dependents) {
+            _liveValues[dependent.key] = null;
+            _formKey.currentState?.fields[dependent.key]?.didChange(null);
+          }
+        }),
       );
     }
 

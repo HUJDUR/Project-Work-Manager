@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../screens/widgets/app_toast.dart';
 import 'app_theme.dart';
 
 /// Asks before an action that cannot be undone. Answers false when the dialog
@@ -52,7 +53,9 @@ void showErrorDialog(BuildContext context, String title, String message) {
 }
 
 void showSavedSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  showAppToast(context, message: message);
+}
+
+void showErrorSnackBar(BuildContext context, String message) {
+  showAppToast(context, message: message, type: ToastType.error);
 }

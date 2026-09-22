@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -128,8 +130,6 @@ class _Body extends StatelessWidget {
   }
 }
 
-/// Applies on submit rather than on every keystroke: each search is a request,
-/// the same reason the desktop's projects box waits for Enter.
 class _SearchField extends StatefulWidget {
   const _SearchField({required this.provider});
 
@@ -142,11 +142,22 @@ class _SearchField extends StatefulWidget {
 class _SearchFieldState extends State<_SearchField> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.provider.search);
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onChanged(String value) {
+    setState(() {});
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => widget.provider.applySearch(value),
+    );
   }
 
   @override
@@ -164,12 +175,14 @@ class _SearchFieldState extends State<_SearchField> {
                 tooltip: 'Clear search',
                 icon: Icon(Icons.close, size: 19, color: AppColors.textMuted),
                 onPressed: () {
+                  _debounce?.cancel();
                   _controller.clear();
                   widget.provider.applySearch('');
+                  setState(() {});
                 },
               ),
       ),
-      onChanged: (_) => setState(() {}),
+      onChanged: _onChanged,
     );
   }
 }
