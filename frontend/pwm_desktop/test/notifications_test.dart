@@ -4,6 +4,7 @@ import 'package:pwm_desktop/models/models.dart';
 import 'package:pwm_desktop/providers/base_provider.dart';
 import 'package:pwm_desktop/providers/notification_provider.dart';
 import 'package:pwm_desktop/providers/notifications_provider.dart';
+import 'package:pwm_desktop/providers/received_notifications_provider.dart';
 import 'package:pwm_desktop/screens/notifications_screen.dart';
 import 'package:pwm_desktop/utils/api_client_exception.dart';
 
@@ -38,12 +39,17 @@ class _FakeProvider<T> extends BaseProvider<T> {
   }
 }
 
-/// `POST /Notification/Send`, which is the only way into the table.
+/// `POST /Notification/Send`, plus what the history card's provider needs
+/// (`get`/`markRead`) — the same table, seen from two screens.
 class _FakeNotificationProvider extends NotificationProvider {
   final List<Map<String, dynamic>> sent = [];
 
   /// Set to make the next send fail the way the API would.
   Object? failure;
+
+  /// What the history card sees. Empty by default: these tests are about the
+  /// compose form, not the history it sits above.
+  List<Notification> received = [];
 
   @override
   Future<int> sendNotification({
@@ -55,6 +61,40 @@ class _FakeNotificationProvider extends NotificationProvider {
     if (failure case final error?) throw error;
 
     return userIds?.length ?? _activeUsers.length;
+  }
+
+  @override
+  Future<PageResult<Notification>> get({dynamic filter}) async {
+    final query = Map<String, dynamic>.from((filter as Map?) ?? const {});
+
+    var hits = received;
+    if (query['isRead'] != null) {
+      hits = hits.where((row) => row.isRead == query['isRead']).toList();
+    }
+
+    final page = query['page'] as int? ?? 1;
+    final pageSize = query['pageSize'] as int? ?? hits.length;
+    final start = (page - 1) * pageSize;
+    final items = start >= hits.length
+        ? <Notification>[]
+        : hits.sublist(start, (start + pageSize).clamp(0, hits.length));
+
+    return PageResult<Notification>()
+      ..items = items
+      ..totalCount =
+          (query['includeTotalCount'] as bool? ?? false) ? hits.length : null;
+  }
+
+  @override
+  Future<int> markRead({List<int>? ids}) async {
+    final toMark = ids ??
+        received.where((row) => !row.isRead).map((row) => row.id).toList();
+
+    for (var i = 0; i < received.length; i++) {
+      if (toMark.contains(received[i].id)) received[i] = received[i].read;
+    }
+
+    return toMark.length;
   }
 }
 
@@ -113,6 +153,13 @@ NotificationsProvider _fakeNotifications() {
     ]),
   );
 }
+
+/// The history card's own provider, backed by the same fake table
+/// `_fakeNotifications` just pointed `_notifications` at — `NotificationsScreen`
+/// builds them in that order, so `_notifications` is already set by the time
+/// this runs.
+ReceivedNotificationsProvider _fakeHistory() =>
+    ReceivedNotificationsProvider(notifications: _notifications, userId: 1);
 
 void main() {
   group('NotificationsProvider', () {
@@ -224,7 +271,12 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: NotificationsScreen(providerFactory: _fakeNotifications)),
+      home: Scaffold(
+        body: NotificationsScreen(
+          providerFactory: _fakeNotifications,
+          historyProviderFactory: _fakeHistory,
+        ),
+      ),
     ));
     await tester.pumpAndSettle();
 
@@ -249,7 +301,12 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: NotificationsScreen(providerFactory: _fakeNotifications)),
+      home: Scaffold(
+        body: NotificationsScreen(
+          providerFactory: _fakeNotifications,
+          historyProviderFactory: _fakeHistory,
+        ),
+      ),
     ));
     await tester.pumpAndSettle();
 
@@ -267,7 +324,12 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: NotificationsScreen(providerFactory: _fakeNotifications)),
+      home: Scaffold(
+        body: NotificationsScreen(
+          providerFactory: _fakeNotifications,
+          historyProviderFactory: _fakeHistory,
+        ),
+      ),
     ));
     await tester.pumpAndSettle();
 
@@ -299,7 +361,12 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: NotificationsScreen(providerFactory: _fakeNotifications)),
+      home: Scaffold(
+        body: NotificationsScreen(
+          providerFactory: _fakeNotifications,
+          historyProviderFactory: _fakeHistory,
+        ),
+      ),
     ));
     await tester.pumpAndSettle();
 
@@ -320,5 +387,125 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('There is nobody to send this to.'), findsOneWidget);
+  });
+
+  testWidgets(
+      'the history card lists everything this account has received, read or not',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final compose = _fakeNotifications();
+    _notifications.received = [
+      Notification(
+        id: 1,
+        userId: 1,
+        title: 'Shift change',
+        message: 'Starts at 7am tomorrow.',
+        isRead: false,
+        createdAt: DateTime.now(),
+      ),
+      Notification(
+        id: 2,
+        userId: 1,
+        title: 'Safety notice',
+        message: 'Wear ear protection in bay 3.',
+        isRead: true,
+        createdAt: DateTime.now().subtract(const Duration(days: 2)),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: NotificationsScreen(
+          providerFactory: () => compose,
+          historyProviderFactory: _fakeHistory,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notification History'), findsOneWidget);
+    // Both show — read as well as unread, unlike the bell's popup.
+    expect(find.text('Shift change'), findsOneWidget);
+    expect(find.text('Safety notice'), findsOneWidget);
+  });
+
+  testWidgets('tapping a card in the history section marks it read',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final compose = _fakeNotifications();
+    _notifications.received = [
+      Notification(
+        id: 1,
+        userId: 1,
+        title: 'Shift change',
+        message: 'Starts at 7am tomorrow.',
+        isRead: false,
+        createdAt: DateTime.now(),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: NotificationsScreen(
+          providerFactory: () => compose,
+          historyProviderFactory: _fakeHistory,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Shift change'));
+    await tester.pumpAndSettle();
+
+    expect(_notifications.received.single.isRead, isTrue);
+  });
+
+  testWidgets(
+      'mark all as read in the history card clears every unread row at once',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final compose = _fakeNotifications();
+    _notifications.received = [
+      Notification(
+        id: 1,
+        userId: 1,
+        title: 'Shift change',
+        message: 'Starts at 7am tomorrow.',
+        isRead: false,
+        createdAt: DateTime.now(),
+      ),
+      Notification(
+        id: 2,
+        userId: 1,
+        title: 'Overtime',
+        message: 'Saturday shift.',
+        isRead: false,
+        createdAt: DateTime.now(),
+      ),
+    ];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: NotificationsScreen(
+          providerFactory: () => compose,
+          historyProviderFactory: _fakeHistory,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(TextButton, 'Mark all as read'));
+    await tester.pumpAndSettle();
+
+    expect(_notifications.received.every((row) => row.isRead), isTrue);
   });
 }

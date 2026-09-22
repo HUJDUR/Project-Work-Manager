@@ -11,6 +11,7 @@ import '../screens/projects_screen.dart';
 import '../screens/recommendations_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/transport_screen.dart';
+import '../screens/widgets/notification_bell.dart';
 import '../screens/work_hours_screen.dart';
 import '../screens/workers_screen.dart';
 import '../utils/app_roles.dart';
@@ -107,6 +108,15 @@ class _MasterScreenState extends State<MasterScreen> {
   static Widget _notifications(BuildContext context) => NotificationsScreen();
   static Widget _administration(BuildContext context) => AdministrationScreen();
 
+  /// Switches to the Notifications screen — what the bell's "See all
+  /// notifications" link opens. Every desktop role may open it, so this
+  /// always finds it, but the lookup stays defensive rather than assuming a
+  /// fixed index.
+  void _openNotifications() {
+    final index = _destinations.indexWhere((d) => d.label == 'Notifications');
+    if (index >= 0) setState(() => _selectedIndex = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final destination = _destinations[_selectedIndex];
@@ -114,7 +124,7 @@ class _MasterScreenState extends State<MasterScreen> {
     return Scaffold(
       body: Column(
         children: [
-          _TopBar(height: _topBarHeight),
+          _TopBar(height: _topBarHeight, onOpenNotifications: _openNotifications),
           const Divider(height: 1),
           Expanded(
             child: Row(
@@ -152,9 +162,10 @@ class _MasterScreenState extends State<MasterScreen> {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.height});
+  const _TopBar({required this.height, required this.onOpenNotifications});
 
   final double height;
+  final VoidCallback onOpenNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -201,12 +212,7 @@ class _TopBar extends StatelessWidget {
                     const Spacer(),
                     _ThemeToggle(),
                     const SizedBox(width: 2),
-                    IconButton(
-                      onPressed: () {},
-                      tooltip: 'Notifications',
-                      icon: Icon(Icons.notifications_none,
-                          color: AppColors.textSecondary),
-                    ),
+                    NotificationBell(onViewAll: onOpenNotifications),
                     const SizedBox(width: 10),
                     _AccountChip(),
                   ],
