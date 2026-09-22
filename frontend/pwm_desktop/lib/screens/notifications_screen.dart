@@ -5,31 +5,53 @@ import 'package:provider/provider.dart';
 
 import '../models/models.dart';
 import '../providers/notifications_provider.dart';
+import '../providers/received_notifications_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import 'widgets/form_fields.dart';
+import 'widgets/notification_list.dart';
 
 /// Writes one message to the shop floor, laid out as in
-/// `docs/mockups/desktop/Notifications.png`.
+/// `docs/mockups/desktop/Notifications.png` — and, below it, this account's
+/// own notification history: everywhere the bell does not reach, since the
+/// bell only ever shows the newest unread few for the length of one session.
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({super.key, this.providerFactory});
+  const NotificationsScreen({
+    super.key,
+    this.providerFactory,
+    this.historyProviderFactory,
+  });
 
   /// Lets a test swap in a provider backed by fake data.
   final NotificationsProvider Function()? providerFactory;
 
+  /// Lets a test swap in the history card's provider likewise.
+  final ReceivedNotificationsProvider Function()? historyProviderFactory;
+
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => (providerFactory?.call() ?? NotificationsProvider())..load(),
-      child: Consumer<NotificationsProvider>(
-        builder: (context, provider, _) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<NotificationsProvider>(
+          create: (_) =>
+              (providerFactory?.call() ?? NotificationsProvider())..load(),
+        ),
+        ChangeNotifierProvider<ReceivedNotificationsProvider>(
+          create: (_) => (historyProviderFactory?.call() ??
+              ReceivedNotificationsProvider())
+            ..load(),
+        ),
+      ],
+      child: Consumer2<NotificationsProvider, ReceivedNotificationsProvider>(
+        builder: (context, provider, history, _) {
           return switch (provider.status) {
             NotificationsStatusState.failed => _ErrorState(
                 message: provider.errorMessage ?? 'Recipients could not be loaded.',
                 onRetry: provider.load,
               ),
-            NotificationsStatusState.ready => _Body(provider: provider),
+            NotificationsStatusState.ready =>
+              _Body(provider: provider, history: history),
             _ => const Center(child: CircularProgressIndicator()),
           };
         },
@@ -39,9 +61,10 @@ class NotificationsScreen extends StatelessWidget {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.provider});
+  const _Body({required this.provider, required this.history});
 
   final NotificationsProvider provider;
+  final ReceivedNotificationsProvider history;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +76,7 @@ class _Body extends StatelessWidget {
           _Header(),
           const SizedBox(height: AppSpacing.gap),
           Expanded(
+            flex: 3,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -60,6 +84,85 @@ class _Body extends StatelessWidget {
                 const SizedBox(width: AppSpacing.gap),
                 Expanded(flex: 2, child: _RecipientsCard(provider: provider)),
               ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.gap),
+          Expanded(flex: 2, child: _HistoryCard(provider: history)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Everything this account has ever received, read or not — what the bell
+/// popup's "See all notifications" link opens onto. Paged with "Load more"
+/// rather than the bell's fixed handful, since this is the one place the full
+/// history lives.
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({required this.provider});
+
+  final ReceivedNotificationsProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = provider.unreadCount;
+    final canMarkAll = unread > 0 && !provider.isMarking;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+        border: Border.all(color: AppColors.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 12, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Notification History',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Everything sent to you, including what the bell '
+                        'already cleared',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: canMarkAll ? provider.markAllRead : null,
+                  icon: provider.isMarking
+                      ? SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.textMuted,
+                          ),
+                        )
+                      : const Icon(Icons.done_all, size: 16),
+                  label: const Text('Mark all as read',
+                      style: TextStyle(fontSize: 12.5)),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: NotificationsList(
+              provider: provider,
+              emptyTitle: 'No notifications yet',
+              emptyDetail: 'Messages from the office show up here.',
             ),
           ),
         ],

@@ -807,7 +807,7 @@ class _RecentTile extends StatelessWidget {
                     report.generatedAt == null
                         ? report.generatedByName
                         : '${report.generatedByName} · '
-                            '${formatRelative(report.generatedAt!.toLocal())}',
+                            '${formatRelative(apiTimeToLocal(report.generatedAt!))}',
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
                   ),

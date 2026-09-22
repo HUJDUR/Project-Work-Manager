@@ -250,7 +250,7 @@ class _ActivityRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${entry.actorName} · ${formatRelative(entry.date)}',
+                    '${entry.actorName} · ${formatRelative(apiTimeToLocal(entry.date))}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
