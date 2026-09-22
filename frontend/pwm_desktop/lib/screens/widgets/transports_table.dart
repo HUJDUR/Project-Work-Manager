@@ -1,51 +1,148 @@
 import 'package:flutter/material.dart';
 
 import '../../models/models.dart';
+import '../../providers/transports_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
+import 'excel_table_header.dart';
 import 'table_pager.dart';
-
-const _columns = <_Column>[
-  _Column('Transport No', 3),
-  _Column('Load Date', 2),
-  _Column('Driver Name', 2),
-  _Column('Driver Surname', 2),
-  _Column('Registration', 2),
-  _Column('Full Weight (kg)', 2),
-  _Column('Empty Weight (kg)', 2),
-  _Column('Status', 2),
-];
 
 /// A state with no colour of its own.
 const Color _neutral = Color(0xFF6B7280);
 
-class _Column {
-  const _Column(this.label, this.flex);
+final _columns = <ExcelColumn<TransportRow>>[
+  ExcelColumn(
+    label: 'Transport No',
+    flex: 3,
+    sortKey: (row) => row.transportNo,
+    filterValues: (row) => [row.transportNo],
+  ),
+  ExcelColumn(
+    label: 'Load Date',
+    flex: 2,
+    // ISO sorts chronologically as plain text; the formatted date shown in
+    // the filter checklist below does not.
+    sortKey: (row) => row.loadDate.toIso8601String(),
+    filterValues: (row) => [formatFullDate(row.loadDate)],
+  ),
+  ExcelColumn(
+    label: 'Driver Name',
+    flex: 2,
+    sortKey: (row) => row.driverName,
+    filterValues: (row) => [row.driverName],
+  ),
+  ExcelColumn(
+    label: 'Driver Surname',
+    flex: 2,
+    sortKey: (row) => row.driverSurname,
+    filterValues: (row) => [row.driverSurname],
+  ),
+  ExcelColumn(
+    label: 'Registration',
+    flex: 2,
+    sortKey: (row) => row.vehicleRegistration,
+    filterValues: (row) => [row.vehicleRegistration],
+  ),
+  ExcelColumn(
+    label: 'Full Weight (kg)',
+    flex: 2,
+    sortKey: (row) => row.fullWeight.toString(),
+    filterValues: (row) => [formatCount(row.fullWeight)],
+  ),
+  ExcelColumn(
+    label: 'Empty Weight (kg)',
+    flex: 2,
+    sortKey: (row) => row.emptyWeight.toString(),
+    filterValues: (row) => [formatCount(row.emptyWeight)],
+  ),
+  ExcelColumn(
+    label: 'Status',
+    flex: 2,
+    sortKey: (row) => row.statusName,
+    filterValues: (row) => [row.statusName],
+  ),
+];
 
-  final String label;
-  final int flex;
-}
+/// The transports list with Excel's own AutoFilter, the same pattern the
+/// Workers screen tried first: every header sorts on a click and carries a
+/// checklist of that column's values to filter down to, over the whole
+/// matching set - what the search box, status dropdown and date range leave a
+/// match - rather than the page of eight [TransportsProvider] otherwise pages
+/// through. This widget reads that whole set via [TransportsProvider.
+/// loadAllRows] and paginates, sorts and filters it here instead.
+class TransportsTable extends StatefulWidget {
+  const TransportsTable({super.key, required this.provider, required this.onRowTap});
 
-class TransportsTable extends StatelessWidget {
-  const TransportsTable({
-    super.key,
-    required this.rows,
-    required this.page,
-    required this.pageCount,
-    required this.onPageChanged,
-    required this.onRowTap,
-  });
-
-  final List<TransportRow> rows;
-  final int page;
-  final int pageCount;
-  final ValueChanged<int> onPageChanged;
+  final TransportsProvider provider;
 
   /// Opens the load in the details screen.
   final ValueChanged<TransportRow> onRowTap;
 
   @override
+  State<TransportsTable> createState() => _TransportsTableState();
+}
+
+enum _LoadStatus { loading, ready, failed }
+
+class _TransportsTableState extends State<TransportsTable>
+    with ExcelTableState<TransportRow, TransportsTable> {
+  _LoadStatus _status = _LoadStatus.loading;
+  List<TransportRow> _allRows = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.provider.addListener(_onProviderChanged);
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant TransportsTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider != widget.provider) {
+      oldWidget.provider.removeListener(_onProviderChanged);
+      widget.provider.addListener(_onProviderChanged);
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.provider.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  /// The search box, status dropdown and date range each notify the provider
+  /// on change, and so does a save on the details screen - any of those can
+  /// change which rows this table should hold, so all of them re-fetch it.
+  void _onProviderChanged() => _load();
+
+  Future<void> _load() async {
+    setState(() => _status = _LoadStatus.loading);
+
+    try {
+      final rows = await widget.provider.loadAllRows();
+      if (!mounted) return;
+      setState(() {
+        _allRows = rows;
+        _status = _LoadStatus.ready;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _status = _LoadStatus.failed);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final rows = visibleRows(_allRows);
+    final pageCount = (rows.length / ExcelTableState.pageSize).ceil().clamp(1, 999);
+    final currentPage = page.clamp(1, pageCount);
+    final start = (currentPage - 1) * ExcelTableState.pageSize;
+    final pageRows = start >= rows.length
+        ? const <TransportRow>[]
+        : rows.sublist(start, (start + ExcelTableState.pageSize).clamp(0, rows.length));
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -56,50 +153,43 @@ class TransportsTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HeaderRow(),
-          const Divider(height: 1),
-          Expanded(
-            child: rows.isEmpty
-                ? _NoRows()
-                : ListView.separated(
-                    itemCount: rows.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) => _TransportRowTile(
-                      row: rows[index],
-                      onTap: () => onRowTap(rows[index]),
-                    ),
-                  ),
+          ExcelHeaderRow<TransportRow>(
+            columns: _columns,
+            allRows: _allRows,
+            sortColumn: sortColumn,
+            sortAscending: sortAscending,
+            filters: columnFilters,
+            onResult: (column, result) => onHeaderResult(_allRows, column, result),
           ),
           const Divider(height: 1),
-          TablePager(page: page, pageCount: pageCount, onPageChanged: onPageChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderRow extends StatelessWidget {
-  const _HeaderRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: [
-          for (final column in _columns)
-            Expanded(
-              flex: column.flex,
-              child: Text(
-                column.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
+          Expanded(
+            child: switch (_status) {
+              _LoadStatus.loading when _allRows.isEmpty =>
+                const Center(child: CircularProgressIndicator()),
+              _LoadStatus.failed => Center(
+                  child: Text(
+                    'Could not load the full transport list.',
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
                 ),
-              ),
-            ),
-          const SizedBox(width: 32),
+              _ => pageRows.isEmpty
+                  ? _NoRows()
+                  : ListView.separated(
+                      itemCount: pageRows.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) => _TransportRowTile(
+                        row: pageRows[index],
+                        onTap: () => widget.onRowTap(pageRows[index]),
+                      ),
+                    ),
+            },
+          ),
+          const Divider(height: 1),
+          TablePager(
+            page: currentPage,
+            pageCount: pageCount,
+            onPageChanged: (value) => setState(() => page = value),
+          ),
         ],
       ),
     );

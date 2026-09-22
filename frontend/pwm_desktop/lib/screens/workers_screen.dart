@@ -74,10 +74,7 @@ class _Body extends StatelessWidget {
           const SizedBox(height: AppSpacing.gap),
           Expanded(
             child: WorkersTable(
-              rows: provider.rows,
-              page: provider.page,
-              pageCount: provider.pageCount,
-              onPageChanged: provider.setPage,
+              provider: provider,
               onRowTap: (row) => openWorkerDetails(context, provider, row: row),
             ),
           ),

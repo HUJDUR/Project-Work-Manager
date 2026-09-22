@@ -256,6 +256,20 @@ class WorkersProvider extends ChangeNotifier {
   /// API caps how many rows one request may return.
   Future<List<E>> _all<E>(BaseProvider<E> provider) => provider.getAll();
 
+  /// Every row matching the search box, role filter and active-only toggle -
+  /// not just the page [rows] holds. The workers table's own column sort and
+  /// filter (an Excel-style AutoFilter, tried here first) need the whole
+  /// matching set to sort and check values against, not one page of eight.
+  Future<List<WorkerRow>> loadAllRows() async {
+    final users = await _users.getAll(filter: {
+      'sortBy': sortBy,
+      if (_search.trim().isNotEmpty) 'search': _search.trim(),
+      if (_roleId != null) 'userTypeId': _roleId,
+      if (_activeOnly) 'isActive': true,
+    });
+    return _buildRows(users);
+  }
+
   int? _roleIdOf(String role) => _roleList
       .where((type) => type.type.toLowerCase() == role.toLowerCase())
       .map((type) => type.id)
