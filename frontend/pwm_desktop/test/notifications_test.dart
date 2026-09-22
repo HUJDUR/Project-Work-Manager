@@ -283,7 +283,10 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Send Notification'));
-    await tester.pumpAndSettle();
+    // Not pumpAndSettle: the toast's own progress line keeps a frame
+    // scheduled for its full four seconds, which pumpAndSettle would run
+    // straight through, dismissing it before it could be asserted on here.
+    await tester.pump();
 
     expect(_notifications.sent.single['title'], 'Shutdown Friday');
     expect(find.text('Notification sent to 3 people'), findsOneWidget);

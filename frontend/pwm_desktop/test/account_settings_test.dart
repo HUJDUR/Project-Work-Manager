@@ -193,7 +193,10 @@ void main() {
 
       await tester.enterText(_field('First name'), 'Nadira');
       await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-      await tester.pumpAndSettle();
+      // Not pumpAndSettle: the toast's own progress line keeps a frame
+      // scheduled for its full four seconds, which pumpAndSettle would run
+      // straight through, dismissing it before it could be asserted on here.
+      await tester.pump();
 
       final body = _users.saved.single;
       expect(body['name'], 'Nadira');

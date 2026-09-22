@@ -8,7 +8,7 @@ import 'table_pager.dart';
 const _columns = <_Column>[
   _Column('Project', 4),
   _Column('Customer', 3),
-  _Column('Category', 2),
+  _Column('Category', 3),
   _Column('Status', 2),
   _Column('Priority', 2),
   _Column('Start Date', 2),

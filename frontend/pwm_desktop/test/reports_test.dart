@@ -275,7 +275,7 @@ void main() {
 
       final transport = provider.recent.firstWhere((report) => report.id == 8);
       expect(transport.title, 'Transport & Loads');
-      expect(transport.summary, 'Hall roof structure · 1 Jun 2026 - 30 Jun 2026');
+      expect(transport.summary, 'Hall roof structure · 01.06.2026. - 30.06.2026.');
 
       // Every parameter left null reads as the report covering everything.
       final everything = provider.recent.firstWhere((report) => report.id == 7);
@@ -339,7 +339,7 @@ void main() {
       expect(_reports.calls.single, {'action': 'Download', 'id': 8});
       expect(provider.pdf, _FakeReportProvider.rerunBytes);
       expect(provider.pdfLabel,
-          'Transport & Loads · Hall roof structure · 1 Jun 2026 - 30 Jun 2026');
+          'Transport & Loads · Hall roof structure · 01.06.2026. - 30.06.2026.');
     });
 
     test('keeps the API message when a run fails, and shows no document',

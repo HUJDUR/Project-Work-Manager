@@ -9,6 +9,7 @@ import '../models/project.dart';
 import '../providers/clock_in_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
+import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
 
 /// Clock In / Clock Out, laid out as in `docs/mockups/mobile/Clockin clockout.png`:
@@ -124,27 +125,17 @@ class _ActiveSessionCardState extends State<_ActiveSessionCard> {
   }
 
   Future<void> _clockOut() async {
-    final messenger = ScaffoldMessenger.of(context);
-
     try {
       await widget.provider.clockOut();
 
       if (!mounted) return;
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('Clocked out.')));
+      showSavedSnackBar(context, 'Clocked out.');
     } on ApiClientException catch (error) {
       if (!mounted) return;
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(error.message)));
+      showErrorSnackBar(context, error.message);
     } catch (_) {
       if (!mounted) return;
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('The server could not be reached.')),
-        );
+      showErrorSnackBar(context, 'The server could not be reached.');
     }
   }
 
@@ -375,27 +366,17 @@ class _NewSessionCard extends StatefulWidget {
 
 class _NewSessionCardState extends State<_NewSessionCard> {
   Future<void> _clockIn() async {
-    final messenger = ScaffoldMessenger.of(context);
-
     try {
       await widget.provider.clockIn();
 
       if (!mounted) return;
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('Clocked in.')));
+      showSavedSnackBar(context, 'Clocked in.');
     } on ApiClientException catch (error) {
       if (!mounted) return;
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(error.message)));
+      showErrorSnackBar(context, error.message);
     } catch (_) {
       if (!mounted) return;
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('The server could not be reached.')),
-        );
+      showErrorSnackBar(context, 'The server could not be reached.');
     }
   }
 

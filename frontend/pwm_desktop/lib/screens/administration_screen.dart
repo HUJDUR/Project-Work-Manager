@@ -323,12 +323,24 @@ LookupTableConfig<Company> _companies() => LookupTableConfig<Company>(
             return [for (final t in types) DropdownOption(t.id, t.name)];
           },
         ),
+        // Picked first so the city field below can narrow to its cities.
+        LookupField(
+          key: 'countryId',
+          label: 'Country',
+          loadOptions: () async {
+            final countries = await CountryProvider().getAll();
+            return [for (final c in countries) DropdownOption(c.id, c.name)];
+          },
+        ),
         LookupField(
           key: 'cityId',
           label: 'City',
+          dependsOn: 'countryId',
           loadOptions: () async {
             final cities = await CityProvider().getAll();
-            return [for (final c in cities) DropdownOption(c.id, c.name)];
+            return [
+              for (final c in cities) DropdownOption(c.id, c.name, groupId: c.countryId),
+            ];
           },
         ),
         const LookupField(key: 'address', label: 'Address'),
@@ -338,6 +350,7 @@ LookupTableConfig<Company> _companies() => LookupTableConfig<Company>(
       valuesOf: (row) => {
         'name': row.name,
         'companyTypeId': row.companyTypeId,
+        'countryId': row.countryId,
         'cityId': row.cityId,
         'address': row.address,
         'vat': row.vat,

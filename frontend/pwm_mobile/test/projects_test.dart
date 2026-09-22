@@ -130,6 +130,7 @@ List<Company> _companies() => const [
       Company(
         id: 1,
         name: 'Adria Konstrukcije d.o.o.',
+        countryId: 4,
         cityId: 9,
         address: 'Slavonska avenija 45',
         companyTypeId: 2,
@@ -137,6 +138,7 @@ List<Company> _companies() => const [
       Company(
         id: 2,
         name: 'Meyer Baustelle Nord',
+        countryId: 4,
         cityId: 9,
         address: 'Billbrookdeich 210',
         companyTypeId: 3,

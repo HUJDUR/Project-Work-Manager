@@ -206,6 +206,7 @@ namespace pwm.Services.Validators
         {
             RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
             RuleFor(x => x.Address).NotEmpty().MaximumLength(200);
+            RuleFor(x => x.CountryId).GreaterThan(0).WithMessage("Pick a country.");
             RuleFor(x => x.CityId).GreaterThan(0).WithMessage("Pick a city.");
             RuleFor(x => x.CompanyTypeId).GreaterThan(0).WithMessage("Pick a company type.");
         }

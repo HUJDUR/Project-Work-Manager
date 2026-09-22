@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -161,16 +163,24 @@ class _FilterBar extends StatefulWidget {
 
 class _FilterBarState extends State<_FilterBar> {
   final _searchController = TextEditingController();
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   void _clearFilters() {
+    _debounce?.cancel();
     _searchController.clear();
     widget.provider.clearFilters();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () => widget.provider.setSearch(value));
   }
 
   @override
@@ -183,15 +193,11 @@ class _FilterBarState extends State<_FilterBar> {
           flex: 3,
           child: TextField(
             controller: _searchController,
+            onChanged: _onSearchChanged,
             onSubmitted: provider.setSearch,
             decoration: InputDecoration(
               hintText: 'Search workers...',
               prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon: IconButton(
-                tooltip: 'Search',
-                icon: const Icon(Icons.arrow_forward, size: 18),
-                onPressed: () => provider.setSearch(_searchController.text),
-              ),
               border: const OutlineInputBorder(),
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
@@ -261,7 +267,7 @@ class _FilterMenu extends StatelessWidget {
         CheckedPopupMenuItem(
           value: 'active',
           checked: provider.activeOnly,
-          child: const Text('Current workers only'),
+          child: const Text('Currently employed'),
         ),
         const PopupMenuDivider(),
         PopupMenuItem(

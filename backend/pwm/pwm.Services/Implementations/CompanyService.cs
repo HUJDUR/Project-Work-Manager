@@ -34,6 +34,11 @@ namespace pwm.Services.Implementations
                 query = query.Where(x => EF.Functions.Like(x.Name, $"%{name}%"));
             }
 
+            if (search.CountryId.HasValue)
+            {
+                query = query.Where(x => x.CountryId == search.CountryId.Value);
+            }
+
             if (search.CityId.HasValue)
             {
                 query = query.Where(x => x.CityId == search.CityId.Value);

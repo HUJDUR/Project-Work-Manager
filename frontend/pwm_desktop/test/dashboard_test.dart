@@ -82,6 +82,7 @@ DashboardProvider _fakeDashboard() => DashboardProvider(
         Company(
             id: 7,
             name: 'TransBalkan Logistika',
+            countryId: 1,
             cityId: 1,
             address: 'Put 1',
             companyTypeId: 2),

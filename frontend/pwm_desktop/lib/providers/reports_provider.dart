@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_roles.dart';
+import '../utils/formatters.dart';
 import 'activity_log_provider.dart';
 import 'activity_log_type_provider.dart';
 import 'auth_provider.dart';
@@ -357,14 +358,13 @@ class ReportsProvider extends ChangeNotifier {
     final end = to == null ? null : DateTime.tryParse(to);
     if (start == null && end == null) return 'All dates';
 
-    final formatter = DateFormat('d MMM yyyy');
     if (start != null && end != null) {
-      return '${formatter.format(start)} - ${formatter.format(end)}';
+      return '${formatFullDate(start)} - ${formatFullDate(end)}';
     }
 
     return start != null
-        ? 'From ${formatter.format(start)}'
-        : 'Until ${formatter.format(end!)}';
+        ? 'From ${formatFullDate(start)}'
+        : 'Until ${formatFullDate(end!)}';
   }
 
   String _parameterSummary() => switch (_type) {

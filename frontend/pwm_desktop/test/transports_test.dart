@@ -87,14 +87,26 @@ TruckLoad _load({
 
 const _companies = [
   Company(
-      id: 1, name: 'Stahlbau Meyer GmbH', cityId: 1, address: 'Werkstr. 1', companyTypeId: 1),
+      id: 1,
+      name: 'Stahlbau Meyer GmbH',
+      countryId: 1,
+      cityId: 1,
+      address: 'Werkstr. 1',
+      companyTypeId: 1),
   Company(
       id: 2,
       name: 'TransBalkan Logistika',
+      countryId: 1,
       cityId: 1,
       address: 'Put 3',
       companyTypeId: 2),
-  Company(id: 3, name: 'Euro Spedicija', cityId: 1, address: 'Put 7', companyTypeId: 2),
+  Company(
+      id: 3,
+      name: 'Euro Spedicija',
+      countryId: 1,
+      cityId: 1,
+      address: 'Put 7',
+      companyTypeId: 2),
 ];
 
 /// Ten loads, most recent first as the API sorts them, so the eight-row page

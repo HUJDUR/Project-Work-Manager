@@ -212,10 +212,10 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                     ),
                     items: [
                       const DropdownMenuItem(value: null, child: Text('Not assigned')),
-                      for (final Company carrier in provider.carriers)
+                      for (final Company company in provider.deliveryCompanies)
                         DropdownMenuItem(
-                          value: carrier.id,
-                          child: Text(carrier.name, overflow: TextOverflow.ellipsis),
+                          value: company.id,
+                          child: Text(company.name, overflow: TextOverflow.ellipsis),
                         ),
                     ],
                   ),

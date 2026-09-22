@@ -1,7 +1,7 @@
 import 'package:intl/intl.dart';
 
-final _dayMonth = DateFormat('d MMM');
-final _dayMonthYear = DateFormat('d MMM yyyy');
+final _dayMonth = DateFormat('dd.MM.');
+final _dayMonthYear = DateFormat('dd.MM.yyyy.');
 final _timeOfDay = DateFormat('HH:mm');
 final _decimal = NumberFormat('#,##0.0');
 final _whole = NumberFormat('#,##0');
