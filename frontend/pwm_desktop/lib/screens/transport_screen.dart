@@ -73,10 +73,7 @@ class _Body extends StatelessWidget {
           const SizedBox(height: AppSpacing.gap),
           Expanded(
             child: TransportsTable(
-              rows: provider.rows,
-              page: provider.page,
-              pageCount: provider.pageCount,
-              onPageChanged: provider.setPage,
+              provider: provider,
               onRowTap: (row) => openTransportDetails(context, provider, row: row),
             ),
           ),

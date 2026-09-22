@@ -363,6 +363,19 @@ class ProjectsProvider extends ChangeNotifier {
   /// API caps how many rows one request may return.
   Future<List<E>> _all<E>(BaseProvider<E> provider) => provider.getAll();
 
+  /// Every row matching the search box and status filter - not just the page
+  /// [rows] holds. The projects table's own column sort and filter (an
+  /// Excel-style AutoFilter) need the whole matching set to sort and check
+  /// values against, not one page of eight.
+  Future<List<ProjectRow>> loadAllRows() async {
+    final projects = await _projects.getAll(filter: {
+      'sortBy': sortBy,
+      if (_search.trim().isNotEmpty) 'search': _search.trim(),
+      if (_statusId != null) 'projectStatusId': _statusId,
+    });
+    return _buildRows(projects);
+  }
+
   int? _statusIdOf(String name) => _statusList
       .where((status) => status.name.toLowerCase() == name.toLowerCase())
       .map((status) => status.id)

@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../models/models.dart';
+import '../../providers/workers_provider.dart';
 import '../../utils/app_theme.dart';
+import 'excel_table_header.dart';
 import 'table_pager.dart';
-
-const _columns = <_Column>[
-  _Column('Worker', 4),
-  _Column('Role', 3),
-  _Column('Phone', 2),
-  _Column('Operations', 3),
-  _Column('Status', 2),
-];
 
 /// Gap between every column, in both the header and the rows, so a long value
 /// in one never visually crowds the next.
@@ -19,33 +13,118 @@ const _columnGap = SizedBox(width: 16);
 /// A state with no colour of its own.
 const Color _neutral = Color(0xFF6B7280);
 
-class _Column {
-  const _Column(this.label, this.flex);
+final _columns = <ExcelColumn<WorkerRow>>[
+  ExcelColumn(
+    label: 'Worker',
+    flex: 4,
+    sortKey: (row) => row.fullName,
+    filterValues: (row) => [row.fullName],
+  ),
+  ExcelColumn(
+    label: 'Role',
+    flex: 3,
+    sortKey: (row) => row.roleName,
+    filterValues: (row) => [row.roleName],
+  ),
+  ExcelColumn(
+    label: 'Phone',
+    flex: 2,
+    sortKey: (row) => row.phoneNumber ?? '',
+    filterValues: (row) => [row.phoneNumber ?? ExcelColumn.blank],
+  ),
+  ExcelColumn(
+    label: 'Operations',
+    flex: 3,
+    sortKey: (row) => row.operations.join(', '),
+    filterValues: (row) => row.operations.isEmpty ? [ExcelColumn.blank] : row.operations,
+  ),
+  ExcelColumn(
+    label: 'Status',
+    flex: 2,
+    sortKey: (row) => row.isActive ? 'Active' : 'Inactive',
+    filterValues: (row) => [row.isActive ? 'Active' : 'Inactive'],
+  ),
+];
 
-  final String label;
-  final int flex;
-}
+/// The workers list with Excel's own AutoFilter, tried here first: every
+/// header sorts on a click and carries a checklist of that column's values to
+/// filter the table down to. That needs the whole matching set in hand at
+/// once - what the search box, role dropdown and "Currently employed" toggle
+/// leave a match - rather than the page of eight [WorkersProvider] otherwise
+/// pages through, so this widget reads it directly via [WorkersProvider.
+/// loadAllRows] and paginates, sorts and filters it here instead.
+class WorkersTable extends StatefulWidget {
+  const WorkersTable({super.key, required this.provider, required this.onRowTap});
 
-class WorkersTable extends StatelessWidget {
-  const WorkersTable({
-    super.key,
-    required this.rows,
-    required this.page,
-    required this.pageCount,
-    required this.onPageChanged,
-    required this.onRowTap,
-  });
-
-  final List<WorkerRow> rows;
-  final int page;
-  final int pageCount;
-  final ValueChanged<int> onPageChanged;
+  final WorkersProvider provider;
 
   /// Opens the row in the details screen.
   final ValueChanged<WorkerRow> onRowTap;
 
   @override
+  State<WorkersTable> createState() => _WorkersTableState();
+}
+
+enum _LoadStatus { loading, ready, failed }
+
+class _WorkersTableState extends State<WorkersTable> with ExcelTableState<WorkerRow, WorkersTable> {
+  _LoadStatus _status = _LoadStatus.loading;
+  List<WorkerRow> _allRows = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.provider.addListener(_onProviderChanged);
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant WorkersTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider != widget.provider) {
+      oldWidget.provider.removeListener(_onProviderChanged);
+      widget.provider.addListener(_onProviderChanged);
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.provider.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  /// The search box, role dropdown and active toggle each notify the provider
+  /// on change, and so does a save on the details screen - any of those can
+  /// change which rows this table should hold, so all of them re-fetch it.
+  void _onProviderChanged() => _load();
+
+  Future<void> _load() async {
+    setState(() => _status = _LoadStatus.loading);
+
+    try {
+      final rows = await widget.provider.loadAllRows();
+      if (!mounted) return;
+      setState(() {
+        _allRows = rows;
+        _status = _LoadStatus.ready;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _status = _LoadStatus.failed);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final rows = visibleRows(_allRows);
+    final pageCount = (rows.length / ExcelTableState.pageSize).ceil().clamp(1, 999);
+    final currentPage = page.clamp(1, pageCount);
+    final start = (currentPage - 1) * ExcelTableState.pageSize;
+    final pageRows = start >= rows.length
+        ? const <WorkerRow>[]
+        : rows.sublist(start, (start + ExcelTableState.pageSize).clamp(0, rows.length));
+
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -56,52 +135,43 @@ class WorkersTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HeaderRow(),
-          const Divider(height: 1),
-          Expanded(
-            child: rows.isEmpty
-                ? _NoRows()
-                : ListView.separated(
-                    itemCount: rows.length,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
-                    itemBuilder: (context, index) => _WorkerRowTile(
-                      row: rows[index],
-                      onTap: () => onRowTap(rows[index]),
-                    ),
-                  ),
+          ExcelHeaderRow<WorkerRow>(
+            columns: _columns,
+            allRows: _allRows,
+            sortColumn: sortColumn,
+            sortAscending: sortAscending,
+            filters: columnFilters,
+            onResult: (column, result) => onHeaderResult(_allRows, column, result),
           ),
           const Divider(height: 1),
-          TablePager(page: page, pageCount: pageCount, onPageChanged: onPageChanged),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderRow extends StatelessWidget {
-  const _HeaderRow();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      child: Row(
-        children: [
-          for (final (index, column) in _columns.indexed) ...[
-            if (index > 0) _columnGap,
-            Expanded(
-              flex: column.flex,
-              child: Text(
-                column.label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textSecondary,
+          Expanded(
+            child: switch (_status) {
+              _LoadStatus.loading when _allRows.isEmpty =>
+                const Center(child: CircularProgressIndicator()),
+              _LoadStatus.failed => Center(
+                  child: Text(
+                    'Could not load the full worker list.',
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
                 ),
-              ),
-            ),
-          ],
-          const SizedBox(width: 32),
+              _ => pageRows.isEmpty
+                  ? _NoRows()
+                  : ListView.separated(
+                      itemCount: pageRows.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (context, index) => _WorkerRowTile(
+                        row: pageRows[index],
+                        onTap: () => widget.onRowTap(pageRows[index]),
+                      ),
+                    ),
+            },
+          ),
+          const Divider(height: 1),
+          TablePager(
+            page: currentPage,
+            pageCount: pageCount,
+            onPageChanged: (value) => setState(() => page = value),
+          ),
         ],
       ),
     );
@@ -292,7 +362,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.center,
+      alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(

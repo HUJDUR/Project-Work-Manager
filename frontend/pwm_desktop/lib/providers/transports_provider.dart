@@ -231,6 +231,25 @@ class TransportsProvider extends ChangeNotifier {
   /// API caps how many rows one request may return.
   Future<List<E>> _all<E>(BaseProvider<E> provider) => provider.getAll();
 
+  /// Every row matching the search box, status filter and date range - not
+  /// just the page [rows] holds. The transports table's own column sort and
+  /// filter (an Excel-style AutoFilter) need the whole matching set to sort
+  /// and check values against, not one page of eight.
+  Future<List<TransportRow>> loadAllRows() async {
+    final loads = await _truckLoads.getAll(filter: {
+      'sortBy': sortBy,
+      if (_search.trim().isNotEmpty) 'search': _search.trim(),
+      if (_statusId != null) 'truckLoadStatusId': _statusId,
+      if (_dateRange != null) ...{
+        'dateFrom': DateUtils.dateOnly(_dateRange!.start).toIso8601String(),
+        'dateTo': DateUtils.dateOnly(_dateRange!.end)
+            .add(const Duration(days: 1) - const Duration(seconds: 1))
+            .toIso8601String(),
+      },
+    });
+    return _buildRows(loads);
+  }
+
   List<TransportRow> _buildRows(List<TruckLoad> loads) {
     final statusById = {for (final status in _statusList) status.id: status};
 
