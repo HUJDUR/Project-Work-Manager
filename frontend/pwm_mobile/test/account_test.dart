@@ -226,6 +226,26 @@ void main() {
       expect(users.writes.single['newPassword'], 'Welder2026!');
     });
 
+    testWidgets(
+        'leaving a broken password field states the rule before Save is ever pressed',
+        (tester) async {
+      _signIn();
+      final users = _FakeUsers();
+      await _pump(tester, AccountSettingsScreen(userProvider: users));
+
+      await _typePassword(tester, 'New password', 'short');
+
+      // Moves to the next field without pressing Save — the desktop's own
+      // treatment of this section, mirrored here.
+      final confirmField = find.widgetWithText(TextField, 'Confirm new password');
+      await _reveal(tester, confirmField);
+      await tester.tap(confirmField);
+      await tester.pumpAndSettle();
+
+      expect(find.text('At least 8 characters.'), findsOneWidget);
+      expect(users.writes, isEmpty);
+    });
+
     testWidgets('a refused save keeps the API\'s own wording', (tester) async {
       _signIn();
       await _pump(

@@ -10,19 +10,28 @@ import 'notification_list.dart';
 /// Read here means read for good — nothing un-reads a notification — but a
 /// notification the bell already showed keeps showing, struck through, for
 /// the rest of the session: only signing out and back in drops it, because
-/// that is when `NotificationBell` (and the [ReceivedNotificationsProvider] it
-/// owns) is rebuilt from nothing. Anything older, or already read before this
+/// that is when `MasterScreen` — which owns [provider], not this widget —
+/// rebuilds it from nothing. Anything older, or already read before this
 /// session, lives in the Notifications screen's history card instead — that
 /// is what [onViewAll] opens.
+///
+/// The provider is owned by the caller rather than created here because
+/// `MasterScreen` also has to reach it: it calls
+/// `ReceivedNotificationsProvider.refreshUnread` on every screen change, so a
+/// notification sent mid-session shows up without waiting for the next
+/// sign-in. Owning it locally would leave `MasterScreen` with no way in.
 class NotificationBell extends StatefulWidget {
-  const NotificationBell({super.key, required this.onViewAll, this.providerFactory});
+  const NotificationBell({
+    super.key,
+    required this.provider,
+    required this.onViewAll,
+  });
+
+  final ReceivedNotificationsProvider provider;
 
   /// Switches the app to the Notifications screen, where the history card
   /// shows everything the bell does not.
   final VoidCallback onViewAll;
-
-  /// Lets a test swap in a provider backed by fake data.
-  final ReceivedNotificationsProvider Function()? providerFactory;
 
   @override
   State<NotificationBell> createState() => _NotificationBellState();
@@ -30,27 +39,19 @@ class NotificationBell extends StatefulWidget {
 
 class _NotificationBellState extends State<NotificationBell> {
   final _link = LayerLink();
-  late final ReceivedNotificationsProvider _provider = widget.providerFactory
-          ?.call() ??
-      ReceivedNotificationsProvider(unreadOnly: true, pageSize: 5);
 
   OverlayEntry? _entry;
 
   @override
   void initState() {
     super.initState();
-    _provider.addListener(_onChanged);
-    // Loaded once, on mount — not on every open. See the class doc: reloading
-    // an unread-only page on each click would drop a just-read notification
-    // immediately instead of at the next sign-in.
-    _provider.load();
+    widget.provider.addListener(_onChanged);
   }
 
   @override
   void dispose() {
     _entry?.remove();
-    _provider.removeListener(_onChanged);
-    _provider.dispose();
+    widget.provider.removeListener(_onChanged);
     super.dispose();
   }
 
@@ -67,7 +68,7 @@ class _NotificationBellState extends State<NotificationBell> {
     _entry = OverlayEntry(
       builder: (context) => _NotificationsOverlay(
         link: _link,
-        provider: _provider,
+        provider: widget.provider,
         onDismiss: _close,
         onViewAll: () {
           _close();
@@ -87,7 +88,7 @@ class _NotificationBellState extends State<NotificationBell> {
 
   @override
   Widget build(BuildContext context) {
-    final unread = _provider.unreadCount;
+    final unread = widget.provider.unreadCount;
 
     return CompositedTransformTarget(
       link: _link,

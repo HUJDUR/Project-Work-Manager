@@ -8,6 +8,7 @@ import '../providers/transports_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import 'transport_details_screen.dart';
+import 'widgets/search_field.dart';
 import 'widgets/transports_table.dart';
 
 /// Every truck load with its carrier, driver and weights, laid out as in
@@ -161,18 +162,15 @@ class _FilterBarState extends State<_FilterBar> {
       children: [
         Expanded(
           flex: 3,
-          child: TextField(
+          child: SearchField(
             controller: _searchController,
+            hintText: 'Search transports...',
             onChanged: _onSearchChanged,
             onSubmitted: provider.setSearch,
-            decoration: InputDecoration(
-              hintText: 'Search transports...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              border: const OutlineInputBorder(),
-              isDense: true,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            ),
+            onClear: () {
+              _debounce?.cancel();
+              provider.setSearch('');
+            },
           ),
         ),
         const SizedBox(width: 12),

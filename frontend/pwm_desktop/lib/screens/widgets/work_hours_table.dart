@@ -6,6 +6,10 @@ import '../../utils/formatters.dart';
 import 'excel_table_header.dart';
 import 'table_pager.dart';
 
+/// The breathing room between two columns of a row - matches the gap the
+/// header already puts between its own cells.
+const _columnGap = SizedBox(width: 16);
+
 final _columns = <ExcelColumn<WorkHoursEntry>>[
   ExcelColumn(
     label: 'Worker',
@@ -150,15 +154,19 @@ class _EntryRow extends StatelessWidget {
         child: Row(
           children: [
             Expanded(flex: _columns[0].flex, child: _Worker(entry: entry)),
+            _columnGap,
             Expanded(
               flex: _columns[1].flex,
               child: _Cell(entry.projectName, caption: entry.operationName),
             ),
+            _columnGap,
             Expanded(flex: _columns[2].flex, child: _Cell(formatFullDate(entry.date))),
+            _columnGap,
             Expanded(
               flex: _columns[3].flex,
               child: _Cell(formatHours(entry.regularHours)),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[4].flex,
               child: _Cell(
@@ -166,10 +174,12 @@ class _EntryRow extends StatelessWidget {
                 color: entry.isOvertime ? AppColors.accent : AppColors.textMuted,
               ),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[5].flex,
               child: _Cell(formatHours(entry.totalHours), bold: true),
             ),
+            _columnGap,
             Expanded(flex: _columns[6].flex, child: _StatusChip(status: entry.status)),
             SizedBox(
               width: 32,

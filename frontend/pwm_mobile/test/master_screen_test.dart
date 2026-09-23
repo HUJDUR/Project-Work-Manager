@@ -1,8 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Notification;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pwm_mobile/layouts/master_screen.dart';
+import 'package:pwm_mobile/models/models.dart';
 import 'package:pwm_mobile/providers/auth_provider.dart';
+import 'package:pwm_mobile/providers/notification_provider.dart';
+import 'package:pwm_mobile/providers/notifications_provider.dart';
 import 'package:pwm_mobile/utils/app_theme.dart';
 
 /// A small phone — the width the six-entry bottom bar has to survive.
@@ -14,8 +17,67 @@ const _phone = Size(390, 844);
 const _optionsTab = 5;
 const _notificationsTab = 4;
 
-Future<void> _pumpShell(WidgetTester tester,
-    {int initialIndex = _optionsTab}) async {
+/// Answers `get`/`markRead` from in-memory rows, the same shape
+/// `notifications_test.dart` uses for the tab itself — here it backs the
+/// bottom bar's own badge provider instead.
+class _FakeNotifications extends NotificationProvider {
+  _FakeNotifications(this.rows);
+
+  List<Notification> rows;
+
+  @override
+  Future<PageResult<Notification>> get({dynamic filter}) async {
+    final map = Map<String, dynamic>.from(filter as Map);
+    final userId = map['userId'] as int?;
+    final isRead = map['isRead'] as bool?;
+
+    final matching = rows.where((row) {
+      if (userId != null && row.userId != userId) return false;
+      if (isRead != null && row.isRead != isRead) return false;
+      return true;
+    }).toList();
+
+    final page = (map['page'] as int?) ?? 1;
+    final size = (map['pageSize'] as int?) ?? matching.length;
+
+    return PageResult<Notification>()
+      ..totalCount = map['includeTotalCount'] == true ? matching.length : null
+      ..items = matching.skip((page - 1) * size).take(size).toList();
+  }
+
+  @override
+  Future<int> markRead({List<int>? ids}) async {
+    var marked = 0;
+    rows = [
+      for (final row in rows)
+        if (!row.isRead && (ids == null || ids.contains(row.id)))
+          (() {
+            marked++;
+            return row.read;
+          })()
+        else
+          row,
+    ];
+    return marked;
+  }
+}
+
+Notification _notification({required int id, required bool isRead}) {
+  return Notification(
+    id: id,
+    userId: 1,
+    title: 'Notification $id',
+    message: 'Message $id',
+    isRead: isRead,
+    createdAt: DateTime.now(),
+  );
+}
+
+Future<void> _pumpShell(
+  WidgetTester tester, {
+  int initialIndex = _optionsTab,
+  List<Notification> unreadNotifications = const [],
+}) async {
   tester.view
     ..physicalSize = _phone
     ..devicePixelRatio = 1.0;
@@ -27,7 +89,15 @@ Future<void> _pumpShell(WidgetTester tester,
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeController()),
       ],
-      child: MaterialApp(home: MasterScreen(initialIndex: initialIndex)),
+      child: MaterialApp(
+        home: MasterScreen(
+          initialIndex: initialIndex,
+          notificationsProviderFactory: () => NotificationsProvider(
+            notifications: _FakeNotifications(unreadNotifications),
+            userId: 1,
+          ),
+        ),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -37,10 +107,9 @@ void main() {
   testWidgets('the top bar names the product in full on a phone', (tester) async {
     await _pumpShell(tester);
 
-    // Both the name and the bell have to fit beside the avatar; the name
-    // shrinks rather than ellipsising, so it is still findable whole.
+    // The name shrinks rather than ellipsising, so it is still findable whole
+    // beside the avatar.
     expect(find.text('PWM - Project Work Manager'), findsOneWidget);
-    expect(find.byTooltip('Notifications'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -88,12 +157,112 @@ void main() {
     expect(find.byType(MasterScreen), findsOneWidget);
   });
 
-  testWidgets('the bell opens the notifications tab', (tester) async {
-    await _pumpShell(tester);
+  testWidgets(
+      'the bottom bar badges Notifications with the unread count, the way the desktop bell does',
+      (tester) async {
+    await _pumpShell(tester, unreadNotifications: [
+      _notification(id: 1, isRead: false),
+      _notification(id: 2, isRead: false),
+    ]);
 
-    await tester.tap(find.byTooltip('Notifications'));
+    expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('nothing unread draws no badge', (tester) async {
+    await _pumpShell(tester, unreadNotifications: [
+      _notification(id: 1, isRead: true),
+    ]);
+
+    expect(find.text('1'), findsNothing);
+  });
+
+  testWidgets(
+      'every tab switch re-asks for the unread count, so reading something '
+      'on the Notifications tab clears the badge on the way out',
+      (tester) async {
+    final fake = _FakeNotifications([
+      _notification(id: 1, isRead: false),
+      _notification(id: 2, isRead: false),
+    ]);
+
+    tester.view
+      ..physicalSize = _phone
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => AuthProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeController()),
+        ],
+        child: MaterialApp(
+          home: MasterScreen(
+            initialIndex: _notificationsTab,
+            notificationsProviderFactory: () =>
+                NotificationsProvider(notifications: fake, userId: 1),
+          ),
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Messages from the office'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+
+    // Something reads both — the tab's own screen doing it is one way, but
+    // this stands for any of them, since the badge provider only finds out
+    // once asked again.
+    await fake.markRead();
+
+    // Still showing while the Notifications tab is the one on screen — a
+    // badge for a tab is not something that tab needs to see about itself.
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.tap(find.text('Options'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2'), findsNothing);
+  });
+
+  testWidgets(
+      'switching between two tabs neither of which is Notifications still '
+      'picks up something sent meanwhile',
+      (tester) async {
+    final fake = _FakeNotifications([
+      _notification(id: 1, isRead: false),
+    ]);
+
+    tester.view
+      ..physicalSize = _phone
+      ..devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => AuthProvider()),
+          ChangeNotifierProvider(create: (_) => ThemeController()),
+        ],
+        child: MaterialApp(
+          home: MasterScreen(
+            initialIndex: _optionsTab,
+            notificationsProviderFactory: () =>
+                NotificationsProvider(notifications: fake, userId: 1),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('1'), findsOneWidget);
+
+    // A second one arrives while nobody is anywhere near the Notifications
+    // tab.
+    fake.rows.add(_notification(id: 2, isRead: false));
+
+    await tester.tap(find.text('Dashboard'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2'), findsOneWidget);
   });
 }

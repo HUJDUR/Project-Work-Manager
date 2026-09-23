@@ -25,10 +25,10 @@ class _Probe extends StatelessWidget {
 void main() {
   tearDown(() => AppColors.palette = AppColors.paletteFor(ThemeController.defaultMode));
 
-  test('the app opens light, the way every mobile mockup is drawn', () {
-    expect(ThemeController.defaultMode, ThemeMode.light);
-    expect(ThemeController().isDark, isFalse);
-    expect(AppColors.palette, AppPalette.light);
+  test('the app opens dark', () {
+    expect(ThemeController.defaultMode, ThemeMode.dark);
+    expect(ThemeController().isDark, isTrue);
+    expect(AppColors.palette, AppPalette.dark);
   });
 
   testWidgets('a toggle repaints the whole tree, not only what is rebuilt',
@@ -52,14 +52,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(_colourOf(tester, _Probe.caption), AppPalette.light.textSecondary);
+    expect(_colourOf(tester, _Probe.caption), AppPalette.dark.textSecondary);
 
     controller.toggle();
     await tester.pumpAndSettle();
 
     // The colour is read from a global palette, so this only holds while nothing
     // between the toggle and the text blocks the rebuild.
-    expect(_colourOf(tester, _Probe.caption), AppPalette.dark.textSecondary);
+    expect(_colourOf(tester, _Probe.caption), AppPalette.light.textSecondary);
   });
 
   test('no widget of this project is const-constructed', () {

@@ -159,9 +159,10 @@ abstract final class AppSpacing {
 /// the time the tree rebuilds every `AppColors.x` already answers the new
 /// theme. The choice is not persisted — it lasts as long as the process does.
 class ThemeController extends ChangeNotifier {
-  /// The desktop opens dark; this one opens light, which is what every mobile
-  /// mockup shows. The toggle belongs on the Options tab, which is not built yet.
-  static const ThemeMode defaultMode = ThemeMode.light;
+  /// The shop floor runs this on bright displays too, so it opens dark the
+  /// same as the desktop; the top bar's toggle is there for whoever wants
+  /// otherwise.
+  static const ThemeMode defaultMode = ThemeMode.dark;
 
   ThemeMode _mode = defaultMode;
 

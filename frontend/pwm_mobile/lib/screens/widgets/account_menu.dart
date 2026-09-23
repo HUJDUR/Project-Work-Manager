@@ -11,9 +11,7 @@ import '../login_screen.dart';
 /// the back gesture cannot return to a shell with no account.
 ///
 /// `AuthProvider.signOut` drops the session locally even when telling the API
-/// fails, so a dead server does not strand somebody signed in. This works
-/// whatever `main.dart`'s `bypassLogin` is set to — that switch only decides
-/// what the app opens on.
+/// fails, so a dead server does not strand somebody signed in.
 Future<void> signOutToLogin(BuildContext context) async {
   final navigator = Navigator.of(context, rootNavigator: true);
 

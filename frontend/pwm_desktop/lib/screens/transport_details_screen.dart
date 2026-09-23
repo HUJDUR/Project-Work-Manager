@@ -215,7 +215,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
             const SizedBox(height: formFieldGap),
             InputDecorator(
               decoration: appInputDecoration(
-                'Bruto project weight',
+                'Calculated bruto truck weight',
                 suffixText: 'kg',
               ).copyWith(
                 enabled: false,
@@ -223,7 +223,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                 helperStyle: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
               child: Text(
-                _netWeight.toStringAsFixed(2),
+                _calculatedBrutoWeight.toStringAsFixed(2),
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   color: AppColors.textSecondary,
@@ -291,6 +291,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
               lines: _lines,
               loading: _loadingLines,
               projects: provider.projects,
+              calculatedBrutoWeight: _calculatedBrutoWeight,
               onAdd: _addLine,
               onEdit: _editLine,
               onRemove: _removeLine,
@@ -303,7 +304,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
 
   /// What is actually on the truck, read live off the two weight fields so the
   /// figure follows what is being typed.
-  double get _netWeight {
+  double get _calculatedBrutoWeight {
     final empty = double.tryParse(_currentWeight('emptyWeight')) ?? 0;
     final full = double.tryParse(_currentWeight('fullWeight')) ?? 0;
     return (full - empty).clamp(0, double.infinity);
@@ -435,6 +436,7 @@ class _CargoSection extends StatelessWidget {
     required this.lines,
     required this.loading,
     required this.projects,
+    required this.calculatedBrutoWeight,
     required this.onAdd,
     required this.onEdit,
     required this.onRemove,
@@ -443,12 +445,26 @@ class _CargoSection extends StatelessWidget {
   final List<TransportLine> lines;
   final bool loading;
   final List<Project> projects;
+
+  /// The truck's own bruto capacity — full weight less the empty truck — so
+  /// the cargo loaded onto it can be checked against what it can carry.
+  final double calculatedBrutoWeight;
+
   final VoidCallback onAdd;
   final ValueChanged<int> onEdit;
   final ValueChanged<int> onRemove;
 
   double get _totalNeto =>
       lines.fold(0, (total, line) => total + line.netoWeight);
+
+  double get _totalBruto =>
+      lines.fold(0, (total, line) => total + line.brutoWeight);
+
+  /// A truck with no weights entered yet calculates to zero, which would flag
+  /// every load as overweight — only warn once there is a real figure to check
+  /// against.
+  bool get _isOverweight =>
+      calculatedBrutoWeight > 0 && _totalBruto > calculatedBrutoWeight + 0.001;
 
   @override
   Widget build(BuildContext context) {
@@ -532,8 +548,53 @@ class _CargoSection extends StatelessWidget {
               ),
             ),
           ),
+          if (_isOverweight) ...[
+            const SizedBox(height: 8),
+            _OverweightWarning(
+              totalBruto: _totalBruto,
+              calculatedBrutoWeight: calculatedBrutoWeight,
+            ),
+          ],
         ],
       ],
+    );
+  }
+}
+
+/// Shown when the cargo loaded onto the truck adds up to more bruto weight
+/// than the truck can carry.
+class _OverweightWarning extends StatelessWidget {
+  const _OverweightWarning({
+    required this.totalBruto,
+    required this.calculatedBrutoWeight,
+  });
+
+  final double totalBruto;
+  final double calculatedBrutoWeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.warningSoft,
+        border: Border.all(color: AppColors.warningBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Cargo bruto weight (${formatCount(totalBruto)} kg) exceeds the '
+              'calculated bruto truck weight (${formatCount(calculatedBrutoWeight)} kg).',
+              style: TextStyle(fontSize: 13, color: AppColors.warning),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -669,6 +730,31 @@ class _CargoLineDialog extends StatefulWidget {
 class _CargoLineDialogState extends State<_CargoLineDialog> {
   final _formKey = GlobalKey<FormBuilderState>();
 
+  /// Neto validates itself against bruto on its own blur, via
+  /// `AutovalidateMode.onUnfocus` - but only bruto's own field hears bruto's
+  /// blur, so leaving bruto smaller than an already-checked neto would
+  /// otherwise go unnoticed. This catches that: once neto has actually been
+  /// typed into, leaving bruto re-checks it too.
+  final _brutoFocus = FocusNode();
+  bool _netoTouched = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _brutoFocus.addListener(_onBrutoBlurred);
+  }
+
+  @override
+  void dispose() {
+    _brutoFocus.dispose();
+    super.dispose();
+  }
+
+  void _onBrutoBlurred() {
+    if (_brutoFocus.hasFocus || !_netoTouched) return;
+    _formKey.currentState?.fields['netoWeight']?.validate(focusOnInvalid: false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final line = widget.line;
@@ -708,17 +794,26 @@ class _CargoLineDialogState extends State<_CargoLineDialog> {
                       ),
                   ],
                 ),
-                const SizedBox(height: formFieldGap),
+                // Wider than formFieldGap: a validator error appends its own
+                // line under the field, and the ordinary gap reads as cramped
+                // once that red text is sitting right above the next row.
+                const SizedBox(height: formFieldGap + 10),
                 Row(
+                  // Top-aligned, not centred: an error grows only the field it
+                  // belongs to, and centring would sink its neighbour to match
+                  // instead of leaving it where it started.
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: FormBuilderTextField(
                         name: 'brutoWeight',
+                        focusNode: _brutoFocus,
                         keyboardType:
                             const TextInputType.numberWithOptions(decimal: true),
                         decoration:
                             appInputDecoration('Bruto weight', suffixText: 'kg'),
                         valueTransformer: (value) => value?.replaceAll(',', '.'),
+                        autovalidateMode: AutovalidateMode.onUnfocus,
                         validator: _weightValidator('Bruto weight'),
                       ),
                     ),
@@ -731,13 +826,21 @@ class _CargoLineDialogState extends State<_CargoLineDialog> {
                         decoration:
                             appInputDecoration('Neto weight', suffixText: 'kg'),
                         valueTransformer: (value) => value?.replaceAll(',', '.'),
-                        validator: _weightValidator('Neto weight'),
+                        autovalidateMode: AutovalidateMode.onUnfocus,
+                        onChanged: (_) => _netoTouched = true,
+                        validator: FormBuilderValidators.compose([
+                          _weightValidator('Neto weight'),
+                          (value) => _netoAboveBruto(value)
+                              ? 'Cannot be above the bruto weight.'
+                              : null,
+                        ]),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: formFieldGap),
+                const SizedBox(height: formFieldGap + 10),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: FormBuilderTextField(
@@ -801,6 +904,14 @@ class _CargoLineDialogState extends State<_CargoLineDialog> {
         FilledButton(onPressed: _accept, child: const Text('Done')),
       ],
     );
+  }
+
+  bool _netoAboveBruto(String? netoValue) {
+    final neto = double.tryParse((netoValue ?? '').replaceAll(',', '.'));
+    final brutoText = _formKey.currentState?.fields['brutoWeight']?.value as String?;
+    final bruto = double.tryParse((brutoText ?? '').replaceAll(',', '.'));
+    if (neto == null || bruto == null) return false;
+    return neto > bruto;
   }
 
   static FormFieldValidator<String> _weightValidator(String label) =>

@@ -131,6 +131,81 @@ void main() {
       expect(provider.rows, hasLength(2));
       expect(provider.rows.every((row) => row.isRead), isTrue);
     });
+
+    group('refreshUnread', () {
+      test('folds in a notification sent since the last load', () async {
+        final fake = _FakeNotificationProvider([
+          _notification(id: 1, isRead: false),
+        ]);
+        final provider = ReceivedNotificationsProvider(
+          notifications: fake, userId: 1, unreadOnly: true, pageSize: 5,
+        );
+        await provider.load();
+
+        fake.rows.add(_notification(id: 2, isRead: false));
+        await provider.refreshUnread();
+
+        expect(provider.rows.map((row) => row.id), unorderedEquals([1, 2]));
+        expect(provider.unreadCount, 2);
+      });
+
+      test('does not drop a row already read this session', () async {
+        final fake = _FakeNotificationProvider([
+          _notification(id: 1, isRead: false),
+        ]);
+        final provider = ReceivedNotificationsProvider(
+          notifications: fake, userId: 1, unreadOnly: true, pageSize: 5,
+        );
+        await provider.load();
+        await provider.markRead(provider.rows.single);
+
+        // A fresh unread-only fetch would come back with nothing at all now.
+        await provider.refreshUnread();
+
+        expect(provider.rows.map((row) => row.id), [1]);
+        expect(provider.rows.single.isRead, isTrue);
+        expect(provider.unreadCount, 0);
+      });
+
+      test('drops a still-unread row the fresh page no longer includes',
+          () async {
+        final fake = _FakeNotificationProvider([
+          for (var i = 1; i <= 5; i++) _notification(id: i, isRead: false),
+        ]);
+        final provider = ReceivedNotificationsProvider(
+          notifications: fake, userId: 1, unreadOnly: true, pageSize: 5,
+        );
+        await provider.load();
+        expect(provider.rows.map((row) => row.id), [1, 2, 3, 4, 5]);
+
+        // Four more arrive ahead of the original five: the fresh page of 5
+        // is the four new ones plus the newest of the old, so the rest of
+        // the original five age out of it — unread or not, the same as at
+        // the next sign-in's `load()`.
+        fake.rows.insertAll(0, [
+          for (var i = 6; i <= 9; i++) _notification(id: i, isRead: false),
+        ]);
+
+        await provider.refreshUnread();
+
+        expect(provider.rows, hasLength(5));
+        expect(provider.rows.map((row) => row.id), containsAll([6, 7, 8, 9, 1]));
+        expect(provider.rows.map((row) => row.id), isNot(contains(2)));
+        expect(provider.unreadCount, 9);
+      });
+
+      test('does nothing in the history card\'s full mode', () async {
+        final fake = _FakeNotificationProvider([_notification(id: 1, isRead: false)]);
+        final provider =
+            ReceivedNotificationsProvider(notifications: fake, userId: 1);
+        await provider.load();
+        final requestsAfterLoad = fake.requests.length;
+
+        await provider.refreshUnread();
+
+        expect(fake.requests, hasLength(requestsAfterLoad));
+      });
+    });
   });
 
   group('full history mode (the Notifications screen)', () {

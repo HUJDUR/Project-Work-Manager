@@ -6,6 +6,7 @@ import 'base_provider.dart';
 import 'company_provider.dart';
 import 'company_type_provider.dart';
 import 'project_provider.dart';
+import 'project_status_type_provider.dart';
 import 'truck_load_detail_provider.dart';
 import 'truck_load_provider.dart';
 import 'truck_load_status_type_provider.dart';
@@ -28,12 +29,14 @@ class TransportsProvider extends ChangeNotifier {
     BaseProvider<Company>? companies,
     BaseProvider<CompanyType>? companyTypes,
     BaseProvider<Project>? projects,
+    BaseProvider<ProjectStatusType>? projectStatusTypes,
   })  : _truckLoads = truckLoads ?? TruckLoadProvider(),
         _truckLoadDetails = truckLoadDetails ?? TruckLoadDetailProvider(),
         _statusTypes = statusTypes ?? TruckLoadStatusTypeProvider(),
         _companies = companies ?? CompanyProvider(),
         _companyTypes = companyTypes ?? CompanyTypeProvider(),
-        _projects = projects ?? ProjectProvider();
+        _projects = projects ?? ProjectProvider(),
+        _projectStatusTypes = projectStatusTypes ?? ProjectStatusTypeProvider();
 
   /// Rows per page of the table.
   static const int pageSize = 8;
@@ -44,12 +47,17 @@ class TransportsProvider extends ChangeNotifier {
   /// Companies of this type are the shop's customers, so they are not carriers.
   static const String customerType = 'Customer';
 
+  /// Only a project actively being made is fit to load onto a truck - one still
+  /// on hold, rejected, or already delivered has no business on the cargo list.
+  static const String loadableProjectStatus = 'In production';
+
   final BaseProvider<TruckLoad> _truckLoads;
   final BaseProvider<TruckLoadDetail> _truckLoadDetails;
   final BaseProvider<TruckLoadStatusType> _statusTypes;
   final BaseProvider<Company> _companies;
   final BaseProvider<CompanyType> _companyTypes;
   final BaseProvider<Project> _projects;
+  final BaseProvider<ProjectStatusType> _projectStatusTypes;
 
   TransportsStatusState _status = TransportsStatusState.idle;
   String? _errorMessage;
@@ -140,15 +148,19 @@ class TransportsProvider extends ChangeNotifier {
         _all(_companies),
         _all(_companyTypes),
         _all(_projects),
+        _all(_projectStatusTypes),
       ]);
 
       final statuses = lookups[0] as List<TruckLoadStatusType>;
       final companies = lookups[1] as List<Company>;
       final companyTypes = lookups[2] as List<CompanyType>;
       final projects = lookups[3] as List<Project>;
+      final projectStatuses = lookups[4] as List<ProjectStatusType>;
 
       _statusList = statuses;
       _companyById = {for (final company in companies) company.id: company};
+      // Every project, regardless of status - a load already carrying one that
+      // has since moved on (finished, put on hold) still needs its name.
       _projectById = {for (final project in projects) project.id: project};
 
       final customerTypeId = companyTypes
@@ -161,7 +173,15 @@ class TransportsProvider extends ChangeNotifier {
           .toList()
         ..sort((a, b) => a.name.compareTo(b.name));
 
-      _projectList = [...projects]..sort((a, b) => a.name.compareTo(b.name));
+      final loadableStatusId = projectStatuses
+          .where((status) => status.name.toLowerCase() == loadableProjectStatus.toLowerCase())
+          .map((status) => status.id)
+          .firstOrNull;
+      _projectList = projects
+          .where((project) =>
+              loadableStatusId == null || project.projectStatusId == loadableStatusId)
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
 
       await _fetchPage();
 
