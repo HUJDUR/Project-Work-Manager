@@ -9,6 +9,7 @@ import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import 'project_details_screen.dart';
 import 'widgets/projects_table.dart';
+import 'widgets/search_field.dart';
 import 'widgets/summary_card.dart';
 
 /// Every project with its customer, category and status, laid out as in
@@ -187,17 +188,15 @@ class _FilterBarState extends State<_FilterBar> {
       children: [
         Expanded(
           flex: 3,
-          child: TextField(
+          child: SearchField(
             controller: _searchController,
+            hintText: 'Search projects...',
             onChanged: _onSearchChanged,
             onSubmitted: provider.setSearch,
-            decoration: InputDecoration(
-              hintText: 'Search projects...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              border: const OutlineInputBorder(),
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            ),
+            onClear: () {
+              _debounce?.cancel();
+              provider.setSearch('');
+            },
           ),
         ),
         const SizedBox(width: 12),

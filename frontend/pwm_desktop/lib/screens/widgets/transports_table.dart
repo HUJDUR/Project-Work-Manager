@@ -10,6 +10,10 @@ import 'table_pager.dart';
 /// A state with no colour of its own.
 const Color _neutral = Color(0xFF6B7280);
 
+/// The breathing room between two columns of a row - matches the gap the
+/// header already puts between its own cells.
+const _columnGap = SizedBox(width: 16);
+
 final _columns = <ExcelColumn<TransportRow>>[
   ExcelColumn(
     label: 'Transport No',
@@ -211,10 +215,15 @@ class _TransportRowTile extends StatelessWidget {
         child: Row(
           children: [
             Expanded(flex: _columns[0].flex, child: _Transport(row: row)),
+            _columnGap,
             Expanded(flex: _columns[1].flex, child: _Cell(formatFullDate(row.loadDate))),
+            _columnGap,
             Expanded(flex: _columns[2].flex, child: _Cell(row.driverName)),
+            _columnGap,
             Expanded(flex: _columns[3].flex, child: _Cell(row.driverSurname)),
+            _columnGap,
             Expanded(flex: _columns[4].flex, child: _Cell(row.vehicleRegistration)),
+            _columnGap,
             Expanded(
               flex: _columns[5].flex,
               child: _Cell(
@@ -223,10 +232,12 @@ class _TransportRowTile extends StatelessWidget {
                 caption: '${formatTonnes(row.netWeight)} net',
               ),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[6].flex,
               child: _Cell(formatCount(row.emptyWeight)),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[7].flex,
               child: TruckLoadStatusChip(status: row.statusName),

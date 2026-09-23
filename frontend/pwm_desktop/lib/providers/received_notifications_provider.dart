@@ -13,13 +13,15 @@ enum ReceivedNotificationsStatus { idle, loading, ready, failed }
 ///
 /// Backs two different views of the same table:
 ///
-///  * The bell popup ([unreadOnly] true): the newest [pageSize] unread rows,
-///    loaded once. Reading one — alone or via "mark all" — keeps it on screen,
-///    struck through as read, rather than dropping it; it only stops showing
-///    once this provider is recreated, which happens the next time
-///    `NotificationBell` is mounted after a sign-in. That is what makes a read
-///    notification "disappear from the bell at the next logout" rather than
-///    the moment it is opened.
+///  * The bell popup ([unreadOnly] true): the newest [pageSize] unread rows.
+///    [refreshUnread] re-asks for these on every screen change, so a
+///    notification sent mid-session still shows up; reading one — alone or
+///    via "mark all" — keeps it on screen, struck through as read, rather
+///    than dropping it. It only stops showing once this provider is
+///    recreated, which happens the next time `NotificationBell` is mounted
+///    after a sign-in. That is what makes a read notification "disappear
+///    from the bell at the next logout" rather than the moment it is opened
+///    or the screen is changed.
 ///  * The Notifications screen's history card ([unreadOnly] false): every row,
 ///    newest first, paged with "Load more" — read or not.
 ///
@@ -106,6 +108,47 @@ class ReceivedNotificationsProvider extends ChangeNotifier {
     } catch (error) {
       _errorMessage = 'Something went wrong while loading notifications: $error';
       _status = ReceivedNotificationsStatus.failed;
+    }
+
+    notifyListeners();
+  }
+
+  /// Bell-only: re-asks for what is unread so a notification sent since this
+  /// provider last loaded shows up without waiting for the next sign-in —
+  /// called whenever the desktop switches screens.
+  ///
+  /// A plain [load] would do that too, but it would also **drop** anything
+  /// already read this session, since a fresh unread-only fetch does not come
+  /// back with those rows at all. So this folds the fresh unread rows in
+  /// alongside whatever is already shown and marked read, rather than
+  /// replacing the list outright — the fetch is the same one [load] makes,
+  /// only what happens with the answer differs. A row that was unread and
+  /// is no longer in the fresh page (because it was read from elsewhere, or
+  /// aged out of the newest [pageSize]) is dropped, the same as it would be
+  /// on the next full [load].
+  Future<void> refreshUnread() async {
+    if (!unreadOnly || _userId == null) return;
+
+    try {
+      final fresh = await _fetchPage(1);
+      _page = 1;
+
+      final freshIds = fresh.map((row) => row.id).toSet();
+      final stillReadFromBefore =
+          _rows.where((row) => row.isRead && !freshIds.contains(row.id));
+
+      _rows = [...fresh, ...stillReadFromBefore]
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _unreadCount = _totalCount ?? 0;
+      _errorMessage = null;
+
+      if (_status != ReceivedNotificationsStatus.ready) {
+        _status = ReceivedNotificationsStatus.ready;
+      }
+    } on ApiClientException catch (error) {
+      _errorMessage = error.message;
+    } catch (error) {
+      _errorMessage = 'Something went wrong while checking for new notifications: $error';
     }
 
     notifyListeners();

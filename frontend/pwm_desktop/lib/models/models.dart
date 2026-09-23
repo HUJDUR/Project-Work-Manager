@@ -1,5 +1,6 @@
 export 'activity_log.dart';
 export 'activity_log_type.dart';
+export 'activity_row.dart';
 export 'city.dart';
 export 'company.dart';
 export 'company_type.dart';

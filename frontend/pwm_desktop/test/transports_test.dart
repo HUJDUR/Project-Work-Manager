@@ -216,14 +216,20 @@ const _details = [
   TruckLoadDetail(
       id: 3,
       truckLoadId: 2,
-      projectId: 1,
+      // Not "In production" - off the cargo dropdown, but still on this load.
+      projectId: 3,
       brutoWeight: 3820,
       netoWeight: 3760.5,
       unloadPriority: 1,
       unloadColor: 'Blue'),
 ];
 
-Project _project({required int id, required String name, required String code}) =>
+Project _project({
+  required int id,
+  required String name,
+  required String code,
+  int statusId = 3,
+}) =>
     Project(
       id: id,
       customerId: 1,
@@ -236,7 +242,7 @@ Project _project({required int id, required String name, required String code}) 
       weight: 1000,
       projectCategoryId: 1,
       creationDate: _day(20),
-      projectStatusId: 3,
+      projectStatusId: statusId,
       productionStartDate: _day(20),
       deliveryDate: null,
       deliveryCompanyId: null,
@@ -245,6 +251,9 @@ Project _project({required int id, required String name, required String code}) 
 final _projects = [
   _project(id: 1, name: 'Hall roof structure', code: 'MU-2201'),
   _project(id: 2, name: 'Cladding panels', code: 'AK-2202'),
+  // Not "In production" - a cargo dropdown should skip it, but an existing
+  // load referencing it (see `_details`) still needs its name resolved.
+  _project(id: 3, name: 'Storage racks', code: 'AK-2203', statusId: 5),
 ];
 
 /// What `TruckLoadService.ApplyFilters` does with a `TruckLoadSearchObject`.
@@ -299,6 +308,10 @@ TransportsProvider _fakeTransports() {
       TruckLoadStatusType(id: 4, name: 'In transit'),
     ]),
     projects: _FakeProvider(_projects),
+    projectStatusTypes: _FakeProvider(const [
+      ProjectStatusType(id: 3, name: 'In production'),
+      ProjectStatusType(id: 5, name: 'On hold'),
+    ]),
   );
 }
 
@@ -417,6 +430,17 @@ void main() {
     test('offers every company that is not a customer as a carrier', () {
       expect(provider.carriers.map((company) => company.name),
           ['Euro Spedicija', 'TransBalkan Logistika']);
+    });
+
+    test('only offers a project on the cargo list while it is in production',
+        () async {
+      expect(provider.projects.map((project) => project.name),
+          ['Cladding panels', 'Hall roof structure']);
+
+      // Dropped from the cargo list, but a load that already carries it still
+      // needs its name.
+      final lines = await provider.linesOf(2);
+      expect(lines.single.projectName, 'Storage racks');
     });
 
     test('reads one load cargo in unload order', () async {
@@ -556,6 +580,38 @@ void main() {
     expect(find.text('TR-0010'), findsNothing);
   });
 
+  testWidgets('the search box clears in one tap', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: TransportScreen(providerFactory: _fakeTransports)),
+    ));
+    await tester.pumpAndSettle();
+
+    final searchField = find.byWidgetPredicate((widget) =>
+        widget is TextField && widget.decoration?.hintText == 'Search transports...');
+
+    // Nothing to clear yet.
+    expect(find.byIcon(Icons.close), findsNothing);
+
+    await tester.enterText(searchField, 'maric');
+    await tester.pump();
+
+    expect(find.byIcon(Icons.close), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pump();
+
+    expect(find.byIcon(Icons.close), findsNothing);
+    expect(tester.widget<TextField>(searchField).controller?.text, isEmpty);
+
+    // The clear searched immediately - not just queued behind the debounce.
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(_lastPageRequest().containsKey('search'), isFalse);
+  });
+
   testWidgets('Add Transport opens a blank form with the fields the API needs',
       (tester) async {
     tester.view.physicalSize = const Size(1600, 1400);
@@ -616,5 +672,40 @@ void main() {
     // The cargo is fetched for the load that was opened, not for the page.
     expect(find.text('Hall roof structure'), findsOneWidget);
     expect(find.text('Cladding panels'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a cargo line flags neto above bruto only once the field is left, not while typing',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: TransportScreen(providerFactory: _fakeTransports)),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('TR-0001'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add cargo'));
+    await tester.pumpAndSettle();
+
+    Finder fieldLabelled(String label) => find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.decoration?.labelText == label);
+
+    await tester.enterText(fieldLabelled('Bruto weight'), '2500');
+    await tester.enterText(fieldLabelled('Neto weight'), '5000');
+    await tester.pump();
+
+    // Still being typed into - no verdict while it is still focused.
+    expect(find.textContaining('Cannot be above'), findsNothing);
+
+    // Tabbing to the next field is what leaves it, and triggers the check.
+    await tester.tap(fieldLabelled('Unload order'));
+    await tester.pump();
+
+    expect(find.text('Cannot be above the bruto weight.'), findsOneWidget);
   });
 }

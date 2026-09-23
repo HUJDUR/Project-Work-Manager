@@ -68,28 +68,37 @@ Notification _notification({
   );
 }
 
-Future<void> _pumpBell(
+/// Builds the provider the way `MasterScreen` now does — the bell no longer
+/// creates its own — loads it, pumps the bell around it, and hands the
+/// provider back so a test can drive it directly (a screen change, in the
+/// real app, calling `refreshUnread` on it).
+Future<ReceivedNotificationsProvider> _pumpBell(
   WidgetTester tester,
   NotificationProvider fake, {
   VoidCallback? onViewAll,
 }) async {
+  final provider = ReceivedNotificationsProvider(
+    notifications: fake,
+    userId: 1,
+    unreadOnly: true,
+    pageSize: 5,
+  );
+  await provider.load();
+
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
       body: Align(
         alignment: Alignment.topRight,
         child: NotificationBell(
+          provider: provider,
           onViewAll: onViewAll ?? () {},
-          providerFactory: () => ReceivedNotificationsProvider(
-            notifications: fake,
-            userId: 1,
-            unreadOnly: true,
-            pageSize: 5,
-          ),
         ),
       ),
     ),
   ));
   await tester.pumpAndSettle();
+
+  return provider;
 }
 
 void main() {
@@ -194,6 +203,41 @@ void main() {
     await tester.tap(find.byIcon(Icons.notifications_none));
     await tester.pumpAndSettle();
 
+    expect(find.text('Shift change'), findsOneWidget);
+  });
+
+  testWidgets(
+      'a screen change picks up a notification sent mid-session without dropping one already read',
+      (tester) async {
+    final fake = _FakeNotificationProvider([
+      _notification(id: 1, title: 'Shift change', message: 'Starts at 7am.', isRead: false),
+    ]);
+
+    final provider = await _pumpBell(tester, fake);
+
+    await tester.tap(find.byIcon(Icons.notifications_none));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Shift change'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All read'), findsOneWidget);
+
+    // A second notification arrives while this session is still open — the
+    // same table a new sign-in would see, just discovered mid-session
+    // instead, the way `MasterScreen` asks on every screen change.
+    fake.rows.add(_notification(
+      id: 2,
+      title: 'Overtime',
+      message: 'Saturday shift.',
+      isRead: false,
+    ));
+
+    await provider.refreshUnread();
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 unread'), findsOneWidget);
+    expect(find.text('Overtime'), findsOneWidget);
+    // Still there — a refresh must not repeat what a reopen already does not.
     expect(find.text('Shift change'), findsOneWidget);
   });
 

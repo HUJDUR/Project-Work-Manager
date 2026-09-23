@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../providers/work_hours_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
+import 'widgets/search_field.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/work_hours_table.dart';
 import 'work_hours_details_screen.dart';
@@ -199,16 +200,10 @@ class _FilterBarState extends State<_FilterBar> {
       children: [
         Expanded(
           flex: 3,
-          child: TextField(
+          child: SearchField(
             controller: _searchController,
+            hintText: 'Search workers...',
             onChanged: provider.setSearch,
-            decoration: const InputDecoration(
-              hintText: 'Search workers...',
-              prefixIcon: Icon(Icons.search, size: 20),
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            ),
           ),
         ),
         const SizedBox(width: 12),

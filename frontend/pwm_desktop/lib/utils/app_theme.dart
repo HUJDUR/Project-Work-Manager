@@ -17,6 +17,9 @@ class AppPalette {
     required this.danger,
     required this.dangerSoft,
     required this.dangerBorder,
+    required this.warning,
+    required this.warningSoft,
+    required this.warningBorder,
     required this.success,
     required this.tooltipSurface,
     required this.tooltipText,
@@ -37,6 +40,9 @@ class AppPalette {
   final Color danger;
   final Color dangerSoft;
   final Color dangerBorder;
+  final Color warning;
+  final Color warningSoft;
+  final Color warningBorder;
 
   /// The one green in either palette - a saved/succeeded toast's top line,
   /// nothing else. [accent] stays the app's one "primary" blue everywhere
@@ -73,6 +79,9 @@ class AppPalette {
     danger: Color(0xFFB91C1C),
     dangerSoft: Color(0xFFFEF2F2),
     dangerBorder: Color(0xFFFECACA),
+    warning: Color(0xFF92400E),
+    warningSoft: Color(0xFFFFFBEB),
+    warningBorder: Color(0xFFFDE68A),
     success: Color(0xFF10B981),
     tooltipSurface: Color(0xFF1F2937),
     tooltipText: Color(0xFFF9FAFB),
@@ -94,6 +103,9 @@ class AppPalette {
     danger: Color(0xFFF87171),
     dangerSoft: Color(0xFF2E1A1A),
     dangerBorder: Color(0xFF5B2A2A),
+    warning: Color(0xFFFBBF24),
+    warningSoft: Color(0xFF3A2F13),
+    warningBorder: Color(0xFF5C4813),
     success: Color(0xFF34D399),
     tooltipSurface: Color(0xFF333B47),
     tooltipText: Color(0xFFF2F4F7),
@@ -131,6 +143,9 @@ abstract final class AppColors {
   static Color get danger => palette.danger;
   static Color get dangerSoft => palette.dangerSoft;
   static Color get dangerBorder => palette.dangerBorder;
+  static Color get warning => palette.warning;
+  static Color get warningSoft => palette.warningSoft;
+  static Color get warningBorder => palette.warningBorder;
   static Color get success => palette.success;
 
   static const series = <Color>[

@@ -10,6 +10,10 @@ import 'table_pager.dart';
 /// A state with no colour of its own.
 const Color _neutral = Color(0xFF6B7280);
 
+/// The breathing room between two columns of a row - matches the gap the
+/// header already puts between its own cells.
+const _columnGap = SizedBox(width: 16);
+
 final _columns = <ExcelColumn<ProjectRow>>[
   ExcelColumn(
     label: 'Project',
@@ -31,7 +35,9 @@ final _columns = <ExcelColumn<ProjectRow>>[
   ),
   ExcelColumn(
     label: 'Status',
-    flex: 2,
+    // A hair wider than the other chip column: "In production" is the longest
+    // status name and needs the room to stay on one line.
+    flex: 3,
     sortKey: (row) => row.statusName,
     filterValues: (row) => [row.statusName],
   ),
@@ -207,20 +213,26 @@ class _ProjectRowTile extends StatelessWidget {
         child: Row(
           children: [
             Expanded(flex: _columns[0].flex, child: _Project(row: row)),
+            _columnGap,
             Expanded(flex: _columns[1].flex, child: _Cell(row.customerName)),
+            _columnGap,
             Expanded(flex: _columns[2].flex, child: _Cell(row.categoryName)),
+            _columnGap,
             Expanded(
               flex: _columns[3].flex,
               child: ProjectStatusChip(status: row.statusName),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[4].flex,
               child: ProjectPriorityChip(priority: row.priority),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[5].flex,
               child: _Cell(row.startDate == null ? '—' : formatFullDate(row.startDate!)),
             ),
+            _columnGap,
             Expanded(
               flex: _columns[6].flex,
               child: _Cell(row.endDate == null ? '—' : formatFullDate(row.endDate!)),
@@ -321,7 +333,6 @@ class ProjectStatusChip extends StatelessWidget {
         AppColors.chip(_palette[status.toLowerCase()] ?? _neutral);
 
     return Align(
-      alignment: Alignment.centerLeft,
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
@@ -330,6 +341,8 @@ class ProjectStatusChip extends StatelessWidget {
         ),
         child: Text(
           status,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
@@ -359,7 +372,6 @@ class ProjectPriorityChip extends StatelessWidget {
     final (background, foreground) = AppColors.chip(_palette[priority]!);
 
     return Align(
-      alignment: Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
@@ -368,6 +380,8 @@ class ProjectPriorityChip extends StatelessWidget {
         ),
         child: Text(
           priority.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,

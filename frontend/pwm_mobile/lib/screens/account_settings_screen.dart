@@ -53,6 +53,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   final _currentPassword = TextEditingController();
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
+  final _currentPasswordFocus = FocusNode();
+  final _newPasswordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
 
   bool _saving = false;
   String? _error;
@@ -62,6 +65,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   void initState() {
     super.initState();
     _phone.text = AuthProvider.user?.phoneNumber ?? '';
+    _currentPasswordFocus
+        .addListener(() => _onPasswordFieldBlurred(_currentPasswordFocus));
+    _newPasswordFocus.addListener(() => _onPasswordFieldBlurred(_newPasswordFocus));
+    _confirmPasswordFocus
+        .addListener(() => _onPasswordFieldBlurred(_confirmPasswordFocus));
   }
 
   @override
@@ -70,6 +78,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     _currentPassword.dispose();
     _newPassword.dispose();
     _confirmPassword.dispose();
+    _currentPasswordFocus.dispose();
+    _newPasswordFocus.dispose();
+    _confirmPasswordFocus.dispose();
     super.dispose();
   }
 
@@ -83,6 +94,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   /// rather than nagging halfway through the first word.
   void _recheckPasswords() {
     if (_passwordError == null) return;
+    setState(() => _passwordError = _checkPasswords());
+  }
+
+  /// Checks the trio the moment any one of them is left, not only once Save
+  /// is pressed — the desktop's own treatment of this section, so a broken
+  /// password is caught on the way out of the field rather than staying
+  /// silent until submit.
+  void _onPasswordFieldBlurred(FocusNode node) {
+    if (node.hasFocus) return;
     setState(() => _passwordError = _checkPasswords());
   }
 
@@ -182,18 +202,21 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 _PasswordField(
                   label: 'Current password',
                   controller: _currentPassword,
+                  focusNode: _currentPasswordFocus,
                   onChanged: _recheckPasswords,
                 ),
                 const SizedBox(height: 12),
                 _PasswordField(
                   label: 'New password',
                   controller: _newPassword,
+                  focusNode: _newPasswordFocus,
                   onChanged: _recheckPasswords,
                 ),
                 const SizedBox(height: 12),
                 _PasswordField(
                   label: 'Confirm new password',
                   controller: _confirmPassword,
+                  focusNode: _confirmPasswordFocus,
                   onChanged: _recheckPasswords,
                   hasError: _unconfirmedPassword,
                 ),
@@ -448,12 +471,14 @@ class _PasswordField extends StatefulWidget {
     required this.label,
     required this.controller,
     required this.onChanged,
+    this.focusNode,
     this.hasError = false,
   });
 
   final String label;
   final TextEditingController controller;
   final VoidCallback onChanged;
+  final FocusNode? focusNode;
 
   /// True for an unfinished confirm field - a red outline with no caption of
   /// its own, since nothing has actually been typed wrong yet.
@@ -470,6 +495,7 @@ class _PasswordFieldState extends State<_PasswordField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: widget.controller,
+      focusNode: widget.focusNode,
       obscureText: _hidden,
       onChanged: (_) => widget.onChanged(),
       decoration: InputDecoration(

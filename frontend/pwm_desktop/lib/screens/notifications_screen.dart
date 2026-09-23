@@ -219,7 +219,8 @@ class _MessageCardState extends State<_MessageCard> {
         borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
         border: Border.all(color: AppColors.border),
       ),
-      child: SingleChildScrollView(
+      child: FormBuilder(
+        key: _formKey,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -232,35 +233,34 @@ class _MessageCardState extends State<_MessageCard> {
               _ErrorBanner(message: _error!),
               const SizedBox(height: AppSpacing.gap),
             ],
-            FormBuilder(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  FormBuilderTextField(
-                    name: 'title',
-                    decoration: appInputDecoration(
-                      'Title',
-                      hintText: 'What this is about',
-                    ),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'A notification needs a title.',
-                    ),
-                  ),
-                  const SizedBox(height: formFieldGap),
-                  FormBuilderTextField(
-                    name: 'message',
-                    minLines: 6,
-                    maxLines: 10,
-                    decoration: appInputDecoration(
-                      'Message',
-                      hintText: 'What the workers need to know',
-                    ),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'A notification needs a message.',
-                    ),
-                  ),
-                ],
+            FormBuilderTextField(
+              name: 'title',
+              decoration: appInputDecoration(
+                'Title',
+                hintText: 'What this is about',
+              ),
+              validator: FormBuilderValidators.required(
+                errorText: 'A notification needs a title.',
+              ),
+            ),
+            const SizedBox(height: formFieldGap),
+            // Fills whatever room is left above the buttons instead of a fixed
+            // line count, so the card can shrink without the buttons scrolling
+            // out of view.
+            Expanded(
+              child: FormBuilderTextField(
+                name: 'message',
+                expands: true,
+                maxLines: null,
+                minLines: null,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: appInputDecoration(
+                  'Message',
+                  hintText: 'What the workers need to know',
+                ),
+                validator: FormBuilderValidators.required(
+                  errorText: 'A notification needs a message.',
+                ),
               ),
             ),
             const SizedBox(height: 20),

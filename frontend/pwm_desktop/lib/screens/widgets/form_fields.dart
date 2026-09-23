@@ -31,6 +31,9 @@ InputDecoration appInputDecoration(
       // axes or it reads as crammed into the corner.
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       isDense: true,
+      // Unset, a long errorText is clipped to one line with an ellipsis
+      // instead of wrapping - cutting the message off mid-sentence.
+      errorMaxLines: 2,
     );
 
 /// A password field with the same show/hide eye button the login screen uses,

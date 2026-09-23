@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/received_notifications_provider.dart';
 import '../screens/account_settings_screen.dart';
+import '../screens/activities_screen.dart';
 import '../screens/administration_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/login_screen.dart';
@@ -31,7 +33,10 @@ class AppDestination {
 }
 
 class MasterScreen extends StatefulWidget {
-  const MasterScreen({super.key});
+  const MasterScreen({super.key, this.notificationsProviderFactory});
+
+  /// Lets a test swap in the bell's provider backed by fake data.
+  final ReceivedNotificationsProvider Function()? notificationsProviderFactory;
 
   @override
   State<MasterScreen> createState() => _MasterScreenState();
@@ -42,6 +47,26 @@ class _MasterScreenState extends State<MasterScreen> {
   static const _topBarHeight = 68.0;
 
   int _selectedIndex = 0;
+
+  /// The bell's own store, owned here rather than by the bell: leaving it
+  /// with `MasterScreen` is what lets switching screens call
+  /// [ReceivedNotificationsProvider.refreshUnread] on it — see
+  /// `NotificationBell`'s doc for why the bell could not reach that itself.
+  late final ReceivedNotificationsProvider _bellNotifications =
+      widget.notificationsProviderFactory?.call() ??
+          ReceivedNotificationsProvider(unreadOnly: true, pageSize: 5);
+
+  @override
+  void initState() {
+    super.initState();
+    _bellNotifications.load();
+  }
+
+  @override
+  void dispose() {
+    _bellNotifications.dispose();
+    super.dispose();
+  }
 
   /// What this role may open. The sidebar is built from it, so an index always
   /// points at a screen the signed-in user is allowed to see.
@@ -91,6 +116,11 @@ class _MasterScreenState extends State<MasterScreen> {
       builder: _notifications,
     ),
     AppDestination(
+      label: 'Activities',
+      icon: Icons.history,
+      builder: _activities,
+    ),
+    AppDestination(
       label: 'Administration',
       icon: Icons.admin_panel_settings_outlined,
       builder: _administration,
@@ -107,6 +137,15 @@ class _MasterScreenState extends State<MasterScreen> {
       RecommendationsScreen();
   static Widget _notifications(BuildContext context) => NotificationsScreen();
   static Widget _administration(BuildContext context) => AdministrationScreen();
+  static Widget _activities(BuildContext context) => ActivitiesScreen();
+
+  /// Switches screens, and re-asks the bell for what is newly unread on the
+  /// way — see [ReceivedNotificationsProvider.refreshUnread] for why that is
+  /// a lighter touch than a plain reload.
+  void _selectTab(int index) {
+    setState(() => _selectedIndex = index);
+    _bellNotifications.refreshUnread();
+  }
 
   /// Switches to the Notifications screen — what the bell's "See all
   /// notifications" link opens. Every desktop role may open it, so this
@@ -114,7 +153,7 @@ class _MasterScreenState extends State<MasterScreen> {
   /// fixed index.
   void _openNotifications() {
     final index = _destinations.indexWhere((d) => d.label == 'Notifications');
-    if (index >= 0) setState(() => _selectedIndex = index);
+    if (index >= 0) _selectTab(index);
   }
 
   @override
@@ -124,7 +163,11 @@ class _MasterScreenState extends State<MasterScreen> {
     return Scaffold(
       body: Column(
         children: [
-          _TopBar(height: _topBarHeight, onOpenNotifications: _openNotifications),
+          _TopBar(
+            height: _topBarHeight,
+            notifications: _bellNotifications,
+            onOpenNotifications: _openNotifications,
+          ),
           const Divider(height: 1),
           Expanded(
             child: Row(
@@ -135,7 +178,7 @@ class _MasterScreenState extends State<MasterScreen> {
                   child: _Sidebar(
                     destinations: _destinations,
                     selectedIndex: _selectedIndex,
-                    onSelected: (index) => setState(() => _selectedIndex = index),
+                    onSelected: _selectTab,
                   ),
                 ),
                 const VerticalDivider(width: 1),
@@ -162,9 +205,14 @@ class _MasterScreenState extends State<MasterScreen> {
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.height, required this.onOpenNotifications});
+  const _TopBar({
+    required this.height,
+    required this.notifications,
+    required this.onOpenNotifications,
+  });
 
   final double height;
+  final ReceivedNotificationsProvider notifications;
   final VoidCallback onOpenNotifications;
 
   @override
@@ -212,7 +260,10 @@ class _TopBar extends StatelessWidget {
                     const Spacer(),
                     _ThemeToggle(),
                     const SizedBox(width: 2),
-                    NotificationBell(onViewAll: onOpenNotifications),
+                    NotificationBell(
+                      provider: notifications,
+                      onViewAll: onOpenNotifications,
+                    ),
                     const SizedBox(width: 10),
                     _AccountChip(),
                   ],
@@ -354,18 +405,47 @@ class _Sidebar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
 
+  /// Administration sits apart from the rest — pinned to the sidebar's own
+  /// bottom edge rather than wherever it happens to fall in the list, the way
+  /// an app's settings entry usually does.
+  static const _pinnedToBottom = 'Administration';
+
   @override
   Widget build(BuildContext context) {
+    final pinnedIndex = destinations.indexWhere((d) => d.label == _pinnedToBottom);
+    final topIndices = [
+      for (var i = 0; i < destinations.length; i++)
+        if (i != pinnedIndex) i,
+    ];
+
     return Container(
       color: AppColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-      child: ListView.builder(
-        itemCount: destinations.length,
-        itemBuilder: (context, index) => _NavItem(
-          destination: destinations[index],
-          selected: index == selectedIndex,
-          onTap: () => onSelected(index),
-        ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: topIndices.length,
+              itemBuilder: (context, listIndex) {
+                final index = topIndices[listIndex];
+                return _NavItem(
+                  destination: destinations[index],
+                  selected: index == selectedIndex,
+                  onTap: () => onSelected(index),
+                );
+              },
+            ),
+          ),
+          if (pinnedIndex >= 0) ...[
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            _NavItem(
+              destination: destinations[pinnedIndex],
+              selected: pinnedIndex == selectedIndex,
+              onTap: () => onSelected(pinnedIndex),
+            ),
+          ],
+        ],
       ),
     );
   }

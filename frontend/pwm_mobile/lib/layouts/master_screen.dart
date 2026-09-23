@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/notifications_provider.dart';
 import '../screens/clock_in_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/my_hours_screen.dart';
@@ -35,9 +36,16 @@ class AppDestination {
 /// the selected index and swaps its body, rather than each screen wrapping
 /// itself and navigating by push.
 class MasterScreen extends StatefulWidget {
-  const MasterScreen({super.key, this.initialIndex = 0});
+  const MasterScreen({
+    super.key,
+    this.initialIndex = 0,
+    this.notificationsProviderFactory,
+  });
 
   final int initialIndex;
+
+  /// Lets a test swap in the badge's provider backed by fake data.
+  final NotificationsProvider Function()? notificationsProviderFactory;
 
   @override
   State<MasterScreen> createState() => _MasterScreenState();
@@ -47,6 +55,43 @@ class _MasterScreenState extends State<MasterScreen> {
   static const _topBarHeight = 60.0;
 
   late int _selectedIndex = widget.initialIndex;
+
+  /// Tracked here rather than only inside the Notifications tab, so the
+  /// bottom bar can badge it even while some other tab is showing — the
+  /// mobile equivalent of the desktop's bell badge. It is its own instance,
+  /// separate from the one the tab itself builds when it is open, so it is
+  /// refreshed by hand on every tab switch rather than kept in step
+  /// automatically: see `_selectTab`.
+  late final _notifications =
+      widget.notificationsProviderFactory?.call() ?? NotificationsProvider();
+
+  @override
+  void initState() {
+    super.initState();
+    _notifications.addListener(_onNotificationsChanged);
+    _notifications.load();
+  }
+
+  @override
+  void dispose() {
+    _notifications.removeListener(_onNotificationsChanged);
+    _notifications.dispose();
+    super.dispose();
+  }
+
+  void _onNotificationsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Switches tabs by index, the way the bottom bar itself picks one, and
+  /// re-asks for the unread count on every change — not only when leaving
+  /// the Notifications tab — so a notification sent while some other tab is
+  /// open still reaches the badge, the same as the desktop bell now checks
+  /// on every screen change too.
+  void _selectTab(int index) {
+    setState(() => _selectedIndex = index);
+    _notifications.load();
+  }
 
   /// Every entry has a screen behind it.
   static final List<AppDestination> _destinations = [
@@ -92,7 +137,7 @@ class _MasterScreenState extends State<MasterScreen> {
   /// silently send "View all" somewhere else.
   void _go(String label) {
     final index = _destinations.indexWhere((d) => d.label == label);
-    if (index >= 0) setState(() => _selectedIndex = index);
+    if (index >= 0) _selectTab(index);
   }
 
   @override
@@ -105,10 +150,7 @@ class _MasterScreenState extends State<MasterScreen> {
         bottom: false,
         child: Column(
           children: [
-            _TopBar(
-              height: _topBarHeight,
-              onNotifications: () => _go('Notifications'),
-            ),
+            _TopBar(height: _topBarHeight),
             const Divider(height: 1),
             Expanded(child: destination.builder(_go)),
           ],
@@ -117,17 +159,17 @@ class _MasterScreenState extends State<MasterScreen> {
       bottomNavigationBar: _BottomBar(
         destinations: _destinations,
         selectedIndex: _selectedIndex,
-        onSelected: (index) => setState(() => _selectedIndex = index),
+        notificationsUnreadCount: _notifications.unreadCount,
+        onSelected: _selectTab,
       ),
     );
   }
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.height, required this.onNotifications});
+  const _TopBar({required this.height});
 
   final double height;
-  final VoidCallback onNotifications;
 
   @override
   Widget build(BuildContext context) {
@@ -169,18 +211,6 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           _ThemeToggle(),
-          IconButton(
-            onPressed: onNotifications,
-            tooltip: 'Notifications',
-            // Material's default 48px tap target crowds the title on a phone.
-            constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-            padding: EdgeInsets.zero,
-            icon: Icon(
-              Icons.notifications_outlined,
-              size: 23,
-              color: AppColors.textPrimary,
-            ),
-          ),
           const SizedBox(width: 6),
           AccountMenuButton(),
           const SizedBox(width: 4),
@@ -190,9 +220,9 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// Flips the whole app between the two palettes. It sits beside the bell, as
-/// the desktop's does — the one piece of chrome that is a preference rather
-/// than a destination, which is why it reads a shade quieter than the bell.
+/// Flips the whole app between the two palettes — the one piece of chrome
+/// that is a preference rather than a destination, which is why it reads a
+/// shade quieter than the account menu beside it.
 class _ThemeToggle extends StatelessWidget {
   const _ThemeToggle();
 
@@ -220,6 +250,7 @@ class _BottomBar extends StatelessWidget {
   const _BottomBar({
     required this.destinations,
     required this.selectedIndex,
+    required this.notificationsUnreadCount,
     required this.onSelected,
   });
 
@@ -227,6 +258,12 @@ class _BottomBar extends StatelessWidget {
 
   final List<AppDestination> destinations;
   final int selectedIndex;
+
+  /// Badges the Notifications tab — the bottom bar's answer to the desktop's
+  /// bell badge, for the one tab that is not always on screen to speak for
+  /// itself.
+  final int notificationsUnreadCount;
+
   final ValueChanged<int> onSelected;
 
   @override
@@ -247,6 +284,9 @@ class _BottomBar extends StatelessWidget {
                   child: _BottomBarItem(
                     destination: destinations[i],
                     isSelected: i == selectedIndex,
+                    badgeCount: destinations[i].label == 'Notifications'
+                        ? notificationsUnreadCount
+                        : 0,
                     onTap: () => onSelected(i),
                   ),
                 ),
@@ -262,11 +302,16 @@ class _BottomBarItem extends StatelessWidget {
   const _BottomBarItem({
     required this.destination,
     required this.isSelected,
+    required this.badgeCount,
     required this.onTap,
   });
 
   final AppDestination destination;
   final bool isSelected;
+
+  /// A red count on the icon's corner — zero draws nothing.
+  final int badgeCount;
+
   final VoidCallback onTap;
 
   @override
@@ -278,10 +323,21 @@ class _BottomBarItem extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            isSelected ? destination.activeIcon : destination.icon,
-            size: 22,
-            color: colour,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                isSelected ? destination.activeIcon : destination.icon,
+                size: 22,
+                color: colour,
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  right: -6,
+                  top: -3,
+                  child: _UnreadBadge(count: badgeCount),
+                ),
+            ],
           ),
           const SizedBox(height: 4),
           Padding(
@@ -303,6 +359,37 @@ class _BottomBarItem extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The desktop bell's badge, on a bottom-bar icon instead: a small red count
+/// for whatever a tab that is not the current one has waiting.
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+      decoration: BoxDecoration(
+        color: AppColors.danger,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.surface, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: const TextStyle(
+          fontSize: 8.5,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+          height: 1,
+        ),
       ),
     );
   }
