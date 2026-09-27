@@ -198,7 +198,7 @@ void main() {
     test('shows everyone by default, hiding leavers only once asked', () async {
       expect(provider.matchCount, 10);
 
-      await provider.setActiveOnly(true);
+      await provider.setIsActiveFilter(true);
 
       expect(_lastPageRequest()['isActive'], isTrue);
       expect(provider.matchCount, 9);
@@ -238,7 +238,7 @@ void main() {
     test('clears every filter at once', () async {
       await provider.setSearch('emir');
       await provider.setRole(3);
-      await provider.setActiveOnly(true);
+      await provider.setIsActiveFilter(true);
       expect(provider.hasFilters, isTrue);
 
       await provider.clearFilters();

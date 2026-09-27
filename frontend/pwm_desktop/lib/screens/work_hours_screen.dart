@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/work_hours_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import 'widgets/clear_filters_button.dart';
 import 'widgets/search_field.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/work_hours_table.dart';
@@ -28,15 +30,21 @@ Future<void> openWorkHoursDetails(
 
 /// Every recorded work hour, laid out as in `docs/mockups/desktop/Hours.png`.
 class WorkHoursScreen extends StatelessWidget {
-  const WorkHoursScreen({super.key, this.providerFactory});
+  const WorkHoursScreen({super.key, this.providerFactory, this.initialProjectId});
 
   /// Lets a test swap in a provider backed by fake data.
   final WorkHoursProvider Function()? providerFactory;
 
+  /// Pre-filters to one project - how the Project Details page's "View all
+  /// work hours" button opens this screen.
+  final int? initialProjectId;
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => (providerFactory?.call() ?? WorkHoursProvider())..load(),
+      create: (_) =>
+          (providerFactory?.call() ?? WorkHoursProvider(initialProjectId: initialProjectId))
+            ..load(),
       child: Consumer<WorkHoursProvider>(
         builder: (context, provider, _) {
           return switch (provider.status) {
@@ -229,9 +237,31 @@ class _FilterBarState extends State<_FilterBar> {
           ),
         ),
         const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: DropdownButtonFormField<WorkHoursFilter?>(
+            initialValue: provider.hoursFilter,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            ),
+            items: [
+              const DropdownMenuItem(value: null, child: Text('All Hours')),
+              for (final filter in WorkHoursFilter.values)
+                DropdownMenuItem(
+                  value: filter,
+                  child: Text(filter.label, overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: provider.setHoursFilter,
+          ),
+        ),
+        const SizedBox(width: 12),
         Expanded(flex: 3, child: _DateRangeField(provider: provider)),
         const SizedBox(width: 12),
-        _FilterMenu(provider: provider, onClear: _clearFilters),
+        ClearFiltersButton(hasFilters: provider.hasFilters, onPressed: _clearFilters),
       ],
     );
   }
@@ -279,59 +309,13 @@ class _DateRangeField extends StatelessWidget {
 
   Future<void> _pick(BuildContext context) async {
     final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
+    final picked = await pickDateRange(
+      context,
       initialDateRange: provider.dateRange,
       firstDate: DateTime(now.year - 2),
       lastDate: now,
     );
     if (picked != null) provider.setDateRange(picked);
-  }
-}
-
-class _FilterMenu extends StatelessWidget {
-  const _FilterMenu({required this.provider, required this.onClear});
-
-  final WorkHoursProvider provider;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: 'More filters',
-      position: PopupMenuPosition.under,
-      icon: Icon(
-        Icons.filter_alt_outlined,
-        color: provider.hasFilters ? AppColors.accent : AppColors.textSecondary,
-      ),
-      style: IconButton.styleFrom(
-        side: BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      ),
-      itemBuilder: (context) => [
-        CheckedPopupMenuItem(
-          value: 'overtime',
-          checked: provider.overtimeOnly,
-          child: const Text('Overtime only'),
-        ),
-        CheckedPopupMenuItem(
-          value: 'inProgress',
-          checked: provider.inProgressOnly,
-          child: const Text('In progress only'),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'clear',
-          enabled: provider.hasFilters,
-          child: const Text('Clear filters'),
-        ),
-      ],
-      onSelected: (value) => switch (value) {
-        'overtime' => provider.setOvertimeOnly(!provider.overtimeOnly),
-        'inProgress' => provider.setInProgressOnly(!provider.inProgressOnly),
-        _ => onClear(),
-      },
-    );
   }
 }
 

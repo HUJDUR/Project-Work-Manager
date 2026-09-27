@@ -460,4 +460,12 @@ class ProjectsProvider extends ChangeNotifier {
   }
 
   Future<void> deleteProject(int id) => _projects.remove(id);
+
+  /// Re-reads one project after its edit form has written, joined the same
+  /// way [rows] is - so the overview screen showing it can refresh in place
+  /// rather than falling back to the table's own page.
+  Future<ProjectRow> fetchRow(int id) async {
+    final project = await _projects.getById(id);
+    return _buildRows([project]).single;
+  }
 }

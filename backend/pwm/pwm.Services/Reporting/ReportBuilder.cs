@@ -48,17 +48,20 @@ namespace pwm.Services.Reporting
                     WorkerName = $"{worker.Key.Name} {worker.Key.Surname}".Trim(),
                     RegularHours = Round(worker.Sum(x => x.Regular)),
                     OvertimeHours = Round(worker.Sum(x => x.Overtime)),
-                    ByProject = worker
-                        .GroupBy(x => x.Block.Project.Name)
-                        .Select(project => new MonthlyWorkHoursProjectRow
-                        {
-                            ProjectName = project.Key,
-                            Hours = Round(project.Sum(x => x.Block.Hours)),
-                        })
-                        .OrderByDescending(project => project.Hours)
-                        .ToList(),
                 })
                 .OrderBy(row => row.WorkerName)
+                .ToList();
+
+            // Every worker's hours for a work type, added together - not one line per
+            // worker, and not split out by project.
+            var operationTotals = blocks
+                .GroupBy(x => x.OperationType.Name)
+                .Select(operation => new MonthlyWorkHoursOperationRow
+                {
+                    OperationTypeName = operation.Key,
+                    Hours = Round(operation.Sum(x => x.Hours)),
+                })
+                .OrderByDescending(operation => operation.Hours)
                 .ToList();
 
             var worker = request.UserId is null
@@ -68,7 +71,7 @@ namespace pwm.Services.Reporting
                 ? "All projects"
                 : await NameOfProjectAsync(request.ProjectId.Value);
 
-            return MonthlyWorkHoursDocument.Render(from, worker, project, rows);
+            return MonthlyWorkHoursDocument.Render(from, worker, project, rows, operationTotals);
         }
 
         public async Task<byte[]> BuildTransportLoadsAsync(TransportLoadsReportRequest request)
@@ -84,18 +87,33 @@ namespace pwm.Services.Reporting
                 .ToListAsync();
 
             var rows = details
-                .Select(detail => new TransportLoadRow
+                .GroupBy(x => x.TruckLoadId)
+                .Select(transport =>
                 {
-                    LoadDate = detail.TruckLoad.LoadDate,
-                    ProjectName = detail.Project.Name,
-                    ProjectCode = detail.Project.Code,
-                    CarrierName = detail.TruckLoad.TransportCompany.Name,
-                    DriverName =
-                        $"{detail.TruckLoad.DriverName} {detail.TruckLoad.DriverSurname}".Trim(),
-                    VehicleRegistration = detail.TruckLoad.VehicleRegistration,
-                    NetWeight = detail.NetoWeight,
-                    Status = detail.TruckLoad.TruckLoadStatus.Name,
+                    var truckLoad = transport.First().TruckLoad;
+
+                    return new TransportOverviewRow
+                    {
+                        LoadDate = truckLoad.LoadDate,
+                        CarrierName = truckLoad.TransportCompany.Name,
+                        DriverName = $"{truckLoad.DriverName} {truckLoad.DriverSurname}".Trim(),
+                        VehicleRegistration = truckLoad.VehicleRegistration,
+                        Status = truckLoad.TruckLoadStatus.Name,
+                        BrutoWeight = Round(transport.Sum(x => x.BrutoWeight)),
+                        NetoWeight = Round(transport.Sum(x => x.NetoWeight)),
+                        Projects = transport
+                            .Select(detail => new TransportProjectRow
+                            {
+                                ProjectName = detail.Project.Name,
+                                ProjectCode = detail.Project.Code,
+                                BrutoWeight = Round(detail.BrutoWeight),
+                                NetoWeight = Round(detail.NetoWeight),
+                            })
+                            .OrderByDescending(project => project.NetoWeight)
+                            .ToList(),
+                    };
                 })
+                .OrderByDescending(row => row.LoadDate)
                 .ToList();
 
             var project = request.ProjectId is null

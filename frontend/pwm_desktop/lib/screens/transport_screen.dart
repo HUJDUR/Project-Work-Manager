@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/models.dart';
 import '../providers/transports_provider.dart';
 import '../utils/app_theme.dart';
+import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
 import 'transport_details_screen.dart';
 import 'widgets/search_field.dart';
@@ -246,8 +247,8 @@ class _DateRangeField extends StatelessWidget {
 
   Future<void> _pick(BuildContext context) async {
     final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
+    final picked = await pickDateRange(
+      context,
       initialDateRange: provider.dateRange,
       firstDate: DateTime(now.year - 2),
       // A load can be planned ahead, so the range reaches into next year.

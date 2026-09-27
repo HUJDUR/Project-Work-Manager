@@ -464,7 +464,7 @@ void main() {
     expect(_projectRows.inserted, isEmpty);
   });
 
-  testWidgets('tapping a row opens that project already filled in', (tester) async {
+  testWidgets('tapping a row opens its read-only overview', (tester) async {
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -475,6 +475,28 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Hall roof MU-1'));
+    await tester.pumpAndSettle();
+
+    // The mockup's static title, not the project's own name.
+    expect(find.text('Project Details'), findsOneWidget);
+    expect(find.text('Hall roof MU-1'), findsWidgets);
+    expect(find.text('MU-1'), findsWidgets);
+    expect(find.widgetWithText(OutlinedButton, 'Edit Project'), findsOneWidget);
+  });
+
+  testWidgets('Edit Project opens that project already filled in', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: ProjectsScreen(providerFactory: _fakeProjects)),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Hall roof MU-1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Edit Project'));
     await tester.pumpAndSettle();
 
     // The title is the project by the name the shop uses for it.

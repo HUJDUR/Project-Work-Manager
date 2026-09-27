@@ -14,6 +14,7 @@ export 'monthly_hour_report_detail_provider.dart';
 export 'notification_provider.dart';
 export 'notifications_provider.dart';
 export 'operation_type_provider.dart';
+export 'project_overview_provider.dart';
 export 'project_provider.dart';
 export 'projects_provider.dart';
 export 'project_category_provider.dart';

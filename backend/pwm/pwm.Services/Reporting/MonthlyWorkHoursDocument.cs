@@ -6,12 +6,14 @@ namespace pwm.Services.Reporting
 {
     /// <summary>
     /// Hours per worker for a month, split into regular and overtime, with the
-    /// projects each worker's hours went to underneath. The payroll basis.
+    /// month's hours by work type underneath. The payroll basis.
     /// </summary>
     internal static class MonthlyWorkHoursDocument
     {
         public static byte[] Render(
-            DateTime month, string worker, string project, IReadOnlyList<MonthlyWorkHoursRow> rows)
+            DateTime month, string worker, string project,
+            IReadOnlyList<MonthlyWorkHoursRow> rows,
+            IReadOnlyList<MonthlyWorkHoursOperationRow> operationTotals)
         {
             var period = month.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
@@ -19,10 +21,13 @@ namespace pwm.Services.Reporting
                 container,
                 "Monthly Work Hours",
                 $"{period}  ·  {worker}  ·  {project}",
-                body => Body(body, rows))).GeneratePdf();
+                body => Body(body, rows, operationTotals))).GeneratePdf();
         }
 
-        private static void Body(IContainer container, IReadOnlyList<MonthlyWorkHoursRow> rows)
+        private static void Body(
+            IContainer container,
+            IReadOnlyList<MonthlyWorkHoursRow> rows,
+            IReadOnlyList<MonthlyWorkHoursOperationRow> operationTotals)
         {
             container.Column(column =>
             {
@@ -37,9 +42,9 @@ namespace pwm.Services.Reporting
 
                 column.Item().Element(table => Summary(table, rows));
 
-                foreach (var row in rows.Where(row => row.ByProject.Count > 0))
+                if (operationTotals.Count > 0)
                 {
-                    column.Item().Element(breakdown => Breakdown(breakdown, row));
+                    column.Item().Element(table => OperationTotals(table, operationTotals));
                 }
             });
         }
@@ -88,12 +93,13 @@ namespace pwm.Services.Reporting
             });
         }
 
-        private static void Breakdown(IContainer container, MonthlyWorkHoursRow row)
+        /// <summary>Every worker's hours for a work type, added together for the whole month.</summary>
+        private static void OperationTotals(
+            IContainer container, IReadOnlyList<MonthlyWorkHoursOperationRow> rows)
         {
             container.Column(column =>
             {
-                column.Item().PaddingBottom(4)
-                    .Text($"{row.WorkerName} — by project").FontSize(9).SemiBold();
+                column.Item().PaddingBottom(4).Text("Hours by Operation").FontSize(10).SemiBold();
 
                 column.Item().Table(table =>
                 {
@@ -103,13 +109,23 @@ namespace pwm.Services.Reporting
                         columns.RelativeColumn();
                     });
 
-                    foreach (var project in row.ByProject)
+                    table.Header(header =>
                     {
-                        table.Cell().Element(ReportTheme.BodyCell)
-                            .Text(project.ProjectName).FontSize(8);
+                        header.Cell().Element(cell => ReportTheme.HeaderCell(cell, "Operation"));
+                        header.Cell().AlignRight()
+                            .Element(cell => ReportTheme.HeaderCell(cell, "Hours"));
+                    });
+
+                    foreach (var row in rows)
+                    {
+                        table.Cell().Element(ReportTheme.BodyCell).Text(row.OperationTypeName);
                         table.Cell().Element(ReportTheme.BodyCell).AlignRight()
-                            .Text(ReportTheme.Hours(project.Hours)).FontSize(8);
+                            .Text(ReportTheme.Hours(row.Hours));
                     }
+
+                    table.Cell().Element(ReportTheme.BodyCell).Text("Total").SemiBold();
+                    table.Cell().Element(ReportTheme.BodyCell).AlignRight()
+                        .Text(ReportTheme.Hours(rows.Sum(row => row.Hours))).SemiBold();
                 });
             });
         }

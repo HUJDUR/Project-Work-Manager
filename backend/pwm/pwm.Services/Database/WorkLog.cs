@@ -22,5 +22,12 @@ namespace pwm.Services.Database
 
         [Required]
         public double Hours { get; set; }
+
+        /// <summary>
+        /// Stamped by <c>pwm.Worker</c>'s missed clock-out watchdog the moment it warns
+        /// admins and project managers about this shift, so a still-open shift is only
+        /// ever reported once rather than on every poll.
+        /// </summary>
+        public DateTime? MissedClockOutNotifiedAt { get; set; }
     }
 }

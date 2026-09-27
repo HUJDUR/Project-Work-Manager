@@ -2,6 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../utils/app_theme.dart';
 
+/// The whole filter panel's cap, shared between the [showMenu] call that
+/// hosts it and the panel's own bound - see [_ColumnFilterPanelState.build]
+/// for why the panel needs an explicit height limit of its own.
+const double _maxFilterPanelHeight = 420;
+
+/// Flutter's default popup-menu theme wraps every menu's content in this much
+/// vertical padding (`PopupMenuThemeData.menuPadding`'s M2/M3 default is
+/// `EdgeInsets.symmetric(vertical: 8)`). The panel has to leave room for it
+/// inside [_maxFilterPanelHeight], or the padding alone pushes the popup's
+/// own outer scroll view into service - scrolling the whole popup (sort
+/// buttons, search box and footer along with it) instead of leaving that to
+/// only the checklist inside.
+const double _menuVerticalPadding = 16;
+
 /// One column's identity for an Excel-style table header: what it sorts and
 /// filters by. Generic over the row type so one implementation of the header,
 /// menu and filter panel serves every table that wants this - first tried on
@@ -117,7 +131,13 @@ class ExcelHeaderRow<T> extends StatelessWidget {
     final result = await showMenu<ExcelMenuResult>(
       context: context,
       position: position,
-      constraints: const BoxConstraints(minWidth: 260, maxWidth: 260, maxHeight: 420),
+      // showMenu defaults to Clip.none, so the checklist's own scrollbar -
+      // invisible before the scrolling fix, since there was nothing to
+      // scroll - paints unclipped and can poke past the card's rounded
+      // corners. Clipping the card to its own shape is what keeps it inside.
+      clipBehavior: Clip.antiAlias,
+      constraints:
+          const BoxConstraints(minWidth: 260, maxWidth: 260, maxHeight: _maxFilterPanelHeight),
       items: [
         PopupMenuItem<ExcelMenuResult>(
           enabled: false,
@@ -235,7 +255,14 @@ class _ColumnFilterPanelState extends State<_ColumnFilterPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    // showMenu's own scroll view (see ExcelHeaderRow._open) lays this Column
+    // out with unbounded height, so Flexible below has nothing to shrink the
+    // checklist against and it just grows to fit every value instead of
+    // scrolling. A bound of the panel's own is what makes the checklist a
+    // genuine scrollable region rather than one that only ever gets clipped -
+    // and staying under showMenu's own bound by _menuVerticalPadding is what
+    // keeps the outer popup itself from needing to scroll at all.
+    return ConstrainedBox(constraints: const BoxConstraints(maxHeight: _maxFilterPanelHeight - _menuVerticalPadding), child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -282,26 +309,36 @@ class _ColumnFilterPanelState extends State<_ColumnFilterPanel> {
           }),
         ),
         Flexible(
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [
-              for (final value in _shown)
-                CheckboxListTile(
-                  dense: true,
-                  visualDensity: VisualDensity.compact,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: Text(value, overflow: TextOverflow.ellipsis),
-                  value: _checked.contains(value),
-                  onChanged: (checked) => setState(() {
-                    if (checked ?? false) {
-                      _checked.add(value);
-                    } else {
-                      _checked.remove(value);
-                    }
-                  }),
-                ),
-            ],
+          // A checkbox's hover/splash highlight paints on the nearest
+          // ancestor Material, not the ListView beneath it - without a
+          // Material of its own to clip to, the top item's highlight paints
+          // straight through into "(Select All)" above, which sits outside
+          // the list entirely and so is never touched by the list's own
+          // clipping.
+          child: Material(
+            type: MaterialType.transparency,
+            clipBehavior: Clip.hardEdge,
+            child: ListView(
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              children: [
+                for (final value in _shown)
+                  CheckboxListTile(
+                    dense: true,
+                    visualDensity: VisualDensity.compact,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(value, overflow: TextOverflow.ellipsis),
+                    value: _checked.contains(value),
+                    onChanged: (checked) => setState(() {
+                      if (checked ?? false) {
+                        _checked.add(value);
+                      } else {
+                        _checked.remove(value);
+                      }
+                    }),
+                  ),
+              ],
+            ),
           ),
         ),
         const Divider(height: 1),
@@ -310,6 +347,10 @@ class _ColumnFilterPanelState extends State<_ColumnFilterPanel> {
           child: Row(
             children: [
               TextButton(
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
                 onPressed: widget.selected == null
                     ? null
                     : () => Navigator.pop(
@@ -320,6 +361,10 @@ class _ColumnFilterPanelState extends State<_ColumnFilterPanel> {
               ),
               const Spacer(),
               FilledButton(
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  visualDensity: VisualDensity.compact,
+                ),
                 onPressed: _checked.isEmpty
                     ? null
                     : () => Navigator.pop(
@@ -332,7 +377,7 @@ class _ColumnFilterPanelState extends State<_ColumnFilterPanel> {
           ),
         ),
       ],
-    );
+    ));
   }
 }
 

@@ -210,7 +210,7 @@ void main() {
     });
 
     test('filters down to overtime rows', () {
-      provider.setOvertimeOnly(true);
+      provider.setHoursFilter(WorkHoursFilter.overtimeOnly);
 
       expect(provider.entries.single.id, 101);
     });
@@ -219,7 +219,7 @@ void main() {
       provider
         ..setSearch('emir')
         ..setProject(1)
-        ..setOvertimeOnly(true);
+        ..setHoursFilter(WorkHoursFilter.overtimeOnly);
       expect(provider.hasFilters, isTrue);
 
       provider.clearFilters();

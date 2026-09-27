@@ -23,6 +23,8 @@ namespace pwm.Services.Reporting
         public static string Tonnes(double kilograms) =>
             (kilograms / 1000).ToString("N2", Culture);
 
+        public static string Kilograms(double value) => value.ToString("N2", Culture);
+
         public static string Date(System.DateTime value) =>
             value.ToString("d MMM yyyy", Culture);
 
