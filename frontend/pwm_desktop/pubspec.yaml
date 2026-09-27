@@ -50,6 +50,7 @@ dependencies:
   # isn't used. Already a transitive dependency of window_manager; pinned here
   # because main.dart imports it directly.
   screen_retriever: ^0.2.2
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

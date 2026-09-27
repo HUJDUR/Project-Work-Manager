@@ -201,7 +201,7 @@ class _MetricRow extends StatelessWidget {
         Icons.calendar_month_outlined,
         'Estimated Duration',
         hasEstimate ? '${formatCount(provider.estimatedDurationDays)} d' : '—',
-        'working days',
+        'working days of standard production',
       ),
       (
         Icons.verified_outlined,

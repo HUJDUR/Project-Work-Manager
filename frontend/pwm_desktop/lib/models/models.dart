@@ -15,6 +15,7 @@ export 'operation_type.dart';
 export 'page_result.dart';
 export 'project.dart';
 export 'project_category.dart';
+export 'project_overview.dart';
 export 'project_priority.dart';
 export 'project_row.dart';
 export 'project_status_type.dart';

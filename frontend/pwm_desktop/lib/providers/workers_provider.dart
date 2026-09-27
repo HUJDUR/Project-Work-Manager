@@ -70,7 +70,10 @@ class WorkersProvider extends ChangeNotifier {
 
   String _search = '';
   int? _roleId;
-  bool _activeOnly = false;
+
+  /// Null means every worker regardless of employment; otherwise narrows to
+  /// currently employed (true) or currently unemployed (false).
+  bool? _isActiveFilter;
   int _page = 1;
 
   WorkersStatusState get status => _status;
@@ -84,10 +87,10 @@ class WorkersProvider extends ChangeNotifier {
 
   String get search => _search;
   int? get roleId => _roleId;
-  bool get activeOnly => _activeOnly;
+  bool? get isActiveFilter => _isActiveFilter;
   int get page => _page;
 
-  bool get hasFilters => _search.isNotEmpty || _roleId != null || _activeOnly;
+  bool get hasFilters => _search.isNotEmpty || _roleId != null || _isActiveFilter != null;
 
   /// The page the table shows.
   List<WorkerRow> get rows => _rows;
@@ -116,8 +119,8 @@ class WorkersProvider extends ChangeNotifier {
     return _loadPage();
   }
 
-  Future<void> setActiveOnly(bool value) {
-    _activeOnly = value;
+  Future<void> setIsActiveFilter(bool? value) {
+    _isActiveFilter = value;
     _page = 1;
     return _loadPage();
   }
@@ -130,7 +133,7 @@ class WorkersProvider extends ChangeNotifier {
   Future<void> clearFilters() {
     _search = '';
     _roleId = null;
-    _activeOnly = false;
+    _isActiveFilter = null;
     _page = 1;
     return _loadPage();
   }
@@ -202,7 +205,7 @@ class WorkersProvider extends ChangeNotifier {
         'sortBy': sortBy,
         if (_search.trim().isNotEmpty) 'search': _search.trim(),
         if (_roleId != null) 'userTypeId': _roleId,
-        if (_activeOnly) 'isActive': true,
+        if (_isActiveFilter != null) 'isActive': _isActiveFilter,
       };
 
   Future<void> _fetchPage() async {
@@ -265,7 +268,7 @@ class WorkersProvider extends ChangeNotifier {
       'sortBy': sortBy,
       if (_search.trim().isNotEmpty) 'search': _search.trim(),
       if (_roleId != null) 'userTypeId': _roleId,
-      if (_activeOnly) 'isActive': true,
+      if (_isActiveFilter != null) 'isActive': _isActiveFilter,
     });
     return _buildRows(users);
   }

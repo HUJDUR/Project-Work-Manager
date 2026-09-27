@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:printing/printing.dart';
@@ -102,8 +105,8 @@ class _TypeCards extends StatelessWidget {
   static const _blurbs = <ReportType, (IconData, String)>{
     ReportType.monthlyWorkHours: (
       Icons.calendar_month_outlined,
-      'Per worker hours for a selected month, with regular and overtime split '
-          'and breakdown by project.',
+      'Per worker hours for a selected month, with regular and overtime split, '
+          'plus total hours by operation type across every worker.',
     ),
     ReportType.transportLoads: (
       Icons.local_shipping_outlined,
@@ -387,6 +390,23 @@ class _Labelled extends StatelessWidget {
   }
 }
 
+/// The quick choices the picker's menu offers before falling back to a custom
+/// range. Kept in one place with [_DateRangeField._rangeFor] so a preset's
+/// label and the dates it means can never drift apart.
+enum _DatePreset {
+  thisWeek('This week'),
+  lastWeek('Last week'),
+  thisMonth('This month'),
+  lastMonth('Last month'),
+  thisYear('This year'),
+  allDates('All dates'),
+  custom('Custom range…');
+
+  const _DatePreset(this.label);
+
+  final String label;
+}
+
 class _DateRangeField extends StatelessWidget {
   const _DateRangeField({required this.provider});
 
@@ -399,38 +419,95 @@ class _DateRangeField extends StatelessWidget {
         ? 'All dates'
         : '${formatDate(range.start)} - ${formatFullDate(range.end)}';
 
-    return InkWell(
-      onTap: () => _pick(context),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          border: const OutlineInputBorder(),
-          isDense: true,
-          prefixIcon: const Icon(Icons.calendar_today_outlined, size: 18),
-          suffixIcon: range == null
-              ? null
-              : IconButton(
-                  tooltip: 'Clear date range',
-                  icon: const Icon(Icons.close, size: 16),
-                  onPressed: () => provider.setDateRange(null),
-                ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-        ),
-        child: Text(
-          label,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 14,
-            color: range == null ? AppColors.textMuted : AppColors.textPrimary,
+    return Row(
+      children: [
+        Expanded(
+          child: PopupMenuButton<_DatePreset>(
+            tooltip: '',
+            offset: const Offset(0, 8),
+            itemBuilder: (context) => [
+              for (final preset in _DatePreset.values) ...[
+                if (preset == _DatePreset.allDates) const PopupMenuDivider(),
+                PopupMenuItem(value: preset, child: Text(preset.label)),
+              ],
+            ],
+            onSelected: (preset) => _apply(context, preset),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+                prefixIcon: Icon(Icons.calendar_today_outlined, size: 18),
+                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: range == null ? AppColors.textMuted : AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.arrow_drop_down, color: AppColors.textMuted),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
+        if (range != null)
+          IconButton(
+            tooltip: 'Clear date range',
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: () => provider.setDateRange(null),
+          ),
+      ],
     );
   }
 
-  Future<void> _pick(BuildContext context) async {
+  Future<void> _apply(BuildContext context, _DatePreset preset) async {
+    switch (preset) {
+      case _DatePreset.allDates:
+        provider.setDateRange(null);
+      case _DatePreset.custom:
+        await _pickCustom(context);
+      default:
+        provider.setDateRange(_rangeFor(preset));
+    }
+  }
+
+  /// Every "this …" preset runs up to today, not to the end of its period -
+  /// there is never data past today to report on. Every "last …" preset is a
+  /// full, wholly-past period.
+  static DateTimeRange _rangeFor(_DatePreset preset) {
     final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
+    final today = DateTime(now.year, now.month, now.day);
+    final startOfThisWeek = today.subtract(Duration(days: today.weekday - 1));
+
+    return switch (preset) {
+      _DatePreset.thisWeek => DateTimeRange(start: startOfThisWeek, end: today),
+      _DatePreset.lastWeek => DateTimeRange(
+          start: startOfThisWeek.subtract(const Duration(days: 7)),
+          end: startOfThisWeek.subtract(const Duration(days: 1)),
+        ),
+      _DatePreset.thisMonth =>
+        DateTimeRange(start: DateTime(today.year, today.month, 1), end: today),
+      _DatePreset.lastMonth => DateTimeRange(
+          start: DateTime(today.year, today.month - 1, 1),
+          end: DateTime(today.year, today.month, 1).subtract(const Duration(days: 1)),
+        ),
+      _DatePreset.thisYear => DateTimeRange(start: DateTime(today.year, 1, 1), end: today),
+      _DatePreset.allDates || _DatePreset.custom =>
+        throw ArgumentError('${preset.name} is handled separately, not as a fixed range.'),
+    };
+  }
+
+  Future<void> _pickCustom(BuildContext context) async {
+    final now = DateTime.now();
+    final picked = await pickDateRange(
+      context,
       initialDateRange: provider.dateRange,
       firstDate: DateTime(now.year - 2),
       lastDate: DateTime(now.year + 1, 12, 31),
@@ -565,10 +642,21 @@ Future<void> printReport(
   }
 }
 
+/// `Printing.sharePdf` has no save-location concept on Windows - it just drops
+/// the file in temp and opens it - so the actual "where do you want this"
+/// prompt comes from `file_selector`'s native Save As dialog instead.
 Future<void> saveReport(
     BuildContext context, Uint8List pdf, String fileName) async {
   try {
-    await Printing.sharePdf(bytes: pdf, filename: fileName);
+    final location = await getSaveLocation(
+      suggestedName: fileName,
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'PDF', extensions: ['pdf']),
+      ],
+    );
+    if (location == null) return;
+
+    await File(location.path).writeAsBytes(pdf);
   } catch (error) {
     if (context.mounted) {
       showErrorDialog(context, 'The PDF could not be saved', '$error');

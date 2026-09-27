@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../providers/workers_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
+import 'widgets/clear_filters_button.dart';
 import 'widgets/search_field.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/workers_table.dart';
@@ -223,7 +224,26 @@ class _FilterBarState extends State<_FilterBar> {
           ),
         ),
         const SizedBox(width: 12),
-        _FilterMenu(provider: provider, onClear: _clearFilters),
+        Expanded(
+          flex: 2,
+          child: DropdownButtonFormField<bool?>(
+            initialValue: provider.isActiveFilter,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            ),
+            items: const [
+              DropdownMenuItem(value: null, child: Text('All Workers')),
+              DropdownMenuItem(value: true, child: Text('Currently employed')),
+              DropdownMenuItem(value: false, child: Text('Currently unemployed')),
+            ],
+            onChanged: provider.setIsActiveFilter,
+          ),
+        ),
+        const SizedBox(width: 12),
+        ClearFiltersButton(hasFilters: provider.hasFilters, onPressed: _clearFilters),
         const Spacer(flex: 2),
         OutlinedButton.icon(
           onPressed: () => openWorkerDetails(context, provider),
@@ -236,46 +256,6 @@ class _FilterBarState extends State<_FilterBar> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _FilterMenu extends StatelessWidget {
-  const _FilterMenu({required this.provider, required this.onClear});
-
-  final WorkersProvider provider;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: 'More filters',
-      position: PopupMenuPosition.under,
-      icon: Icon(
-        Icons.filter_alt_outlined,
-        color: provider.hasFilters ? AppColors.accent : AppColors.textSecondary,
-      ),
-      style: IconButton.styleFrom(
-        side: BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      ),
-      itemBuilder: (context) => [
-        CheckedPopupMenuItem(
-          value: 'active',
-          checked: provider.activeOnly,
-          child: const Text('Currently employed'),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem(
-          value: 'clear',
-          enabled: provider.hasFilters,
-          child: const Text('Clear filters'),
-        ),
-      ],
-      onSelected: (value) => switch (value) {
-        'active' => provider.setActiveOnly(!provider.activeOnly),
-        _ => onClear(),
-      },
     );
   }
 }

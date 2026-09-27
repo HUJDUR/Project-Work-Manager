@@ -728,6 +728,9 @@ namespace pwm.Services.Database.Migrations
                     b.Property<double>("Hours")
                         .HasColumnType("float");
 
+                    b.Property<DateTime?>("MissedClockOutNotifiedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("UserId")
                         .HasColumnType("int");
 

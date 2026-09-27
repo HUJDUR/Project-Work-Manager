@@ -27,7 +27,12 @@ var rabbitMqOptions = new RabbitMqOptions();
 builder.Configuration.GetSection("RabbitMq").Bind(rabbitMqOptions);
 builder.Services.AddSingleton(rabbitMqOptions);
 
+var missedClockOutOptions = new MissedClockOutOptions();
+builder.Configuration.GetSection("MissedClockOut").Bind(missedClockOutOptions);
+builder.Services.AddSingleton(missedClockOutOptions);
+
 builder.Services.AddHostedService<ReportGenerationWorker>();
+builder.Services.AddHostedService<MissedClockOutWorker>();
 
 var host = builder.Build();
 host.Run();

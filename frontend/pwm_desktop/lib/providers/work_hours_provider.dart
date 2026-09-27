@@ -13,11 +13,22 @@ import 'work_log_provider.dart';
 
 enum WorkHoursStatusState { idle, loading, ready, failed }
 
+enum WorkHoursFilter {
+  regularOnly('Regular hours only'),
+  overtimeOnly('Overtime hours only'),
+  inProgressOnly('In progress only');
+
+  const WorkHoursFilter(this.label);
+
+  final String label;
+}
+
 /// Rows come from `WorkLogDetail`, but the worker, project and operation names
 /// live in three other tables and regular/overtime is not stored at all, so the
 /// whole screen is assembled here.
 class WorkHoursProvider extends ChangeNotifier {
   WorkHoursProvider({
+    int? initialProjectId,
     BaseProvider<WorkLog>? workLogs,
     BaseProvider<WorkLogDetail>? workLogDetails,
     BaseProvider<User>? users,
@@ -29,7 +40,10 @@ class WorkHoursProvider extends ChangeNotifier {
         _users = users ?? UserProvider(),
         _userTypes = userTypes ?? UserTypeProvider(),
         _projects = projects ?? ProjectProvider(),
-        _operationTypes = operationTypes ?? OperationTypeProvider();
+        _operationTypes = operationTypes ?? OperationTypeProvider(),
+        // Lets a caller land on this screen already scoped to one project -
+        // the Project Details page's "View all work hours" button.
+        _projectId = initialProjectId;
 
   /// A worker's day is regular up to this many hours; the rest is overtime.
   static const double regularHoursPerDay = 8;
@@ -51,8 +65,7 @@ class WorkHoursProvider extends ChangeNotifier {
   String _search = '';
   int? _projectId;
   DateTimeRange? _dateRange;
-  bool _overtimeOnly = false;
-  bool _inProgressOnly = false;
+  WorkHoursFilter? _hoursFilter;
 
   WorkHoursStatusState get status => _status;
   String? get errorMessage => _errorMessage;
@@ -65,15 +78,10 @@ class WorkHoursProvider extends ChangeNotifier {
   String get search => _search;
   int? get projectId => _projectId;
   DateTimeRange? get dateRange => _dateRange;
-  bool get overtimeOnly => _overtimeOnly;
-  bool get inProgressOnly => _inProgressOnly;
+  WorkHoursFilter? get hoursFilter => _hoursFilter;
 
   bool get hasFilters =>
-      _search.isNotEmpty ||
-      _projectId != null ||
-      _dateRange != null ||
-      _overtimeOnly ||
-      _inProgressOnly;
+      _search.isNotEmpty || _projectId != null || _dateRange != null || _hoursFilter != null;
 
   List<WorkHoursEntry> get entries {
     final needle = _search.trim().toLowerCase();
@@ -83,8 +91,16 @@ class WorkHoursProvider extends ChangeNotifier {
         return false;
       }
       if (_projectId != null && entry.projectId != _projectId) return false;
-      if (_overtimeOnly && !entry.isOvertime) return false;
-      if (_inProgressOnly && entry.status != WorkHoursStatus.inProgress) return false;
+      switch (_hoursFilter) {
+        case WorkHoursFilter.regularOnly:
+          if (entry.isOvertime) return false;
+        case WorkHoursFilter.overtimeOnly:
+          if (!entry.isOvertime) return false;
+        case WorkHoursFilter.inProgressOnly:
+          if (entry.status != WorkHoursStatus.inProgress) return false;
+        case null:
+          break;
+      }
 
       final range = _dateRange;
       if (range != null) {
@@ -117,13 +133,8 @@ class WorkHoursProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setOvertimeOnly(bool value) {
-    _overtimeOnly = value;
-    notifyListeners();
-  }
-
-  void setInProgressOnly(bool value) {
-    _inProgressOnly = value;
+  void setHoursFilter(WorkHoursFilter? value) {
+    _hoursFilter = value;
     notifyListeners();
   }
 
@@ -131,8 +142,7 @@ class WorkHoursProvider extends ChangeNotifier {
     _search = '';
     _projectId = null;
     _dateRange = null;
-    _overtimeOnly = false;
-    _inProgressOnly = false;
+    _hoursFilter = null;
     notifyListeners();
   }
 

@@ -8,6 +8,8 @@ import '../providers/projects_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import 'project_details_screen.dart';
+import 'project_overview_screen.dart';
+import 'widgets/clear_filters_button.dart';
 import 'widgets/projects_table.dart';
 import 'widgets/search_field.dart';
 import 'widgets/summary_card.dart';
@@ -40,8 +42,9 @@ class ProjectsScreen extends StatelessWidget {
   }
 }
 
-/// Opens one project — or a blank form when [row] is null — and refetches once
-/// the details screen reports it wrote something.
+/// Raises a new project - the only way into [ProjectDetailsScreen] left in the
+/// projects screen itself now; an existing project opens on its read-only
+/// overview instead, via [openProjectOverview].
 Future<void> openProjectDetails(
   BuildContext context,
   ProjectsProvider provider, {
@@ -54,6 +57,21 @@ Future<void> openProjectDetails(
   );
 
   if (result == 'reload') await provider.refresh();
+}
+
+/// Opens one project's read-only overview, laid out as in
+/// `docs/mockups/desktop/Project details.png`. Editing happens from there, via
+/// its own "Edit Project" button, so nothing here needs to refetch on return.
+Future<void> openProjectOverview(
+  BuildContext context,
+  ProjectsProvider provider, {
+  required ProjectRow row,
+}) {
+  return Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ProjectOverviewScreen(provider: provider, row: row),
+    ),
+  );
 }
 
 class _Body extends StatelessWidget {
@@ -75,7 +93,7 @@ class _Body extends StatelessWidget {
           Expanded(
             child: ProjectsTable(
               provider: provider,
-              onRowTap: (row) => openProjectDetails(context, provider, row: row),
+              onRowTap: (row) => openProjectOverview(context, provider, row: row),
             ),
           ),
         ],
@@ -222,7 +240,7 @@ class _FilterBarState extends State<_FilterBar> {
           ),
         ),
         const SizedBox(width: 12),
-        _FilterMenu(provider: provider, onClear: _clearFilters),
+        ClearFiltersButton(hasFilters: provider.hasFilters, onPressed: _clearFilters),
         const Spacer(flex: 2),
         OutlinedButton.icon(
           onPressed: () => openProjectDetails(context, provider),
@@ -235,37 +253,6 @@ class _FilterBarState extends State<_FilterBar> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _FilterMenu extends StatelessWidget {
-  const _FilterMenu({required this.provider, required this.onClear});
-
-  final ProjectsProvider provider;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: 'More filters',
-      position: PopupMenuPosition.under,
-      icon: Icon(
-        Icons.filter_alt_outlined,
-        color: provider.hasFilters ? AppColors.accent : AppColors.textSecondary,
-      ),
-      style: IconButton.styleFrom(
-        side: BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-      ),
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: 'clear',
-          enabled: provider.hasFilters,
-          child: const Text('Clear filters'),
-        ),
-      ],
-      onSelected: (_) => onClear(),
     );
   }
 }

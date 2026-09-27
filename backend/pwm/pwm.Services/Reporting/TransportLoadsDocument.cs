@@ -4,13 +4,14 @@ using QuestPDF.Infrastructure;
 namespace pwm.Services.Reporting
 {
     /// <summary>
-    /// Every truck load for a project or a date range: when it went, who carried it,
-    /// on which vehicle and how much left the yard.
+    /// Every transport for a project or a date range: two month-level totals up top,
+    /// then one block per truck - who carried it, when, its bruto/neto weight, and
+    /// which projects were on it.
     /// </summary>
     internal static class TransportLoadsDocument
     {
         public static byte[] Render(
-            DateTime? from, DateTime? to, string project, IReadOnlyList<TransportLoadRow> rows)
+            DateTime? from, DateTime? to, string project, IReadOnlyList<TransportOverviewRow> rows)
         {
             var period = (from, to) switch
             {
@@ -22,15 +23,17 @@ namespace pwm.Services.Reporting
 
             return Document.Create(container => ReportTheme.Page(
                 container,
-                "Transport & Loads",
+                "Transport Overview",
                 $"{project}  ·  {period}",
                 body => Body(body, rows))).GeneratePdf();
         }
 
-        private static void Body(IContainer container, IReadOnlyList<TransportLoadRow> rows)
+        private static void Body(IContainer container, IReadOnlyList<TransportOverviewRow> rows)
         {
             container.Column(column =>
             {
+                column.Spacing(14);
+
                 if (rows.Count == 0)
                 {
                     column.Item().Text("No loads were registered in this period.")
@@ -38,51 +41,89 @@ namespace pwm.Services.Reporting
                     return;
                 }
 
-                column.Item().Table(table =>
+                column.Item().Element(summary => Summary(summary, rows));
+
+                foreach (var row in rows)
+                {
+                    column.Item().Element(block => Transport(block, row));
+                }
+            });
+        }
+
+        /// <summary>The two month-level numbers: how many trucks left, and how much project weight they carried.</summary>
+        private static void Summary(IContainer container, IReadOnlyList<TransportOverviewRow> rows)
+        {
+            var totalNeto = rows.Sum(row => row.NetoWeight);
+
+            container.Row(row =>
+            {
+                row.RelativeItem().Element(cell => SummaryStat(cell, "Total Transports", rows.Count.ToString()));
+                row.RelativeItem().Element(cell => SummaryStat(
+                    cell, "Total Neto Project Weight Shipped", $"{ReportTheme.Kilograms(totalNeto)} kg"));
+            });
+        }
+
+        private static void SummaryStat(IContainer container, string label, string value)
+        {
+            container.Column(column =>
+            {
+                column.Item().Text(label).FontSize(8).FontColor(ReportTheme.Muted);
+                column.Item().PaddingTop(2).Text(value).FontSize(14).SemiBold();
+            });
+        }
+
+        private static void Transport(IContainer container, TransportOverviewRow row)
+        {
+            container.Column(column =>
+            {
+                column.Spacing(4);
+
+                column.Item().Row(header =>
+                {
+                    header.RelativeItem(3)
+                        .Text($"{ReportTheme.Date(row.LoadDate)}  ·  {row.CarrierName}  ·  {row.DriverName}")
+                        .FontSize(9).SemiBold();
+                    header.RelativeItem().AlignRight()
+                        .Text(row.Status).FontSize(8).FontColor(ReportTheme.Muted);
+                });
+
+                column.Item().Row(meta =>
+                {
+                    meta.RelativeItem()
+                        .Text($"Vehicle {row.VehicleRegistration}").FontSize(8).FontColor(ReportTheme.Muted);
+                    meta.RelativeItem().AlignRight()
+                        .Text($"Bruto {ReportTheme.Kilograms(row.BrutoWeight)} kg  ·  " +
+                              $"Neto {ReportTheme.Kilograms(row.NetoWeight)} kg")
+                        .FontSize(8).SemiBold();
+                });
+
+                column.Item().PaddingTop(2).Table(table =>
                 {
                     table.ColumnsDefinition(columns =>
                     {
-                        columns.RelativeColumn(2);
-                        columns.RelativeColumn(3);
-                        columns.RelativeColumn(3);
-                        columns.RelativeColumn(3);
-                        columns.RelativeColumn(2);
-                        columns.RelativeColumn(2);
-                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(4);
+                        columns.RelativeColumn();
+                        columns.RelativeColumn();
                     });
 
                     table.Header(header =>
                     {
-                        header.Cell().Element(cell => ReportTheme.HeaderCell(cell, "Load date"));
                         header.Cell().Element(cell => ReportTheme.HeaderCell(cell, "Project"));
-                        header.Cell().Element(cell => ReportTheme.HeaderCell(cell, "Carrier"));
-                        header.Cell().Element(cell => ReportTheme.HeaderCell(cell, "Driver"));
-                        header.Cell().Element(cell => ReportTheme.HeaderCell(cell, "Vehicle"));
                         header.Cell().AlignRight()
-                            .Element(cell => ReportTheme.HeaderCell(cell, "Net (t)"));
-                        header.Cell().Element(cell => ReportTheme.HeaderCell(cell, "Status"));
+                            .Element(cell => ReportTheme.HeaderCell(cell, "Bruto (kg)"));
+                        header.Cell().AlignRight()
+                            .Element(cell => ReportTheme.HeaderCell(cell, "Neto (kg)"));
                     });
 
-                    foreach (var row in rows)
+                    foreach (var project in row.Projects)
                     {
                         table.Cell().Element(ReportTheme.BodyCell)
-                            .Text(ReportTheme.Date(row.LoadDate));
-                        table.Cell().Element(ReportTheme.BodyCell)
-                            .Text($"{row.ProjectCode} - {row.ProjectName}");
-                        table.Cell().Element(ReportTheme.BodyCell).Text(row.CarrierName);
-                        table.Cell().Element(ReportTheme.BodyCell).Text(row.DriverName);
-                        table.Cell().Element(ReportTheme.BodyCell)
-                            .Text(row.VehicleRegistration);
+                            .Text($"{project.ProjectCode} - {project.ProjectName}").FontSize(8);
                         table.Cell().Element(ReportTheme.BodyCell).AlignRight()
-                            .Text(ReportTheme.Tonnes(row.NetWeight));
-                        table.Cell().Element(ReportTheme.BodyCell).Text(row.Status);
+                            .Text(ReportTheme.Kilograms(project.BrutoWeight)).FontSize(8);
+                        table.Cell().Element(ReportTheme.BodyCell).AlignRight()
+                            .Text(ReportTheme.Kilograms(project.NetoWeight)).FontSize(8);
                     }
-
-                    table.Cell().ColumnSpan(5).Element(ReportTheme.BodyCell)
-                        .Text($"{rows.Count} load(s)").SemiBold();
-                    table.Cell().Element(ReportTheme.BodyCell).AlignRight()
-                        .Text(ReportTheme.Tonnes(rows.Sum(row => row.NetWeight))).SemiBold();
-                    table.Cell().Element(ReportTheme.BodyCell).Text(string.Empty);
                 });
             });
         }
