@@ -18,6 +18,9 @@ namespace pwm.Model.Requests
 
         public string? PhoneNumber { get; set; }
 
+        /// <summary>Null clears the picture back to the name-letters avatar.</summary>
+        public byte[]? Picture { get; set; }
+
         /// <summary>Required only when <see cref="NewPassword"/> is set.</summary>
         public string? CurrentPassword { get; set; }
 

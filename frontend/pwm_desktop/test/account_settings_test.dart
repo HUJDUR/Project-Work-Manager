@@ -22,6 +22,7 @@ class _FakeUserProvider extends UserProvider {
     required String surname,
     required String email,
     String? phoneNumber,
+    String? picture,
     String? currentPassword,
     String? newPassword,
   }) async {
@@ -30,6 +31,7 @@ class _FakeUserProvider extends UserProvider {
       'surname': surname,
       'email': email,
       'phoneNumber': phoneNumber,
+      'picture': picture,
       'currentPassword': currentPassword,
       'newPassword': newPassword,
     });
@@ -43,6 +45,7 @@ class _FakeUserProvider extends UserProvider {
       userTypeId: 1,
       isActive: true,
       phoneNumber: phoneNumber,
+      picture: picture,
     );
   }
 }

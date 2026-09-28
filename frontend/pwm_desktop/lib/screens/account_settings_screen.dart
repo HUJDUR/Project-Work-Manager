@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
@@ -12,6 +15,16 @@ import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
 import 'widgets/form_fields.dart';
+import 'widgets/user_avatar.dart';
+
+/// Mirrored on the API by `PictureRules.MaxSizeBytes` - this is a friendlier,
+/// earlier refusal, not the only check.
+const _maxPictureBytes = 5 * 1024 * 1024;
+
+const _pictureTypeGroup = XTypeGroup(
+  label: 'Images',
+  extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+);
 
 /// Opens the signed-in user's own account. Pushed on the **root** navigator: it
 /// is reached from the top bar, which sits outside the per-destination navigator
@@ -53,6 +66,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   final _confirmPasswordFocus = FocusNode();
 
   late final UserProvider _users = widget.userProvider ?? UserProvider();
+
+  /// Base64, seeded from the signed-in user and replaced when a new picture
+  /// is picked, or cleared back to null (the name-letters avatar) by Remove.
+  String? _picture;
 
   bool _saving = false;
   String? _error;
@@ -116,6 +133,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _picture = AuthProvider.user?.picture;
     _nameFocus.addListener(() => _onFieldBlurred('name', _nameFocus));
     _surnameFocus.addListener(() => _onFieldBlurred('surname', _surnameFocus));
     _emailFocus.addListener(() => _onFieldBlurred('email', _emailFocus));
@@ -139,6 +157,26 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     _emailFocus.dispose();
     super.dispose();
   }
+
+  Future<void> _pickPicture() async {
+    final file = await openFile(acceptedTypeGroups: const [_pictureTypeGroup]);
+    if (file == null) return;
+
+    final bytes = await file.readAsBytes();
+    if (bytes.length > _maxPictureBytes) {
+      if (!mounted) return;
+      setState(() => _error = 'Pick an image under 5 MB.');
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _picture = base64Encode(bytes);
+      _error = null;
+    });
+  }
+
+  void _removePicture() => setState(() => _picture = null);
 
   @override
   Widget build(BuildContext context) {
@@ -192,6 +230,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                           user: user,
                           role: auth.currentRole,
                           error: _error,
+                          picture: _picture,
+                          onPickPicture: _pickPicture,
+                          onRemovePicture: _removePicture,
                           currentPassword: _currentPassword,
                           newPassword: _newPassword,
                           confirmPassword: _confirmPassword,
@@ -240,6 +281,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         surname: (values['surname'] as String).trim(),
         email: (values['email'] as String).trim(),
         phoneNumber: _trimToNull(values['phoneNumber']),
+        picture: _picture,
         // Only sent when the password is actually being changed.
         currentPassword: newPassword == null ? null : _currentPassword.text,
         newPassword: newPassword,
@@ -279,6 +321,9 @@ class _Form extends StatelessWidget {
     required this.user,
     required this.role,
     required this.error,
+    required this.picture,
+    required this.onPickPicture,
+    required this.onRemovePicture,
     required this.currentPassword,
     required this.newPassword,
     required this.confirmPassword,
@@ -297,6 +342,9 @@ class _Form extends StatelessWidget {
   final User user;
   final String role;
   final String? error;
+  final String? picture;
+  final VoidCallback onPickPicture;
+  final VoidCallback onRemovePicture;
   final TextEditingController currentPassword;
   final TextEditingController newPassword;
   final TextEditingController confirmPassword;
@@ -338,6 +386,13 @@ class _Form extends StatelessWidget {
                 _SectionHeader(
                   title: 'Your details',
                   caption: 'How the rest of the shop sees you',
+                ),
+                const SizedBox(height: AppSpacing.gap),
+                _PictureField(
+                  picture: picture,
+                  initials: user.initials,
+                  onPick: onPickPicture,
+                  onRemove: onRemovePicture,
                 ),
                 const SizedBox(height: AppSpacing.gap),
                 Row(
@@ -437,6 +492,43 @@ class _Form extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The avatar plus the controls to change or remove it. Sits above the name
+/// fields, the same spot the identity block occupies on the mobile screen.
+class _PictureField extends StatelessWidget {
+  const _PictureField({
+    required this.picture,
+    required this.initials,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String? picture;
+  final String initials;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        UserAvatar(picture: picture, initials: initials, size: 64, fontSize: 20),
+        const SizedBox(width: 16),
+        TextButton.icon(
+          onPressed: onPick,
+          icon: const Icon(Icons.photo_camera_outlined, size: 18),
+          label: Text(picture == null ? 'Add picture' : 'Change picture'),
+        ),
+        if (picture != null)
+          TextButton(
+            onPressed: onRemove,
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Remove'),
+          ),
+      ],
     );
   }
 }

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
@@ -11,6 +14,16 @@ import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
+import 'widgets/user_avatar.dart';
+
+/// Mirrored on the API by `PictureRules.MaxSizeBytes` - this is a friendlier,
+/// earlier refusal, not the only check.
+const _maxPictureBytes = 5 * 1024 * 1024;
+
+const _pictureTypeGroup = XTypeGroup(
+  label: 'Images',
+  extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+);
 
 /// One account, new or existing. Pops `'reload'` once it has written.
 class WorkerDetailsScreen extends StatefulWidget {
@@ -32,6 +45,11 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
 
   bool _saving = false;
   String? _error;
+
+  /// Base64, seeded from the row when editing and replaced when a new
+  /// picture is picked, or cleared back to null (the name-letters avatar)
+  /// by Remove.
+  String? _picture;
 
   /// False until Save has been pressed once. `FormBuilder`'s own
   /// `autovalidateMode` validates every field the moment any one of them
@@ -121,6 +139,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
     final row = widget.row;
 
     _selectedRoleId = row?.roleId ?? _roleIdOf(WorkersProvider.workerRole);
+    _picture = row?.picture;
 
     _initialValue = {
       'name': row?.name,
@@ -187,6 +206,26 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
       .map((type) => type.id)
       .firstOrNull;
 
+  Future<void> _pickPicture() async {
+    final file = await openFile(acceptedTypeGroups: const [_pictureTypeGroup]);
+    if (file == null) return;
+
+    final bytes = await file.readAsBytes();
+    if (bytes.length > _maxPictureBytes) {
+      if (!mounted) return;
+      setState(() => _error = 'Pick an image under 5 MB.');
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _picture = base64Encode(bytes);
+      _error = null;
+    });
+  }
+
+  void _removePicture() => setState(() => _picture = null);
+
   @override
   Widget build(BuildContext context) {
     final provider = widget.provider;
@@ -206,6 +245,13 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _PictureField(
+              picture: _picture,
+              initials: widget.row?.initials ?? '?',
+              onPick: _pickPicture,
+              onRemove: _removePicture,
+            ),
+            const SizedBox(height: formSectionGap),
             Row(
               // Top-aligned, not centred: a validator error grows only the
               // field it belongs to, and centring would sink its neighbour
@@ -415,6 +461,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
         userTypeId: values['userTypeId'] as int,
         isActive: values['isActive'] as bool? ?? true,
         phoneNumber: _trimToNull(values['phoneNumber']),
+        picture: _picture,
         password: _password.text.isEmpty ? null : _password.text,
         operationIds: (values['operationIds'] as List<int>?) ?? const [],
       );
@@ -467,4 +514,41 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
 
   String _messageFor(Object error, String fallback) =>
       error is ApiClientException ? error.message : '$fallback: $error';
+}
+
+/// The avatar plus the controls to change or remove it. Optional on both
+/// creation and edit - leaving it alone keeps the name-letters avatar.
+class _PictureField extends StatelessWidget {
+  const _PictureField({
+    required this.picture,
+    required this.initials,
+    required this.onPick,
+    required this.onRemove,
+  });
+
+  final String? picture;
+  final String initials;
+  final VoidCallback onPick;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        UserAvatar(picture: picture, initials: initials, size: 64, fontSize: 20),
+        const SizedBox(width: 16),
+        TextButton.icon(
+          onPressed: onPick,
+          icon: const Icon(Icons.photo_camera_outlined, size: 18),
+          label: Text(picture == null ? 'Add picture' : 'Change picture'),
+        ),
+        if (picture != null)
+          TextButton(
+            onPressed: onRemove,
+            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            child: const Text('Remove'),
+          ),
+      ],
+    );
+  }
 }

@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../models/user.dart';
@@ -8,6 +11,11 @@ import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
+import 'widgets/user_avatar.dart';
+
+/// Mirrored on the API by `PictureRules.MaxSizeBytes` - this is a friendlier,
+/// earlier refusal, not the only check.
+const _maxPictureBytes = 5 * 1024 * 1024;
 
 /// The signed-in worker's own account. Reached from the avatar in the top bar
 /// and from the Options tab, and pushed on the **root** navigator so it covers
@@ -57,6 +65,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   final _newPasswordFocus = FocusNode();
   final _confirmPasswordFocus = FocusNode();
 
+  /// Base64, seeded from the signed-in user and replaced when a new picture
+  /// is picked, or cleared back to null (the name-letters avatar) by Remove.
+  String? _picture;
+
   bool _saving = false;
   String? _error;
   String? _passwordError;
@@ -65,6 +77,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   void initState() {
     super.initState();
     _phone.text = AuthProvider.user?.phoneNumber ?? '';
+    _picture = AuthProvider.user?.picture;
     _currentPasswordFocus
         .addListener(() => _onPasswordFieldBlurred(_currentPasswordFocus));
     _newPasswordFocus.addListener(() => _onPasswordFieldBlurred(_newPasswordFocus));
@@ -111,6 +124,26 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   bool get _unconfirmedPassword =>
       _passwordError == PasswordRules.confirmationNeeded;
 
+  Future<void> _pickPicture() async {
+    final file = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (file == null) return;
+
+    final bytes = await file.readAsBytes();
+    if (bytes.length > _maxPictureBytes) {
+      if (!mounted) return;
+      setState(() => _error = 'Pick an image under 5 MB.');
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _picture = base64Encode(bytes);
+      _error = null;
+    });
+  }
+
+  void _removePicture() => setState(() => _picture = null);
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -149,7 +182,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       child: ListView(
         padding: const EdgeInsets.all(AppSpacing.pagePadding),
         children: [
-          _Identity(user: user, role: role),
+          _Identity(
+            user: user,
+            role: role,
+            picture: _picture,
+            onPickPicture: _pickPicture,
+            onRemovePicture: _removePicture,
+          ),
           const SizedBox(height: AppSpacing.gap),
           AppCard(
             child: Column(
@@ -304,6 +343,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         surname: user.surname,
         email: user.email,
         phoneNumber: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
+        picture: _picture,
         currentPassword: newPassword == null ? null : _currentPassword.text,
         newPassword: newPassword,
       );
@@ -330,32 +370,54 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 }
 
-/// Who this is, in the shape the top bar's avatar already uses.
+/// Who this is, in the shape the top bar's avatar already uses - plus the
+/// tap target that changes it and, once there is one, a way to remove it.
 class _Identity extends StatelessWidget {
-  const _Identity({required this.user, required this.role});
+  const _Identity({
+    required this.user,
+    required this.role,
+    required this.picture,
+    required this.onPickPicture,
+    required this.onRemovePicture,
+  });
 
   final User user;
   final String role;
+  final String? picture;
+  final VoidCallback onPickPicture;
+  final VoidCallback onRemovePicture;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 52,
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.accentSoft,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            user.initials,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.accent,
-            ),
+        GestureDetector(
+          onTap: onPickPicture,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              UserAvatar(
+                picture: picture,
+                initials: user.initials,
+                size: 52,
+                fontSize: 18,
+              ),
+              Positioned(
+                bottom: -2,
+                right: -2,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.canvas, width: 2),
+                  ),
+                  child: Icon(Icons.photo_camera, size: 12, color: Colors.white),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(width: 14),
@@ -378,6 +440,17 @@ class _Identity extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
+              if (picture != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: GestureDetector(
+                    onTap: onRemovePicture,
+                    child: Text(
+                      'Remove picture',
+                      style: TextStyle(fontSize: 12.5, color: AppColors.danger),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -26,20 +26,16 @@ String formatTime(DateTime date) => _timeOfDay.format(date);
 
 /// A timestamp from the API, as local time.
 ///
-/// The backend stamps every row with `DateTime.UtcNow`, but it round-trips
-/// through SQL Server and EF Core first, which drops the `Kind` back to
-/// unspecified — so it serialises **without a zone marker**,
-/// `2026-09-22T14:30:00`, not `...Z`. Dart parses that as local time, so
-/// something that happened a minute ago reads as however many hours this
-/// machine sits from UTC. Everywhere else a stamp is shown as a *date*, where
-/// that offset never surfaces; it is only the screens that count backwards
-/// from now — the dashboard's Activity feed, a report's "generated ...ago",
-/// the notification bell — that have to put the zone back on. A value that
-/// did arrive with a zone is already right and is only converted.
-///
-/// The real fix is at the API, and it is a one-line serializer setting that
-/// would move every date both apps show — which is why it is not made here.
-/// The mobile app carries the same helper for the same reason.
+/// The API now forces every `DateTime` it serialises to carry a `Z` (see
+/// `UtcDateTimeConverter` on the backend), so a value read from the wire
+/// arrives with `isUtc == true` and the first branch below is the one that
+/// actually runs. The second branch is a leftover safety net for anything
+/// that predates that fix or was parsed some other way - a naive value is
+/// still assumed to be UTC (the backend's own convention) rather than
+/// already-local, which is the mistake this function exists to undo. Call
+/// this wherever a stamp is shown as a *time*, not only where something
+/// counts backwards from now; a bare *date* rarely needs it, but a clock
+/// reading does. The mobile app carries the same helper for the same reason.
 DateTime apiTimeToLocal(DateTime value) => value.isUtc
     ? value.toLocal()
     : DateTime.utc(

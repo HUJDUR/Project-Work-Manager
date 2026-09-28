@@ -27,6 +27,7 @@ class _FakeUsers extends UserProvider {
     required String surname,
     required String email,
     String? phoneNumber,
+    String? picture,
     String? currentPassword,
     String? newPassword,
   }) async {
@@ -35,6 +36,7 @@ class _FakeUsers extends UserProvider {
       'surname': surname,
       'email': email,
       'phoneNumber': phoneNumber,
+      'picture': picture,
       'currentPassword': currentPassword,
       'newPassword': newPassword,
     });
@@ -164,6 +166,8 @@ void main() {
         'surname': 'Tufekcic',
         'email': 'faruk.tufekcic@pwm.ba',
         'phoneNumber': '+387 62 999 111',
+        // No picture was picked, and the fixture user has none either.
+        'picture': null,
         // Nothing was typed into the password fields.
         'currentPassword': null,
         'newPassword': null,

@@ -192,6 +192,8 @@ namespace pwm.Services.Database.Seed
 
         private async Task SeedUsersAsync()
         {
+            _pictures = LoadPictures();
+
             var users = new List<User>();
             var phone = 100;
 
@@ -303,6 +305,7 @@ namespace pwm.Services.Database.Seed
                 Surname = surname,
                 Email = email,
                 PhoneNumber = phoneNumber,
+                Picture = _pictures.Length > 0 ? Pick(_pictures) : null,
                 UserTypeId = userTypeId,
                 IsActive = isActive,
                 PasswordHash = hash,

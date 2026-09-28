@@ -16,6 +16,7 @@ import '../screens/recommendations_screen.dart';
 import '../screens/reports_screen.dart';
 import '../screens/transport_screen.dart';
 import '../screens/widgets/notification_bell.dart';
+import '../screens/widgets/user_avatar.dart';
 import '../screens/work_hours_screen.dart';
 import '../screens/workers_screen.dart';
 import '../utils/app_roles.dart';
@@ -339,20 +340,18 @@ class _AccountChip extends StatelessWidget {
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: 17,
-          backgroundColor: AppColors.accentSoft,
-          child: user == null
-              ? Icon(Icons.person_outline, size: 19, color: AppColors.accent)
-              : Text(
-                  user.initials,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.accent,
-                  ),
-                ),
-        ),
+        user == null
+            ? CircleAvatar(
+                radius: 17,
+                backgroundColor: AppColors.accentSoft,
+                child: Icon(Icons.person_outline, size: 19, color: AppColors.accent),
+              )
+            : UserAvatar(
+                picture: user.picture,
+                initials: user.initials,
+                size: 34,
+                fontSize: 13,
+              ),
         const SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,

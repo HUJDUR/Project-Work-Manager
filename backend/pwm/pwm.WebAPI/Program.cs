@@ -13,6 +13,7 @@ using pwm.Services.Database.Seed;
 using pwm.Services.Interfaces;
 using pwm.WebAPI;
 using pwm.WebAPI.Filters;
+using pwm.WebAPI.Json;
 using pwm.WebAPI.Services.AccessManager;
 using pwm.WebAPI.Services.CurrentUser;
 
@@ -46,7 +47,14 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 AddJwtAuthentication(builder);
 
-builder.Services.AddControllers(options => options.Filters.Add<ExceptionFilter>());
+builder.Services.AddControllers(options => options.Filters.Add<ExceptionFilter>())
+    // Every DateTime this API reads or writes is UTC by convention - see
+    // UtcDateTimeConverter for why that has to be forced explicitly.
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+        options.JsonSerializerOptions.Converters.Add(new UtcNullableDateTimeConverter());
+    });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 // The bearer scheme is declared so the Scalar UI can send a token from /Access/Login.
 builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, context, cancellationToken) =>

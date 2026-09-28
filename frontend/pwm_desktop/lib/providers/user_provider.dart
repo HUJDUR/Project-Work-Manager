@@ -20,6 +20,9 @@ class UserProvider extends BaseProvider<User> {
     required String surname,
     required String email,
     String? phoneNumber,
+    // Base64, the same shape the API hands back. Null clears the picture
+    // back to the name-letters avatar.
+    String? picture,
     String? currentPassword,
     String? newPassword,
   }) async {
@@ -29,6 +32,7 @@ class UserProvider extends BaseProvider<User> {
       'surname': surname,
       'email': email,
       'phoneNumber': phoneNumber,
+      'picture': picture,
       'currentPassword': currentPassword,
       'newPassword': newPassword,
     });

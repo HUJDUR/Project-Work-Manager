@@ -8,6 +8,9 @@ namespace pwm.Model.Requests
 
         public string? PhoneNumber { get; set; }
 
+        /// <summary>Null clears the picture back to the name-letters avatar.</summary>
+        public byte[]? Picture { get; set; }
+
         public string Email { get; set; } = string.Empty;
 
         public int UserTypeId { get; set; }

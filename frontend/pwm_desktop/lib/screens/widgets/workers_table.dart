@@ -5,6 +5,7 @@ import '../../providers/workers_provider.dart';
 import '../../utils/app_theme.dart';
 import 'excel_table_header.dart';
 import 'table_pager.dart';
+import 'user_avatar.dart';
 
 /// Gap between every column, in both the header and the rows, so a long value
 /// in one never visually crowds the next.
@@ -227,22 +228,11 @@ class _Worker extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          width: 32,
-          height: 32,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.accentSoft,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            row.initials,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.accent,
-            ),
-          ),
+        UserAvatar(
+          picture: row.picture,
+          initials: row.initials,
+          size: 32,
+          radius: 8,
         ),
         const SizedBox(width: 10),
         Expanded(child: _Cell(row.fullName, caption: row.email)),
