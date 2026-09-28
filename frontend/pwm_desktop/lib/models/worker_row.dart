@@ -14,6 +14,7 @@ class WorkerRow {
     required this.operations,
     required this.operationIds,
     this.phoneNumber,
+    this.picture,
   });
 
   final int id;
@@ -35,6 +36,9 @@ class WorkerRow {
   final List<int> operationIds;
 
   final String? phoneNumber;
+
+  /// Base64-encoded image bytes; null falls back to [initials].
+  final String? picture;
 
   String get fullName => '$name $surname'.trim();
 }

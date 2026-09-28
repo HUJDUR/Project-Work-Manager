@@ -12,6 +12,7 @@ class User {
     required this.userTypeId,
     required this.isActive,
     this.phoneNumber,
+    this.picture,
   });
 
   final int id;
@@ -21,6 +22,10 @@ class User {
   final int userTypeId;
   final bool isActive;
   final String? phoneNumber;
+
+  /// Base64-encoded image bytes, the way the API's `byte[]?` column comes
+  /// across in JSON. Null falls back to [initials].
+  final String? picture;
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   String get fullName => '$name $surname'.trim();

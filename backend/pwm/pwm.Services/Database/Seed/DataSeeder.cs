@@ -25,6 +25,7 @@ namespace pwm.Services.Database.Seed
         private Company[] _companies = [];
         private UserType[] _userTypes = [];
         private User[] _users = [];
+        private byte[][] _pictures = [];
         private OperationType[] _operationTypes = [];
         private ActivityLogType[] _activityLogTypes = [];
         private ProjectCategory[] _projectCategories = [];
@@ -151,6 +152,38 @@ namespace pwm.Services.Database.Seed
         private readonly Random _random = new(20260826);
 
         private T Pick<T>(IReadOnlyList<T> items) => items[_random.Next(items.Count)];
+
+        private static readonly string[] PictureFileNames =
+        [
+            "Male 1.jpg", "Male 2.jpg", "Female 1.jpg", "Female 2.jpg",
+        ];
+
+        /// <summary>
+        /// Reads the four stand-in avatars from <c>Database/Pictures</c>. Searches
+        /// upward from the working directory - like <c>EnvironmentConfig.LoadDotEnvFile</c>
+        /// - since <c>dotnet run --project</c> and an IDE's own launch profile do not
+        /// agree on what that directory is. Returns empty if the folder cannot be
+        /// found, in which case seeded users simply get no picture.
+        /// </summary>
+        private static byte[][] LoadPictures()
+        {
+            for (var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
+                directory != null;
+                directory = directory.Parent)
+            {
+                var candidate = Path.Combine(directory.FullName, "pwm.Services", "Database", "Pictures");
+                if (!Directory.Exists(candidate))
+                {
+                    continue;
+                }
+
+                return PictureFileNames
+                    .Select(name => File.ReadAllBytes(Path.Combine(candidate, name)))
+                    .ToArray();
+            }
+
+            return [];
+        }
 
         // Same hashing the UserService uses, so seeded logins verify
         private (string Hash, string Salt) HashPassword(string password)

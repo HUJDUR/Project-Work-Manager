@@ -648,6 +648,9 @@ namespace pwm.Services.Database.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<byte[]>("Picture")
+                        .HasColumnType("varbinary(max)");
+
                     b.Property<string>("Surname")
                         .IsRequired()
                         .HasMaxLength(50)

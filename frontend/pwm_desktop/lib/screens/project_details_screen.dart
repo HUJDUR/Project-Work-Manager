@@ -7,6 +7,7 @@ import '../providers/projects_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
+import '../utils/formatters.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
 
@@ -78,7 +79,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
       title: _isNew ? 'New Project' : widget.row!.displayName,
       subtitle: _isNew
           ? 'Raise a project for a customer'
-          : 'Created ${widget.row!.createdAt.toLocal().toString().split(' ').first}',
+          : 'Created ${apiTimeToLocal(widget.row!.createdAt).toString().split(' ').first}',
       saving: _saving,
       errorMessage: _error,
       onSave: _save,

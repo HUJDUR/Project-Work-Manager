@@ -174,6 +174,7 @@ namespace pwm.Services.Implementations
             user.Surname = request.Surname.Trim();
             user.Email = email;
             user.PhoneNumber = request.PhoneNumber?.Trim();
+            user.Picture = request.Picture;
 
             await _dbContext.SaveChangesAsync();
 

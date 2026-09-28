@@ -20,6 +20,9 @@ namespace pwm.Services.Database
         [MaxLength(20)]
         public string? PhoneNumber { get; set; }
 
+        /// <summary>Null falls back to the name-letters avatar the apps render.</summary>
+        public byte[]? Picture { get; set; }
+
         [Required]
         [MaxLength(100)]
         [EmailAddress]

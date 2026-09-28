@@ -162,7 +162,10 @@ class _EntryCard extends StatelessWidget {
               Icon(Icons.schedule_outlined, size: 15, color: AppColors.textMuted),
               const SizedBox(width: 6),
               Text(
-                formatTimeRange(entry.startedAt, entry.finishedAt),
+                formatTimeRange(
+                  apiTimeToLocal(entry.startedAt),
+                  entry.finishedAt == null ? null : apiTimeToLocal(entry.finishedAt!),
+                ),
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
               if (entry.isOpen) ...[

@@ -6,6 +6,7 @@ import '../../providers/user_provider.dart';
 import '../../utils/app_theme.dart';
 import '../account_settings_screen.dart';
 import '../login_screen.dart';
+import 'user_avatar.dart';
 
 /// Ends the session and goes back to sign-in, clearing the stack behind it so
 /// the back gesture cannot return to a shell with no account.
@@ -101,25 +102,18 @@ class AccountMenuButton extends StatelessWidget {
           ),
         ),
       ],
-      child: Container(
-        width: 36,
-        height: 36,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: AppColors.accentSoft,
-          shape: BoxShape.circle,
-        ),
-        child: user == null
-            ? Icon(Icons.person, size: 20, color: AppColors.textSecondary)
-            : Text(
-                user.initials,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.accent,
-                ),
+      child: user == null
+          ? Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.accentSoft,
+                shape: BoxShape.circle,
               ),
-      ),
+              child: Icon(Icons.person, size: 20, color: AppColors.textSecondary),
+            )
+          : UserAvatar(picture: user.picture, initials: user.initials, size: 36),
     );
   }
 }

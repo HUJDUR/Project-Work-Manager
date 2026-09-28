@@ -193,7 +193,7 @@ class _ActiveSessionCardState extends State<_ActiveSessionCard> {
           _DetailRow(
             icon: Icons.schedule_outlined,
             label: 'Start Time',
-            value: formatTime(session.startedAt),
+            value: formatTime(apiTimeToLocal(session.startedAt)),
           ),
           _DetailRow(
             icon: Icons.timer_outlined,

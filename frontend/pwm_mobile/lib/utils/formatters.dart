@@ -27,17 +27,16 @@ String formatFullDate(DateTime date) => _dayMonthYear.format(date);
 
 /// A timestamp from the API, as local time.
 ///
-/// The backend stamps every row with `DateTime.UtcNow` and serialises it
-/// **without a zone marker** — `2026-09-14T17:45:18`, not `...Z` — so Dart parses
-/// it as local and a message sent a minute ago reads as however many hours this
-/// machine sits from UTC. Everywhere else in both apps a stamp is shown as a
-/// *date*, where that offset never surfaces; the notifications list is the only
-/// screen that counts backwards from now, which is why this is the only place
-/// that has to put the zone back on. A value that did arrive with a zone is
-/// already right and is only converted.
-///
-/// The real fix is at the API, and it is a one-line serializer setting that
-/// would move every date the desktop shows — which is why it is not made here.
+/// The API now forces every `DateTime` it serialises to carry a `Z` (see
+/// `UtcDateTimeConverter` on the backend), so a value read from the wire
+/// arrives with `isUtc == true` and the first branch below is the one that
+/// actually runs. The second branch is a leftover safety net for anything
+/// that predates that fix or was parsed some other way - a naive value is
+/// still assumed to be UTC (the backend's own convention) rather than
+/// already-local, which is the mistake this function exists to undo. Call
+/// this wherever a stamp is shown as a *time*, not only where something
+/// counts backwards from now; a bare *date* rarely needs it, but a clock
+/// reading does. The desktop app carries the same helper for the same reason.
 DateTime apiTimeToLocal(DateTime value) => value.isUtc
     ? value.toLocal()
     : DateTime.utc(

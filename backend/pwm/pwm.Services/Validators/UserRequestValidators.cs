@@ -25,6 +25,23 @@ namespace pwm.Services.Validators
     }
 
     /// <summary>
+    /// Mirrored on the desktop and mobile pickers, which cap the file they let
+    /// the user pick at the same size, so this is a backstop, not the primary check.
+    /// </summary>
+    public static class PictureRules
+    {
+        public const int MaxSizeBytes = 5 * 1024 * 1024;
+
+        public static IRuleBuilderOptions<T, byte[]?> Picture<T>(
+            this IRuleBuilder<T, byte[]?> rule)
+        {
+            return rule
+                .Must(p => p == null || p.Length <= MaxSizeBytes)
+                .WithMessage("Picture must be 5 MB or smaller.");
+        }
+    }
+
+    /// <summary>
     /// The columns are NOT NULL, which an empty string satisfies - so the fields
     /// the Worker Details screen marks as required are checked here as well.
     /// </summary>
@@ -50,6 +67,8 @@ namespace pwm.Services.Validators
             RuleFor(x => x.Password)
                 .NotEmpty().WithMessage("A new account needs a password.")
                 .Password();
+
+            RuleFor(x => x.Picture).Picture();
         }
     }
 
@@ -77,6 +96,8 @@ namespace pwm.Services.Validators
             RuleFor(x => x.Password)
                 .Password()
                 .When(x => !string.IsNullOrEmpty(x.Password));
+
+            RuleFor(x => x.Picture).Picture();
         }
     }
 
@@ -110,6 +131,8 @@ namespace pwm.Services.Validators
                 .NotEmpty()
                 .WithMessage("Type your current password to change it.")
                 .When(x => !string.IsNullOrEmpty(x.NewPassword));
+
+            RuleFor(x => x.Picture).Picture();
         }
     }
 }

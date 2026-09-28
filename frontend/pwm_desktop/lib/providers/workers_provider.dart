@@ -300,6 +300,7 @@ class WorkersProvider extends ChangeNotifier {
         roleName: roleById[user.userTypeId]?.type ?? 'Unknown',
         isActive: user.isActive,
         phoneNumber: user.phoneNumber,
+        picture: user.picture,
         operations: held
             .map((qualification) => operationById[qualification.operationTypeId]?.name)
             .whereType<String>()
@@ -322,6 +323,10 @@ class WorkersProvider extends ChangeNotifier {
     required int userTypeId,
     required bool isActive,
     String? phoneNumber,
+    // Base64. The API overwrites the column with whatever comes in, same as
+    // every other field here, so the caller resends the current picture
+    // when it was not touched - the same treatment `phoneNumber` gets.
+    String? picture,
     String? password,
     List<int> operationIds = const [],
   }) async {
@@ -332,6 +337,7 @@ class WorkersProvider extends ChangeNotifier {
       'userTypeId': userTypeId,
       'isActive': isActive,
       'phoneNumber': phoneNumber,
+      'picture': picture,
       // Required on insert; on update the API keeps the old one when it is null.
       if (password != null && password.isNotEmpty) 'password': password,
     };
