@@ -15,6 +15,7 @@ class AuthProvider with ChangeNotifier {
   static const _loginEndpoint = 'Access/Login';
   static const _refreshEndpoint = 'Access/LoginWithRefreshToken';
   static const _logoutEndpoint = 'Access/Logout';
+  static const _requestPasswordResetEndpoint = 'Access/RequestPasswordReset';
 
   static String? accesstoken;
   static String? refreshtoken;
@@ -79,6 +80,28 @@ class AuthProvider with ChangeNotifier {
     role = '';
 
     notifyListeners();
+  }
+
+  /// "Reset password" on the sign-in screen, for someone who cannot sign in to
+  /// do anything else. This does not reset a password itself - there is no
+  /// e-mail/SMS delivery in this app to hand a new one back through - it only
+  /// tells the API to notify the office, which resets it by hand. Never
+  /// throws for an [emailOrUsername] that belongs to nobody: the API answers
+  /// the same way either way, on purpose, so this cannot be used to find out
+  /// which usernames exist.
+  Future<void> requestPasswordReset(String emailOrUsername) async {
+    final response = await http.post(
+      Uri.parse('${BaseProvider.baseUrl}$_requestPasswordResetEndpoint'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'emailOrUsername': emailOrUsername.trim()}),
+    );
+
+    if (response.statusCode > 299) {
+      throw ApiClientException(
+        ApiErrorParser.messageFromBody(response.body) ??
+            'The request could not be sent. Please try again.',
+      );
+    }
   }
 
   /// Swaps the refresh token for a new access token. Returns false when the

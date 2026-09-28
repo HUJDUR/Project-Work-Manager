@@ -17,9 +17,10 @@ import 'notification_list.dart';
 ///
 /// The provider is owned by the caller rather than created here because
 /// `MasterScreen` also has to reach it: it calls
-/// `ReceivedNotificationsProvider.refreshUnread` on every screen change, so a
-/// notification sent mid-session shows up without waiting for the next
-/// sign-in. Owning it locally would leave `MasterScreen` with no way in.
+/// `ReceivedNotificationsProvider.refreshUnread` on every screen change and
+/// on its own poll timer, so a notification sent mid-session shows up
+/// without waiting for the next sign-in - or even for the office to switch
+/// screens. Owning it locally would leave `MasterScreen` with no way in.
 class NotificationBell extends StatefulWidget {
   const NotificationBell({
     super.key,

@@ -1,6 +1,7 @@
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
@@ -10,14 +11,15 @@ using pwm.Services.Interfaces;
 namespace pwm.Services.Implementations
 {
     public class ReportTypeService
-        : BaseCRUDService<ReportType, ReportTypeResponse, ReportTypeSearchObject, ReportTypeInsertRequest, ReportTypeUpdateRequest>, IReportTypeService
+        : CachedLookupService<ReportType, ReportTypeResponse, ReportTypeSearchObject, ReportTypeInsertRequest, ReportTypeUpdateRequest>, IReportTypeService
     {
         public ReportTypeService(
             PWMDbContext dbContext,
             IMapper mapper,
             IValidator<ReportTypeInsertRequest> insertValidator,
-            IValidator<ReportTypeUpdateRequest> updateValidator)
-            : base(dbContext, mapper, insertValidator, updateValidator)
+            IValidator<ReportTypeUpdateRequest> updateValidator,
+            IMemoryCache cache)
+            : base(dbContext, mapper, insertValidator, updateValidator, cache)
         {
         }
 

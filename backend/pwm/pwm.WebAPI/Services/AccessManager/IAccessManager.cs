@@ -9,5 +9,12 @@ namespace pwm.WebAPI.Services.AccessManager
         Task<UserLoginResponse> LoginWithRefreshTokenAsync(RefreshAccessTokenRequest request);
 
         Task LogoutAsync(RefreshAccessTokenRequest request);
+
+        /// <summary>
+        /// The "Reset password" link on the login screen. Never reveals whether the
+        /// identifier belongs to an account - the controller answers the same way
+        /// either way, which is why this returns nothing to branch on.
+        /// </summary>
+        Task RequestPasswordResetAsync(PasswordResetRequest request);
     }
 }

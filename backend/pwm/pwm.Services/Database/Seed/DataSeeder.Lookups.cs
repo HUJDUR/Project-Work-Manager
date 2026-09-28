@@ -124,6 +124,7 @@ namespace pwm.Services.Database.Seed
                 new ActivityLogType { Name = ReportLogTypeName("Monthly Work Hours") },
                 new ActivityLogType { Name = ReportLogTypeName("Transport & Loads") },
                 new ActivityLogType { Name = ActivityLogTypeNames.MarkedMessagesAsRead },
+                new ActivityLogType { Name = ActivityLogTypeNames.PasswordResetRequested },
             ];
             await AddRangeAsync(_activityLogTypes);
         }

@@ -39,5 +39,14 @@ namespace pwm.Services.Database
         [Required]
         public string PasswordSalt { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Embedded in every access token issued to this account and checked against
+        /// on every authenticated request (see <c>OnTokenValidated</c> in
+        /// <c>Program.cs</c>) - bumping it is what makes logout actually invalidate a
+        /// still-unexpired access token server-side, rather than only deleting the
+        /// refresh token and leaving the short-lived one usable until it expires on
+        /// its own.
+        /// </summary>
+        public int TokenVersion { get; set; }
     }
 }

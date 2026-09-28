@@ -2,6 +2,8 @@ using pwm.Model.Exceptions;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 
 namespace pwm.WebAPI.Filters
@@ -47,6 +49,21 @@ namespace pwm.WebAPI.Filters
                 context.HttpContext.Response.StatusCode = (int)HttpStatusCode.NotFound;
                 _logger.LogWarning("Not found: {Message}", nfe.Message);
             }
+            else if (context.Exception is DbUpdateException dbEx && IsForeignKeyViolation(dbEx))
+            {
+                // A record still referenced elsewhere: the DB enforced it (Restrict),
+                // and the generic 500 branch below would otherwise be the only thing a
+                // client sees. `Entries` says whether this write was a delete, so the
+                // message can name the actual problem instead of a generic conflict.
+                var wasDelete = dbEx.Entries.Any(e => e.State == EntityState.Deleted);
+                var conflictMessage = wasDelete
+                    ? "This record is still used by other data and cannot be deleted."
+                    : "This action conflicts with related data and could not be completed.";
+
+                context.ModelState.AddModelError("conflict", conflictMessage);
+                context.HttpContext.Response.StatusCode = (int)HttpStatusCode.Conflict;
+                _logger.LogWarning(dbEx, "Foreign key conflict ({Operation}).", wasDelete ? "delete" : "write");
+            }
             else
             {
                 // Never the real exception message here: it can carry a stack trace,
@@ -75,5 +92,15 @@ namespace pwm.WebAPI.Filters
                 errors = list
             });
         }
+
+        /// <summary>
+        /// SQL Server error 547 is a REFERENCE constraint conflict - either a delete
+        /// blocked by a child row that still points at it, or an insert/update
+        /// pointing at an id that does not exist. Both are represented the same way
+        /// at the ADO.NET level, so this is the only reliable way to tell "the FK
+        /// rejected this" apart from any other <see cref="DbUpdateException"/>.
+        /// </summary>
+        private static bool IsForeignKeyViolation(DbUpdateException exception) =>
+            exception.InnerException is SqlException { Number: 547 };
     }
 }

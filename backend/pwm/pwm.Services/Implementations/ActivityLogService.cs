@@ -25,14 +25,14 @@ namespace pwm.Services.Implementations
                 return;
             }
 
+            // Tracked, not saved - see the interface doc: the caller's own
+            // SaveChangesAsync is what commits this, alongside whatever else it did.
             _dbContext.ActivityLogs.Add(new ActivityLog
             {
                 UserId = userId,
                 ActivityLogTypeId = logType.Id,
                 Date = DateTime.UtcNow,
             });
-
-            await _dbContext.SaveChangesAsync();
         }
 
         protected override IQueryable<ActivityLog> ApplyFilters(IQueryable<ActivityLog> query, ActivityLogSearchObject? search)

@@ -162,11 +162,16 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.OperationTypeId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Restrict, not Cascade: an ActivityLog row is an audit trail entry, not
+            // personal data that should vanish with the account. Hard-deleting a User
+            // who has ever done anything logged (sent a notification, signed in, and
+            // so on) is refused rather than silently erasing that history - the app
+            // already steers the office toward deactivating an account instead.
             modelBuilder.Entity<ActivityLog>()
                 .HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<ActivityLog>()
                 .HasOne(x => x.ActivityLogType)
@@ -218,11 +223,15 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Restrict, not Cascade: a WorkLog is a shift the shop paid for, not
+            // personal data that should vanish with the account. Hard-deleting a User
+            // who has ever clocked in is refused rather than silently erasing their
+            // production/payroll history - deactivating the account is the intended path.
             modelBuilder.Entity<WorkLog>()
                 .HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<WorkLogDetail>()
                 .HasOne(x => x.WorkLog)
@@ -230,8 +239,10 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.WorkLogId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Restrict, not Cascade: WorkLogs already cascades from Users, and a second
-            // cascade path into WorkLogDetails is SQL Server error 1785.
+            // Also Restrict on its own terms now (WorkLog.User no longer cascades
+            // either, so this was never at risk of the old multi-cascade-path SQL
+            // Server error 1785 in the first place) - a WorkLogDetail's User is the
+            // same protected history WorkLog.User is.
             modelBuilder.Entity<WorkLogDetail>()
                 .HasOne(x => x.User)
                 .WithMany()

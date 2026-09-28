@@ -14,8 +14,9 @@ enum ReceivedNotificationsStatus { idle, loading, ready, failed }
 /// Backs two different views of the same table:
 ///
 ///  * The bell popup ([unreadOnly] true): the newest [pageSize] unread rows.
-///    [refreshUnread] re-asks for these on every screen change, so a
-///    notification sent mid-session still shows up; reading one — alone or
+///    [refreshUnread] re-asks for these on every screen change and on
+///    `MasterScreen`'s own poll timer, so a notification sent mid-session
+///    shows up without the office having to go looking for it; reading one — alone or
 ///    via "mark all" — keeps it on screen, struck through as read, rather
 ///    than dropping it. It only stops showing once this provider is
 ///    recreated, which happens the next time `NotificationBell` is mounted

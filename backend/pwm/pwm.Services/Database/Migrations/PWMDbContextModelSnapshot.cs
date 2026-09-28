@@ -653,6 +653,9 @@ namespace pwm.Services.Database.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<int>("TokenVersion")
+                        .HasColumnType("int");
+
                     b.Property<int>("UserTypeId")
                         .HasColumnType("int");
 
@@ -799,7 +802,7 @@ namespace pwm.Services.Database.Migrations
                     b.HasOne("pwm.Services.Database.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ActivityLogType");
@@ -1014,7 +1017,7 @@ namespace pwm.Services.Database.Migrations
                     b.HasOne("pwm.Services.Database.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("User");

@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_roles.dart';
 import '../utils/app_theme.dart';
+import '../utils/dialogs.dart';
 
 /// Sign-in. Every other screen needs the token this one fetches, so it is what
 /// `main` opens on.
@@ -84,6 +85,23 @@ class _LoginScreenState extends State<LoginScreen> {
       // A dead API throws http's own ClientException, whose wording is no help here
       setState(() => _errorMessage =
           'The server could not be reached. Check that the API is running.');
+    }
+  }
+
+  /// Opens the identifier dialog and, once it reports a request was actually
+  /// sent, tells the office it happened - the same generic wording either
+  /// way, since the API itself never says whether the account existed.
+  Future<void> _forgotPassword() async {
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ForgotPasswordDialog(),
+    );
+
+    if (sent == true && mounted) {
+      showSavedSnackBar(
+        context,
+        'If that account exists, an administrator has been notified.',
+      );
     }
   }
 
@@ -252,9 +270,12 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             const SizedBox(height: 20),
             Center(
-              child: Text(
-                'Forgotten your password? Ask an administrator to reset it.',
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              child: TextButton(
+                onPressed: isBusy ? null : _forgotPassword,
+                child: Text(
+                  'Forgotten your password? Notify an administrator.',
+                  style: TextStyle(fontSize: 12, color: AppColors.accent),
+                ),
               ),
             ),
           ],
@@ -288,6 +309,104 @@ class _LoginScreenState extends State<LoginScreen> {
       errorBorder: border(AppColors.dangerBorder),
       focusedErrorBorder: border(AppColors.danger),
       errorStyle: TextStyle(fontSize: 12, color: AppColors.danger),
+    );
+  }
+}
+
+/// Asks for the one thing "Reset password" needs from someone who cannot sign
+/// in to give anything else: the identifier the account is known by. Pops
+/// `true` once the request has actually gone out, so the caller knows to show
+/// its own confirmation - the dialog closes the moment that happens rather
+/// than showing one of its own and waiting to be dismissed.
+class _ForgotPasswordDialog extends StatefulWidget {
+  const _ForgotPasswordDialog();
+
+  @override
+  State<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
+}
+
+class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
+  final _controller = TextEditingController();
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final value = _controller.text.trim();
+    if (value.isEmpty) {
+      setState(() => _error = 'Enter your email or username.');
+      return;
+    }
+
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+
+    try {
+      await context.read<AuthProvider>().requestPasswordReset(value);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } on ApiClientException catch (e) {
+      setState(() => _error = e.message);
+    } catch (_) {
+      setState(
+          () => _error = 'The request could not be sent. Please try again.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Reset password'),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'An administrator will be notified to reset it for you.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              enabled: !_sending,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _send(),
+              decoration: InputDecoration(
+                labelText: 'Email or username',
+                errorText: _error,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _sending ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _sending ? null : _send,
+          child: _sending
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Send request'),
+        ),
+      ],
     );
   }
 }

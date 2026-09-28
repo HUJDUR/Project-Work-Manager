@@ -5,7 +5,8 @@ using pwm.WebAPI.Services.AccessManager;
 
 namespace pwm.WebAPI.Controllers
 {
-    /// <summary>Sign-in, token refresh and sign-out. The only endpoints reachable without a token.</summary>
+    /// <summary>Sign-in, token refresh, sign-out and password-reset requests. The only
+    /// endpoints reachable without a token.</summary>
     [ApiController]
     [Route("[controller]")]
     public class AccessController : ControllerBase
@@ -35,6 +36,19 @@ namespace pwm.WebAPI.Controllers
         public async Task<IActionResult> Logout([FromBody] RefreshAccessTokenRequest request)
         {
             await _accessManager.LogoutAsync(request);
+            return NoContent();
+        }
+
+        /// <summary>
+        /// "Reset password" on the login screen, for someone who cannot sign in to ask
+        /// for anything themselves. Always answers 204, whether or not the identifier
+        /// belongs to an account - see <see cref="IAccessManager.RequestPasswordResetAsync"/>.
+        /// </summary>
+        [AllowAnonymous]
+        [HttpPost("RequestPasswordReset")]
+        public async Task<IActionResult> RequestPasswordReset([FromBody] PasswordResetRequest request)
+        {
+            await _accessManager.RequestPasswordResetAsync(request);
             return NoContent();
         }
     }

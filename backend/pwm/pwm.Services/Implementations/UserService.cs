@@ -1,6 +1,7 @@
 using FluentValidation;
 using MapsterMapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using pwm.Model.Access;
 using pwm.Common.Services.CryptoService;
 using pwm.Model.Exceptions;
@@ -17,6 +18,7 @@ namespace pwm.Services.Implementations
     {
         private readonly IValidator<UserProfileUpdateRequest> _profileValidator;
         private readonly ICryptoService _cryptoService;
+        private readonly IMemoryCache _cache;
 
         public UserService(
             PWMDbContext dbContext,
@@ -24,11 +26,13 @@ namespace pwm.Services.Implementations
             IValidator<UserInsertRequest> insertValidator,
             IValidator<UserUpdateRequest> updateValidator,
             IValidator<UserProfileUpdateRequest> profileValidator,
-            ICryptoService cryptoService)
+            ICryptoService cryptoService,
+            IMemoryCache cache)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
             _profileValidator = profileValidator;
             _cryptoService = cryptoService;
+            _cache = cache;
         }
 
         public async Task<AuthenticatedUser?> AuthenticateAsync(string emailOrUsername, string password)
@@ -65,11 +69,70 @@ namespace pwm.Services.Implementations
             return user == null ? null : ToAuthenticatedUser(user);
         }
 
+        public async Task<UserResponse?> FindByEmailOrUsernameAsync(string emailOrUsername)
+        {
+            if (string.IsNullOrWhiteSpace(emailOrUsername))
+            {
+                return null;
+            }
+
+            var email = emailOrUsername.Trim().ToLower();
+            var username = email.Replace(" ", string.Empty);
+
+            var user = await _dbContext.Users.FirstOrDefaultAsync(x =>
+                x.Email.ToLower() == email
+                || (x.Name + x.Surname).ToLower() == username);
+
+            return user == null ? null : _mapper.Map<UserResponse>(user);
+        }
+
         private AuthenticatedUser ToAuthenticatedUser(User user) => new()
         {
             User = _mapper.Map<UserResponse>(user),
             Role = user.UserType?.Type ?? string.Empty,
+            TokenVersion = user.TokenVersion,
         };
+
+        private static string TokenVersionCacheKey(int userId) => $"user-token-version:{userId}";
+
+        public async Task<int?> GetTokenVersionAsync(int userId)
+        {
+            var key = TokenVersionCacheKey(userId);
+
+            if (_cache.TryGetValue(key, out int cached))
+            {
+                return cached;
+            }
+
+            var version = await _dbContext.Users
+                .Where(x => x.Id == userId)
+                .Select(x => (int?)x.TokenVersion)
+                .FirstOrDefaultAsync();
+
+            if (version.HasValue)
+            {
+                // Same five-minute safety-net window CachedLookupService uses - the
+                // normal way a change here is seen is immediate, via RevokeTokensAsync
+                // dropping this entry, not this expiry.
+                _cache.Set(key, version.Value, TimeSpan.FromMinutes(5));
+            }
+
+            return version;
+        }
+
+        public async Task RevokeTokensAsync(int userId)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId);
+            if (user is null)
+            {
+                return;
+            }
+
+            user.TokenVersion++;
+            await _dbContext.SaveChangesAsync();
+
+            _cache.Remove(TokenVersionCacheKey(userId));
+        }
 
         /// <summary>
         /// A user editing their own account. Neither the role nor the active flag
