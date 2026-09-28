@@ -10,6 +10,7 @@ using pwm.Model.Access;
 using pwm.Services;
 using pwm.Services.Database;
 using pwm.Services.Database.Seed;
+using pwm.Services.Interfaces;
 using pwm.WebAPI;
 using pwm.WebAPI.Filters;
 using pwm.WebAPI.Services.AccessManager;
@@ -124,6 +125,38 @@ static void AddJwtAuthentication(WebApplicationBuilder builder)
                 RoleClaimType = ClaimNames.Role,
                 NameClaimType = ClaimNames.Email,
                 ClockSkew = TimeSpan.FromSeconds(30),
+            };
+
+            // The signature check above only proves this token was genuinely issued by
+            // us at some point - it says nothing about whether it has since been
+            // revoked. Logout can't touch an already-handed-out access token directly
+            // (it's a self-contained JWT, not a row in a table), so it bumps the
+            // account's TokenVersion instead; this is what actually enforces that,
+            // on every request, by rejecting a token whose embedded version has fallen
+            // behind the account's current one.
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = async context =>
+                {
+                    var principal = context.Principal;
+                    var idClaim = principal?.FindFirst(ClaimNames.Id)?.Value;
+                    var tokenVersionClaim = principal?.FindFirst(ClaimNames.TokenVersion)?.Value;
+
+                    if (!int.TryParse(idClaim, out var userId) ||
+                        !int.TryParse(tokenVersionClaim, out var tokenVersion))
+                    {
+                        context.Fail("Token is missing required claims.");
+                        return;
+                    }
+
+                    var userService = context.HttpContext.RequestServices.GetRequiredService<IUserService>();
+                    var currentVersion = await userService.GetTokenVersionAsync(userId);
+
+                    if (currentVersion is null || currentVersion.Value != tokenVersion)
+                    {
+                        context.Fail("This session has been signed out. Please sign in again.");
+                    }
+                },
             };
         });
 

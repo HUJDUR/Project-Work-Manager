@@ -93,9 +93,11 @@ namespace pwm.Services.Implementations
             });
 
             await _dbContext.Notifications.AddRangeAsync(notifications);
-            await _dbContext.SaveChangesAsync();
-
+            // Tracked on the same context, not saved yet - see RecordAsync's doc.
             await _activityLogService.RecordAsync(senderId, ActivityLogTypeNames.MessageSent);
+            // One commit for both: the notifications and the audit row are one
+            // operation, not two independently-committed writes.
+            await _dbContext.SaveChangesAsync();
 
             return new NotificationSendResponse { SentCount = recipients.Count };
         }
@@ -138,11 +140,50 @@ namespace pwm.Services.Implementations
 
             if (unread.Count > 0)
             {
-                await _dbContext.SaveChangesAsync();
+                // Tracked on the same context, not saved yet - see RecordAsync's doc.
                 await _activityLogService.RecordAsync(userId, ActivityLogTypeNames.MarkedMessagesAsRead);
+                // One commit for both the read flags and the audit row.
+                await _dbContext.SaveChangesAsync();
             }
 
             return new NotificationMarkReadResponse { MarkedCount = unread.Count };
+        }
+
+        /// <summary>
+        /// One notification straight to every active Admin, naming whoever asked -
+        /// see the interface doc for why this is not just <see cref="SendAsync"/>
+        /// with an Admin-only recipient list.
+        /// </summary>
+        public async Task NotifyAdminsOfPasswordResetRequestAsync(
+            int requesterId, string requesterName, string requesterEmail)
+        {
+            var adminIds = await _dbContext.Users
+                .Where(x => x.IsActive && x.UserType.Type == Roles.Admin)
+                .Select(x => x.Id)
+                .ToListAsync();
+
+            if (adminIds.Count == 0)
+            {
+                return;
+            }
+
+            var sentAt = DateTime.UtcNow;
+            var message = $"{requesterName} ({requesterEmail}) asked for their password to be reset.";
+
+            var notifications = adminIds.Select(adminId => new Notification
+            {
+                UserId = adminId,
+                Title = "Password reset requested",
+                Message = message,
+                IsRead = false,
+                CreatedAt = sentAt,
+            });
+
+            await _dbContext.Notifications.AddRangeAsync(notifications);
+            // Tracked on the same context, not saved yet - see RecordAsync's doc.
+            await _activityLogService.RecordAsync(requesterId, ActivityLogTypeNames.PasswordResetRequested);
+            // One commit for both: the notifications and the audit row are one operation.
+            await _dbContext.SaveChangesAsync();
         }
     }
 }

@@ -25,6 +25,21 @@ public class ReportGenerationWorker : BackgroundService
 
     private IChannel? _channel;
 
+    /// <summary>
+    /// Exponential backoff between attempts at the same message - 1s, 2s, 4s, 8s -
+    /// per the seminar's own anti-pattern list (Appendix A.1). One message is still
+    /// only ever acked once, in <see cref="HandleMessageAsync"/>'s <c>finally</c>;
+    /// this just gives a transient failure (a DB blip, say) a few tries first,
+    /// instead of the row going straight to <c>Failed</c> on the first hiccup.
+    /// </summary>
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(4),
+        TimeSpan.FromSeconds(8),
+    ];
+
     public ReportGenerationWorker(
         IServiceScopeFactory scopeFactory,
         RabbitMqOptions options,
@@ -102,10 +117,12 @@ public class ReportGenerationWorker : BackgroundService
     }
 
     /// <summary>
-    /// However this ends, the message is acked in <c>finally</c>: a report that can
-    /// never succeed (its row deleted, say) would otherwise redeliver forever. A
-    /// genuine failure is recorded on the row instead, in <see cref="MarkFailedAsync"/>,
-    /// which is what the Reports screen actually surfaces to whoever asked for it.
+    /// A failed build is retried in place, with <see cref="RetryDelays"/> between
+    /// attempts, before this gives up on it. However it ends, the message is acked
+    /// in <c>finally</c>: a report that can never succeed (its row deleted, say)
+    /// would otherwise redeliver forever. A failure that survives every retry is
+    /// recorded on the row instead, in <see cref="MarkFailedAsync"/>, which is what
+    /// the Reports screen actually surfaces to whoever asked for it.
     /// </summary>
     private async Task HandleMessageAsync(BasicDeliverEventArgs args, CancellationToken stoppingToken)
     {
@@ -123,7 +140,21 @@ public class ReportGenerationWorker : BackgroundService
             var dbContext = scope.ServiceProvider.GetRequiredService<PWMDbContext>();
             var builder = scope.ServiceProvider.GetRequiredService<ReportBuilder>();
 
-            await BuildAndStoreAsync(dbContext, builder, reportId, stoppingToken);
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    await BuildAndStoreAsync(dbContext, builder, reportId, stoppingToken);
+                    break;
+                }
+                catch (Exception ex) when (attempt < RetryDelays.Length)
+                {
+                    _logger.LogWarning(ex,
+                        "Report {ReportId}: attempt {Attempt} of {Total} failed, retrying in {Delay}.",
+                        reportId, attempt + 1, RetryDelays.Length + 1, RetryDelays[attempt]);
+                    await Task.Delay(RetryDelays[attempt], stoppingToken);
+                }
+            }
 
             _logger.LogInformation("Report {ReportId}: completed.", reportId);
         }

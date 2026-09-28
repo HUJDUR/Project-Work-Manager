@@ -3,6 +3,7 @@ using Mapster;
 using MapsterMapper;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Caching.Memory;
 using pwm.Common.Services.CryptoService;
 using pwm.Model.Requests;
 using pwm.Services.Implementations;
@@ -22,6 +23,10 @@ namespace pwm.Services
             services.AddSingleton(TypeAdapterConfig.GlobalSettings);
             services.AddSingleton<ICryptoService, CryptoService>();
             services.AddScoped<IMapper, ServiceMapper>();
+
+            // Backs CachedLookupService - one singleton cache shared by every reference
+            // table's service, not per-request state.
+            services.AddMemoryCache();
 
             // pwm.Worker is the only thing that ever builds a report - see ReportBuilder -
             // so only the publisher half of the queue is registered here.

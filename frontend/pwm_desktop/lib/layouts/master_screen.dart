@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -56,14 +58,25 @@ class _MasterScreenState extends State<MasterScreen> {
       widget.notificationsProviderFactory?.call() ??
           ReceivedNotificationsProvider(unreadOnly: true, pageSize: 5);
 
+  /// Polls for new notifications on its own, rather than only when
+  /// [_selectTab] happens to run — someone parked on one screen (the
+  /// dashboard, say) would otherwise never see the bell update. A manual
+  /// refresh button is explicitly not good enough on its own; this is what
+  /// makes the bell's refresh genuinely automatic rather than navigation-
+  /// triggered.
+  static const _pollInterval = Duration(seconds: 30);
+  Timer? _pollTimer;
+
   @override
   void initState() {
     super.initState();
     _bellNotifications.load();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _bellNotifications.refreshUnread());
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _bellNotifications.dispose();
     super.dispose();
   }

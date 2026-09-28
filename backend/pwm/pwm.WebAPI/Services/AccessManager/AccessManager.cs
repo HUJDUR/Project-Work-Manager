@@ -18,6 +18,7 @@ namespace pwm.WebAPI.Services.AccessManager
         private readonly IUserService _userService;
         private readonly IRefreshTokenService _refreshTokenService;
         private readonly IActivityLogService _activityLogService;
+        private readonly INotificationService _notificationService;
         private readonly string _jwtSecret;
         private readonly string? _jwtIssuer;
         private readonly string? _jwtAudience;
@@ -28,11 +29,13 @@ namespace pwm.WebAPI.Services.AccessManager
             IUserService userService,
             IRefreshTokenService refreshTokenService,
             IActivityLogService activityLogService,
+            INotificationService notificationService,
             IConfiguration configuration)
         {
             _userService = userService;
             _refreshTokenService = refreshTokenService;
             _activityLogService = activityLogService;
+            _notificationService = notificationService;
 
             // The signing key is a secret, so it comes from JWT_SECRET in backend/.env
             // alone - the same resolution Program.cs's AddJwtAuthentication uses to
@@ -111,8 +114,35 @@ namespace pwm.WebAPI.Services.AccessManager
             if (stored != null)
             {
                 await _refreshTokenService.DeleteAllUserRefreshTokensAsync(stored.UserId);
+                // Bumps the account's token version, so the access token this session
+                // was still holding - unexpired, and otherwise perfectly usable - is
+                // rejected by OnTokenValidated on its very next use, not just when it
+                // eventually expires on its own.
+                await _userService.RevokeTokensAsync(stored.UserId);
                 await _activityLogService.RecordAsync(stored.UserId, ActivityLogTypeNames.LogOut);
             }
+        }
+
+        public async Task RequestPasswordResetAsync(PasswordResetRequest request)
+        {
+            if (string.IsNullOrWhiteSpace(request.EmailOrUsername))
+            {
+                throw new ClientException("Enter your e-mail or username first.");
+            }
+
+            var user = await _userService.FindByEmailOrUsernameAsync(request.EmailOrUsername.Trim());
+
+            // Same account-enumeration guard Login's own error message already
+            // follows: nothing here reveals whether that identifier belongs to
+            // anyone, so an unknown one is refused no differently than a known one
+            // that just quietly notifies the office.
+            if (user == null)
+            {
+                return;
+            }
+
+            await _notificationService.NotifyAdminsOfPasswordResetRequestAsync(
+                user.Id, $"{user.Name} {user.Surname}".Trim(), user.Email);
         }
 
         private async Task<UserLoginResponse> IssueTokensAsync(AuthenticatedUser authenticated)
@@ -158,6 +188,7 @@ namespace pwm.WebAPI.Services.AccessManager
                     new Claim(ClaimNames.Email, user.Email),
                     new Claim(ClaimNames.Role, authenticated.Role),
                     new Claim(ClaimNames.IsActive, user.IsActive.ToString()),
+                    new Claim(ClaimNames.TokenVersion, authenticated.TokenVersion.ToString()),
                 ]),
                 Expires = expiresAt,
                 Issuer = _jwtIssuer,

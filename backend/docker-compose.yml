@@ -5,9 +5,11 @@ services:
     container_name: pwm-rabbitmq
     hostname: pwm-rabbitmq
     ports:
-      # AMQP, for the API (on the host, via `dotnet run`) and the worker
-      # container alike; 15672 is the management UI, for a human to look at
-      # the queue while reproducing a problem.
+      # AMQP - published to the host too, not just the compose network, so
+      # `dotnet run --project pwm.WebAPI` still works as a local-iteration
+      # alternative to the containerized `api` service below; 15672 is the
+      # management UI, for a human to look at the queue while reproducing a
+      # problem.
       - "5672:5672"
       - "15672:15672"
     restart: unless-stopped
@@ -17,6 +19,37 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+
+  api:
+    # pwm.WebAPI, containerized like the other three - the seminar's own
+    # rules (section 3.2) call for API, worker, RabbitMQ and the database all
+    # living in this file. `dotnet run --project pwm.WebAPI` against the same
+    # RabbitMQ/SQL Server (published on the host ports below) still works for
+    # local iteration; just don't run both at once, they'd fight over :7094.
+    build:
+      context: ./pwm
+      dockerfile: pwm.WebAPI/Dockerfile
+    container_name: pwm-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080"
+      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is not set}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is not set}"
+      ConnectionStrings__PWMConnection: "Server=sqlserver,1433;Database=210050;User Id=sa;TrustServerCertificate=True;MultipleActiveResultSets=True"
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: "${RabbitMq__UserName:-guest}"
+      RabbitMq__Password: "${RabbitMq__Password:-guest}"
+      RabbitMq__ReportQueueName: "${RabbitMq__ReportQueueName:-report-generation}"
+    ports:
+      # Same port the frontend apps default to (baseUrl/String.fromEnvironment).
+      - "7094:8080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
 
   worker:
     # pwm.Worker is its own container and its own process - see the notes on
@@ -30,6 +63,9 @@ services:
       ConnectionStrings__PWMConnection: "Server=sqlserver,1433;Database=210050;User Id=sa;TrustServerCertificate=True;MultipleActiveResultSets=True"
       RabbitMq__HostName: rabbitmq
       RabbitMq__Port: 5672
+      RabbitMq__UserName: "${RabbitMq__UserName:-guest}"
+      RabbitMq__Password: "${RabbitMq__Password:-guest}"
+      RabbitMq__ReportQueueName: "${RabbitMq__ReportQueueName:-report-generation}"
     depends_on:
       sqlserver:
         condition: service_healthy

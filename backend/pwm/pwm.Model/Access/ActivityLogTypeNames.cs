@@ -17,5 +17,6 @@ namespace pwm.Model.Access
         public const string LogOut = "Log out";
         public const string MessageSent = "Message sent";
         public const string MarkedMessagesAsRead = "Marked messages as read";
+        public const string PasswordResetRequested = "Password reset requested";
     }
 }
