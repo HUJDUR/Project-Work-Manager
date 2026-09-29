@@ -8,6 +8,9 @@ import 'package:pwm_desktop/screens/workers_screen.dart';
 /// Stands in for one controller, applying the search object it is handed the
 /// way the backend would — which is what pins the contract the provider sends.
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows, {this.matches}) : super('Fake');
 
   final List<T> rows;
@@ -19,6 +22,9 @@ class _FakeProvider<T> extends BaseProvider<T> {
   final List<Map<String, dynamic>> inserted = [];
   final List<(int, Map<String, dynamic>)> updated = [];
   final List<int> removed = [];
+
+  @override
+  Future<T> getById(int id) async => rows.firstWhere((row) => (row as dynamic).id == id);
 
   @override
   Future<PageResult<T>> get({dynamic filter}) async {

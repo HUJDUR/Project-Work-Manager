@@ -5,7 +5,20 @@ import 'providers/providers.dart';
 import 'screens/login_screen.dart';
 import 'utils/app_theme.dart';
 
+/// The root navigator, so an expired session can return to sign-in from
+/// wherever the user is - see [AuthProvider.expireSession].
+final _navigatorKey = GlobalKey<NavigatorState>();
+
+void _returnToSignIn() => _navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(notice: AuthProvider.sessionExpiredMessage),
+      ),
+      (route) => false,
+    );
+
 void main() {
+  AuthProvider.onSessionExpired = _returnToSignIn;
+
   runApp(
     MultiProvider(
       // One instance per API resource, created on first use. The dashboard does
@@ -40,6 +53,7 @@ class PwmMobileApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Project Work Manager',
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

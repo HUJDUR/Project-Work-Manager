@@ -594,20 +594,17 @@ class _LookupFormScreenState<T> extends State<_LookupFormScreen<T>> {
       final parentLabel =
           waitingOnParent ? _fields.firstWhere((f) => f.key == dependsOn).label : null;
 
-      return FormBuilderDropdown<int>(
+      return SearchableDropdownField<int>(
         name: field.key,
-        isExpanded: true,
+        label: field.label,
         enabled: !waitingOnParent,
-        decoration: appInputDecoration(
-          field.label,
-          hintText: parentLabel == null ? null : 'Pick a ${parentLabel.toLowerCase()} first',
-        ),
+        hintText: parentLabel == null ? null : 'Pick a ${parentLabel.toLowerCase()} first',
         validator: FormBuilderValidators.required(
           errorText: 'Pick a ${field.label.toLowerCase()}.',
         ),
-        items: [
+        entries: [
           for (final option in options)
-            DropdownMenuItem(value: option.id, child: Text(option.label)),
+            DropdownMenuEntry(value: option.id, label: option.label),
         ],
         onChanged: (value) => setState(() {
           _liveValues[field.key] = value;

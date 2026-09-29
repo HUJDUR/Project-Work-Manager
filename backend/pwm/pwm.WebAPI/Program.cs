@@ -11,7 +11,6 @@ using pwm.Services;
 using pwm.Services.Database;
 using pwm.Services.Database.Seed;
 using pwm.Services.Interfaces;
-using pwm.WebAPI;
 using pwm.WebAPI.Filters;
 using pwm.WebAPI.Json;
 using pwm.WebAPI.Services.AccessManager;
@@ -32,7 +31,7 @@ EnvironmentConfig.LoadDotEnvFile();
 var builder = WebApplication.CreateBuilder(hostArgs);
 
 builder.Services.AddDbContext<PWMDbContext>(options =>
-    options.UseSqlServer(EnvironmentConfig.BuildConnectionString(builder.Configuration)));
+    options.UseSqlServer(EnvironmentConfig.BuildConnectionString()));
 
 builder.Services.AddScoped<DataSeeder>();
 
@@ -110,13 +109,11 @@ app.Run();
 // (sign-in and refresh); roles are checked per action by AuthorizationAttribute.
 static void AddJwtAuthentication(WebApplicationBuilder builder)
 {
-    // Issuer, audience and the two lifetimes are not secrets and stay in
-    // appsettings.json; the signing key is, so it comes from JWT_SECRET in
-    // backend/.env (via LoadDotEnvFile) alone - appsettings.json carries no
-    // fallback value for it.
-    var jwt = builder.Configuration.GetSection("JwtToken");
-    var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET")
-        ?? throw new InvalidOperationException("JWT_SECRET is not set - add it to backend/.env.");
+    // Every JWT value - the signing key, issuer, audience and lifetimes - comes
+    // from backend/.env (via LoadDotEnvFile); appsettings.json carries none of them.
+    var secretKey = EnvironmentConfig.Require("JWT_SECRET");
+    var issuer = EnvironmentConfig.Require("JwtToken__Issuer");
+    var audience = EnvironmentConfig.Require("JwtToken__Audience");
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
@@ -127,8 +124,8 @@ static void AddJwtAuthentication(WebApplicationBuilder builder)
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                ValidIssuer = jwt["Issuer"],
-                ValidAudience = jwt["Audience"],
+                ValidIssuer = issuer,
+                ValidAudience = audience,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
                 RoleClaimType = ClaimNames.Role,
                 NameClaimType = ClaimNames.Email,
@@ -170,11 +167,6 @@ static void AddJwtAuthentication(WebApplicationBuilder builder)
 
     builder.Services.AddAuthorization(options =>
     {
-        if (DevSettings.BypassAuthentication)
-        {
-            return;
-        }
-
         options.FallbackPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .Build();
@@ -208,8 +200,9 @@ static async Task RunSeedAsync(IServiceProvider services, bool force)
 
     logger.LogInformation(
         "Seed complete: Countries={Countries} Cities={Cities} Companies={Companies} Users={Users} " +
-        "UserOperations={UserOperations} Projects={Projects} WorkLogs={WorkLogs} WorkLogDetails={WorkLogDetails} " +
-        "TruckLoads={TruckLoads} TruckLoadDetails={TruckLoadDetails} MonthlyHourReports={MonthlyHourReports} " +
+        "UserOperations={UserOperations} Projects={Projects} ProjectStatusChanges={ProjectStatusChanges} " +
+        "WorkLogs={WorkLogs} WorkLogDetails={WorkLogDetails} TruckLoads={TruckLoads} TruckLoadDetails={TruckLoadDetails} " +
+        "TruckLoadStatusChanges={TruckLoadStatusChanges} MonthlyHourReports={MonthlyHourReports} " +
         "MonthlyHourReportDetails={MonthlyHourReportDetails} Notifications={Notifications} ActivityLogs={ActivityLogs}",
         await db.Countries.CountAsync(),
         await db.Cities.CountAsync(),
@@ -217,10 +210,12 @@ static async Task RunSeedAsync(IServiceProvider services, bool force)
         await db.Users.CountAsync(),
         await db.UserOperations.CountAsync(),
         await db.Projects.CountAsync(),
+        await db.ProjectStatusChanges.CountAsync(),
         await db.WorkLogs.CountAsync(),
         await db.WorkLogDetails.CountAsync(),
         await db.TruckLoads.CountAsync(),
         await db.TruckLoadDetails.CountAsync(),
+        await db.TruckLoadStatusChanges.CountAsync(),
         await db.MonthlyHourReports.CountAsync(),
         await db.MonthlyHourReportDetails.CountAsync(),
         await db.Notifications.CountAsync(),

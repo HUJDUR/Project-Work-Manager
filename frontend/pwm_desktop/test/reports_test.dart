@@ -13,6 +13,9 @@ import 'package:pwm_desktop/utils/app_roles.dart';
 /// Stands in for one controller, applying the search object the way the API
 /// would so the provider's paging and sorting stay pinned.
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows) : super('Fake');
 
   final List<T> rows;
@@ -169,7 +172,7 @@ final _generated = [
     id: 8,
     reportTypeId: 2,
     parameters:
-        '{"ProjectId":1,"DateFrom":"2026-06-01T00:00:00","DateTo":"2026-06-30T23:59:59"}',
+        '{"ProjectId":1,"DateFrom":"2026-05-31T22:00:00Z","DateTo":"2026-06-30T21:59:59Z"}',
     status: 'Completed',
   ),
   GeneratedReport(

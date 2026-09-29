@@ -1,3 +1,5 @@
+import '../utils/sarajevo_time.dart';
+
 /// One block of work booked against a project, resolved to the worker and
 /// operation names `ProjectOverviewProvider` joins in - what the read-only
 /// Project Details page's "Work on Project" table shows.
@@ -49,4 +51,35 @@ class ProjectTransportEntry {
   /// The mockup's Load No. There is no such column - a load is identified by
   /// its id, in the same shape `TransportRow.transportNo` already writes it.
   String get loadNo => 'TR-${truckLoadId.toString().padLeft(4, '0')}';
+}
+
+/// One row of a project's status history, exactly as `GET
+/// /Project/{id}/StatusHistory` hands it back - names already resolved
+/// server-side, so there is nothing here to join. Newest first.
+class ProjectStatusChangeEntry {
+  const ProjectStatusChangeEntry({
+    required this.id,
+    required this.toStatusName,
+    required this.changedByName,
+    required this.changedAt,
+    this.fromStatusName,
+  });
+
+  final int id;
+
+  /// Null for the row a project's own creation writes.
+  final String? fromStatusName;
+
+  final String toStatusName;
+  final String changedByName;
+  final DateTime changedAt;
+
+  factory ProjectStatusChangeEntry.fromJson(Map<String, dynamic> json) =>
+      ProjectStatusChangeEntry(
+        id: json['id'] as int,
+        fromStatusName: json['fromStatusName'] as String?,
+        toStatusName: json['toStatusName'] as String,
+        changedByName: json['changedByName'] as String,
+        changedAt: SarajevoTime.fromApi(json['changedAt'] as String),
+      );
 }

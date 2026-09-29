@@ -1,4 +1,9 @@
+using pwm.Common.Services.Time;
 using pwm.Model.Access;
+using pwm.Model.Enums;
+using pwm.Model.Requests;
+using pwm.Services.Reporting;
+using System.Text.Json;
 using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.Services.Database.Seed
@@ -7,9 +12,11 @@ namespace pwm.Services.Database.Seed
     {
         private async Task SeedMonthlyHourReportsAsync()
         {
-            // One report per month covered by the seeded work logs
+            // One report per Sarajevo month covered by the seeded work logs (stored
+            // in UTC by now, hence the conversion back).
             var months = _workLogs
-                .Select(log => new { log.ClockedIn.Year, log.ClockedIn.Month })
+                .Select(log => SarajevoTime.FromUtc(log.ClockedIn))
+                .Select(clockedIn => new { clockedIn.Year, clockedIn.Month })
                 .Distinct()
                 .OrderBy(m => m.Year)
                 .ThenBy(m => m.Month)
@@ -21,7 +28,7 @@ namespace pwm.Services.Database.Seed
                     Year = month.Year,
                     Month = month.Month,
                     TotalHours = Math.Round(_workLogs
-                        .Where(log => log.ClockedIn.Year == month.Year && log.ClockedIn.Month == month.Month)
+                        .Where(log => InMonth(log, month.Year, month.Month))
                         .Sum(log => log.Hours), 2),
                 })
                 .ToArray();
@@ -33,7 +40,7 @@ namespace pwm.Services.Database.Seed
             foreach (var report in reports)
             {
                 var perUser = _workLogs
-                    .Where(log => log.ClockedIn.Year == report.Year && log.ClockedIn.Month == report.Month)
+                    .Where(log => InMonth(log, report.Year, report.Month))
                     .GroupBy(log => log.UserId);
 
                 foreach (var group in perUser)
@@ -43,7 +50,7 @@ namespace pwm.Services.Database.Seed
                     var regular = 0.0;
                     var overtime = 0.0;
 
-                    foreach (var day in group.GroupBy(log => log.ClockedIn.Date))
+                    foreach (var day in group.GroupBy(log => SarajevoTime.DayOf(log.ClockedIn)))
                     {
                         var hours = day.Sum(log => log.Hours);
                         var regularToday = Math.Min(hours, RegularHoursPerDay);
@@ -66,8 +73,13 @@ namespace pwm.Services.Database.Seed
             await AddRangeAsync(details.ToArray());
         }
 
-        /// <summary>Mirrors <c>ReportService.RegularHoursPerDay</c>: over eight is overtime.</summary>
-        private const double RegularHoursPerDay = 8;
+        private static bool InMonth(WorkLog log, int year, int month)
+        {
+            var clockedIn = SarajevoTime.FromUtc(log.ClockedIn);
+            return clockedIn.Year == year && clockedIn.Month == month;
+        }
+
+        private const double RegularHoursPerDay = ReportBuilder.RegularHoursPerDay;
 
         /// <summary>
         /// Who ran a report and when is not on the report row any more - it is the
@@ -77,8 +89,9 @@ namespace pwm.Services.Database.Seed
 
         private async Task SeedGeneratedReportsAsync()
         {
-            // A short history for the Reports screen's "Recent Reports" list. The PDFs
-            // are not stored - each row is rebuilt from these parameters on download.
+            // A short history for the Reports screen's "Recent Reports" list, rendered
+            // here with the same ReportBuilder pwm.Worker uses - a seeded row is never
+            // queued, so without its PDF it would sit at "Pending" forever.
             var lastMonth = _today.AddMonths(-1);
 
             _generatedReports =
@@ -99,6 +112,20 @@ namespace pwm.Services.Database.Seed
                     Parameters = $$"""{"Year":{{_today.Year}},"Month":{{_today.Month}},"UserId":null,"ProjectId":null}""",
                 },
             ];
+
+            var builder = new ReportBuilder(_db);
+
+            foreach (var report in _generatedReports)
+            {
+                report.Content = (ReportKind)report.ReportTypeId switch
+                {
+                    ReportKind.MonthlyWorkHours => await builder.BuildMonthlyWorkHoursAsync(
+                        JsonSerializer.Deserialize<MonthlyWorkHoursReportRequest>(report.Parameters)!),
+                    _ => await builder.BuildTransportLoadsAsync(
+                        JsonSerializer.Deserialize<TransportLoadsReportRequest>(report.Parameters)!),
+                };
+                report.Status = ReportStatus.Completed;
+            }
 
             await AddRangeAsync(_generatedReports);
 
@@ -181,6 +208,8 @@ namespace pwm.Services.Database.Seed
             await AddRangeAsync(_notifications);
         }
 
+        private static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
+
         private async Task SeedActivityLogsAsync()
         {
             var logs = new List<ActivityLog>();
@@ -239,7 +268,8 @@ namespace pwm.Services.Database.Seed
                 {
                     UserId = notification.UserId,
                     ActivityLogTypeId = markedRead,
-                    Date = notification.CreatedAt.AddMinutes(_random.Next(5, 600)),
+                    // Read a little after it arrived - but never later than now.
+                    Date = Min(notification.CreatedAt.AddMinutes(_random.Next(5, 600)), DateTime.UtcNow),
                 });
             }
 

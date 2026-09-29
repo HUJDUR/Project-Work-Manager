@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using pwm.Model.Requests;
 using pwm.Services.Database;
+using pwm.Common.Services.Time;
 
 namespace pwm.Services.Reporting
 {
@@ -28,8 +29,10 @@ namespace pwm.Services.Reporting
 
         public async Task<byte[]> BuildMonthlyWorkHoursAsync(MonthlyWorkHoursReportRequest request)
         {
-            var from = new DateTime(request.Year, request.Month, 1);
-            var to = from.AddMonths(1);
+            // The month as the shop lives it: Sarajevo midnight to Sarajevo midnight.
+            var month = new DateTime(request.Year, request.Month, 1);
+            var from = SarajevoTime.StartOfDayUtc(month);
+            var to = SarajevoTime.StartOfDayUtc(month.AddMonths(1));
 
             var blocks = await _dbContext.WorkLogDetails
                 .Include(x => x.WorkLog).ThenInclude(x => x.User)
@@ -71,18 +74,24 @@ namespace pwm.Services.Reporting
                 ? "All projects"
                 : await NameOfProjectAsync(request.ProjectId.Value);
 
-            return MonthlyWorkHoursDocument.Render(from, worker, project, rows, operationTotals);
+            return MonthlyWorkHoursDocument.Render(month, worker, project, rows, operationTotals);
         }
 
         public async Task<byte[]> BuildTransportLoadsAsync(TransportLoadsReportRequest request)
         {
+            // Whole Sarajevo days, the last one included.
+            DateTime? firstDay = request.DateFrom is { } dateFrom ? SarajevoTime.DayOf(dateFrom) : null;
+            DateTime? lastDay = request.DateTo is { } dateTo ? SarajevoTime.DayOf(dateTo) : null;
+            DateTime? from = firstDay is { } first ? SarajevoTime.StartOfDayUtc(first) : null;
+            DateTime? toExclusive = lastDay is { } last ? SarajevoTime.StartOfDayUtc(last.AddDays(1)) : null;
+
             var details = await _dbContext.TruckLoadDetails
                 .Include(x => x.TruckLoad).ThenInclude(x => x.TransportCompany)
                 .Include(x => x.TruckLoad).ThenInclude(x => x.TruckLoadStatus)
                 .Include(x => x.Project)
                 .Where(x => request.ProjectId == null || x.ProjectId == request.ProjectId)
-                .Where(x => request.DateFrom == null || x.TruckLoad.LoadDate >= request.DateFrom)
-                .Where(x => request.DateTo == null || x.TruckLoad.LoadDate <= request.DateTo)
+                .Where(x => from == null || x.TruckLoad.LoadDate >= from)
+                .Where(x => toExclusive == null || x.TruckLoad.LoadDate < toExclusive)
                 .OrderByDescending(x => x.TruckLoad.LoadDate)
                 .ToListAsync();
 
@@ -94,7 +103,7 @@ namespace pwm.Services.Reporting
 
                     return new TransportOverviewRow
                     {
-                        LoadDate = truckLoad.LoadDate,
+                        LoadDate = SarajevoTime.FromUtc(truckLoad.LoadDate),
                         CarrierName = truckLoad.TransportCompany.Name,
                         DriverName = $"{truckLoad.DriverName} {truckLoad.DriverSurname}".Trim(),
                         VehicleRegistration = truckLoad.VehicleRegistration,
@@ -120,12 +129,11 @@ namespace pwm.Services.Reporting
                 ? "All projects"
                 : await NameOfProjectAsync(request.ProjectId.Value);
 
-            return TransportLoadsDocument.Render(
-                request.DateFrom, request.DateTo, project, rows);
+            return TransportLoadsDocument.Render(firstDay, lastDay, project, rows);
         }
 
         /// <summary>
-        /// Walks each worker's day in start order, handing out the first eight hours as
+        /// Walks each worker's Sarajevo day in start order, handing out the first eight hours as
         /// regular and everything after as overtime. A block that straddles the boundary
         /// is split across both.
         /// </summary>
@@ -136,7 +144,7 @@ namespace pwm.Services.Reporting
 
             foreach (var block in blocks.OrderBy(x => x.StartedAt))
             {
-                var key = (block.WorkLog.UserId, block.StartedAt.Date);
+                var key = (block.WorkLog.UserId, SarajevoTime.DayOf(block.StartedAt));
                 var used = usedPerWorkerDay.GetValueOrDefault(key);
 
                 var regular = Math.Clamp(RegularHoursPerDay - used, 0, block.Hours);

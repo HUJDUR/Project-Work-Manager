@@ -24,6 +24,7 @@ export 'recommendation_result.dart';
 export 'recommendation_work_type.dart';
 export 'report_queue_state.dart';
 export 'report_type_lookup.dart';
+export 'transport_overview.dart';
 export 'transport_row.dart';
 export 'truck_load.dart';
 export 'truck_load_detail.dart';

@@ -14,6 +14,7 @@ import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
+import '../utils/phone_rules.dart';
 import 'widgets/form_fields.dart';
 import 'widgets/user_avatar.dart';
 
@@ -457,6 +458,8 @@ class _Form extends StatelessWidget {
                           'Phone',
                           hintText: 'Not set',
                         ),
+                        validator: PhoneRules.validate,
+                        onChanged: (_) => onFieldChanged('phoneNumber'),
                       ),
                     ),
                   ],

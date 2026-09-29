@@ -319,6 +319,7 @@ class ProjectStatusChip extends StatelessWidget {
   /// One colour per state; the background is derived from it so the chip works
   /// on a white card and a dark one alike.
   static const _palette = <String, Color>{
+    'potential': _neutral,
     'in production': Color(0xFF2563EB),
     'on hold': Color(0xFF9A6212),
     'delivered': Color(0xFF107A4D),

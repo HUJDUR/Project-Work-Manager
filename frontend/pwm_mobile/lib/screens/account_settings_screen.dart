@@ -11,6 +11,7 @@ import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
+import '../utils/phone_rules.dart';
 import 'widgets/user_avatar.dart';
 
 /// Mirrored on the API by `PictureRules.MaxSizeBytes` - this is a friendlier,
@@ -72,6 +73,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   bool _saving = false;
   String? _error;
   String? _passwordError;
+
+  /// Shown under the phone field once Save has refused it, then kept in step.
+  String? _phoneError;
 
   @override
   void initState() {
@@ -217,7 +221,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   controller: _phone,
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(hintText: 'Not set'),
+                  decoration: InputDecoration(
+                    hintText: 'Not set',
+                    errorText: _phoneError,
+                    errorMaxLines: 2,
+                  ),
+                  onChanged: (value) {
+                    if (_phoneError == null) return;
+                    setState(() => _phoneError = PhoneRules.validate(value));
+                  },
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -321,9 +333,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     final user = AuthProvider.user;
     if (user == null) return;
 
+    final phoneError = PhoneRules.validate(_phone.text);
     final passwordError = _checkPasswords();
-    if (passwordError != null) {
-      setState(() => _passwordError = passwordError);
+    if (phoneError != null || passwordError != null) {
+      setState(() {
+        _phoneError = phoneError;
+        _passwordError = passwordError;
+      });
       return;
     }
 

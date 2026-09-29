@@ -433,6 +433,42 @@ namespace pwm.Services.Database.Migrations
                     b.ToTable("ProjectCategories", (string)null);
                 });
 
+            modelBuilder.Entity("pwm.Services.Database.ProjectStatusChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ChangedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FromStatusId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToStatusId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("FromStatusId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("ToStatusId");
+
+                    b.ToTable("ProjectStatusChanges", (string)null);
+                });
+
             modelBuilder.Entity("pwm.Services.Database.ProjectStatusType", b =>
                 {
                     b.Property<int>("Id")
@@ -535,6 +571,9 @@ namespace pwm.Services.Database.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<decimal?>("Price")
+                        .HasColumnType("decimal(10,2)");
+
                     b.Property<int>("TransportCompanyId")
                         .HasColumnType("int");
 
@@ -592,6 +631,42 @@ namespace pwm.Services.Database.Migrations
                     b.HasIndex("TruckLoadId");
 
                     b.ToTable("TruckLoadDetails", (string)null);
+                });
+
+            modelBuilder.Entity("pwm.Services.Database.TruckLoadStatusChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ChangedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FromStatusId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToStatusId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TruckLoadId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("FromStatusId");
+
+                    b.HasIndex("ToStatusId");
+
+                    b.HasIndex("TruckLoadId");
+
+                    b.ToTable("TruckLoadStatusChanges", (string)null);
                 });
 
             modelBuilder.Entity("pwm.Services.Database.TruckLoadStatusType", b =>
@@ -936,6 +1011,40 @@ namespace pwm.Services.Database.Migrations
                     b.Navigation("ProjectStatus");
                 });
 
+            modelBuilder.Entity("pwm.Services.Database.ProjectStatusChange", b =>
+                {
+                    b.HasOne("pwm.Services.Database.User", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("pwm.Services.Database.ProjectStatusType", "FromStatus")
+                        .WithMany()
+                        .HasForeignKey("FromStatusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("pwm.Services.Database.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("pwm.Services.Database.ProjectStatusType", "ToStatus")
+                        .WithMany()
+                        .HasForeignKey("ToStatusId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ChangedByUser");
+
+                    b.Navigation("FromStatus");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("ToStatus");
+                });
+
             modelBuilder.Entity("pwm.Services.Database.RefreshToken", b =>
                 {
                     b.HasOne("pwm.Services.Database.User", "User")
@@ -981,6 +1090,40 @@ namespace pwm.Services.Database.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+
+                    b.Navigation("TruckLoad");
+                });
+
+            modelBuilder.Entity("pwm.Services.Database.TruckLoadStatusChange", b =>
+                {
+                    b.HasOne("pwm.Services.Database.User", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("pwm.Services.Database.TruckLoadStatusType", "FromStatus")
+                        .WithMany()
+                        .HasForeignKey("FromStatusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("pwm.Services.Database.TruckLoadStatusType", "ToStatus")
+                        .WithMany()
+                        .HasForeignKey("ToStatusId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("pwm.Services.Database.TruckLoad", "TruckLoad")
+                        .WithMany()
+                        .HasForeignKey("TruckLoadId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChangedByUser");
+
+                    b.Navigation("FromStatus");
+
+                    b.Navigation("ToStatus");
 
                     b.Navigation("TruckLoad");
                 });

@@ -49,23 +49,15 @@ namespace pwm.Services
             services.AddTransient<IValidator<UserProfileUpdateRequest>,
                 UserProfileUpdateRequestValidator>();
 
-            // The eleven lookup tables behind the desktop's Administration screen
-            services.AddTransient<IValidator<ActivityLogTypeInsertRequest>, ActivityLogTypeInsertRequestValidator>();
-            services.AddTransient<IValidator<ActivityLogTypeUpdateRequest>, ActivityLogTypeUpdateRequestValidator>();
-            services.AddTransient<IValidator<UserTypeInsertRequest>, UserTypeInsertRequestValidator>();
-            services.AddTransient<IValidator<UserTypeUpdateRequest>, UserTypeUpdateRequestValidator>();
+            // The seven editable lookup tables behind the desktop's Administration screen
             services.AddTransient<IValidator<CountryInsertRequest>, CountryInsertRequestValidator>();
             services.AddTransient<IValidator<CountryUpdateRequest>, CountryUpdateRequestValidator>();
             services.AddTransient<IValidator<CityInsertRequest>, CityInsertRequestValidator>();
             services.AddTransient<IValidator<CityUpdateRequest>, CityUpdateRequestValidator>();
             services.AddTransient<IValidator<CompanyTypeInsertRequest>, CompanyTypeInsertRequestValidator>();
             services.AddTransient<IValidator<CompanyTypeUpdateRequest>, CompanyTypeUpdateRequestValidator>();
-            services.AddTransient<IValidator<ProjectStatusTypeInsertRequest>, ProjectStatusTypeInsertRequestValidator>();
-            services.AddTransient<IValidator<ProjectStatusTypeUpdateRequest>, ProjectStatusTypeUpdateRequestValidator>();
             services.AddTransient<IValidator<TruckLoadStatusTypeInsertRequest>, TruckLoadStatusTypeInsertRequestValidator>();
             services.AddTransient<IValidator<TruckLoadStatusTypeUpdateRequest>, TruckLoadStatusTypeUpdateRequestValidator>();
-            services.AddTransient<IValidator<ReportTypeInsertRequest>, ReportTypeInsertRequestValidator>();
-            services.AddTransient<IValidator<ReportTypeUpdateRequest>, ReportTypeUpdateRequestValidator>();
             services.AddTransient<IValidator<OperationTypeInsertRequest>, OperationTypeInsertRequestValidator>();
             services.AddTransient<IValidator<OperationTypeUpdateRequest>, OperationTypeUpdateRequestValidator>();
             services.AddTransient<IValidator<ProjectCategoryInsertRequest>, ProjectCategoryInsertRequestValidator>();
@@ -99,6 +91,7 @@ namespace pwm.Services
             services.AddScoped<IMonthlyHourReportService, MonthlyHourReportService>();
             services.AddScoped<IMonthlyHourReportDetailService, MonthlyHourReportDetailService>();
             services.AddScoped<IRecommendationService, RecommendationService>();
+            services.AddScoped<IDashboardService, DashboardService>();
 
             return services;
         }

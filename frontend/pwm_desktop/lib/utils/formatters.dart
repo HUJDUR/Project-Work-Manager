@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'sarajevo_time.dart';
 
 final _dayMonth = DateFormat('dd.MM.');
 final _dayMonthYear = DateFormat('dd.MM.yyyy.');
@@ -24,33 +25,8 @@ String formatFullDate(DateTime date) => _dayMonthYear.format(date);
 
 String formatTime(DateTime date) => _timeOfDay.format(date);
 
-/// A timestamp from the API, as local time.
-///
-/// The API now forces every `DateTime` it serialises to carry a `Z` (see
-/// `UtcDateTimeConverter` on the backend), so a value read from the wire
-/// arrives with `isUtc == true` and the first branch below is the one that
-/// actually runs. The second branch is a leftover safety net for anything
-/// that predates that fix or was parsed some other way - a naive value is
-/// still assumed to be UTC (the backend's own convention) rather than
-/// already-local, which is the mistake this function exists to undo. Call
-/// this wherever a stamp is shown as a *time*, not only where something
-/// counts backwards from now; a bare *date* rarely needs it, but a clock
-/// reading does. The mobile app carries the same helper for the same reason.
-DateTime apiTimeToLocal(DateTime value) => value.isUtc
-    ? value.toLocal()
-    : DateTime.utc(
-        value.year,
-        value.month,
-        value.day,
-        value.hour,
-        value.minute,
-        value.second,
-        value.millisecond,
-        value.microsecond,
-      ).toLocal();
-
 String formatRelative(DateTime date, {DateTime? now}) {
-  final reference = now ?? DateTime.now();
+  final reference = now ?? SarajevoTime.now();
   final difference = reference.difference(date);
 
   if (difference.isNegative) return formatDate(date);

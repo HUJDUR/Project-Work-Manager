@@ -22,11 +22,15 @@ import '../utils/dialogs.dart';
 /// not hold, and the dashboard shows the signed-in account's own hours, which
 /// reads the same whoever signs in.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, this.onSignedIn});
+  const LoginScreen({super.key, this.onSignedIn, this.notice});
 
   /// Where to go once the token is in hand. Defaults to the app frame; a test
   /// passes its own so signing in does not start loading the dashboard.
   final VoidCallback? onSignedIn;
+
+  /// Why the user is here again, shown until they try to sign in - e.g.
+  /// [AuthProvider.sessionExpiredMessage].
+  final String? notice;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -42,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordFocus = FocusNode();
 
   bool _obscurePassword = true;
-  String? _errorMessage;
+  late String? _errorMessage = widget.notice;
 
   @override
   void dispose() {

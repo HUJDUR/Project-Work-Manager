@@ -24,7 +24,6 @@ namespace pwm.Services.Validators
 
             RuleFor(x => x.CustomerId).GreaterThan(0).WithMessage("Pick a customer.");
             RuleFor(x => x.ProjectCategoryId).GreaterThan(0).WithMessage("Pick a category.");
-            RuleFor(x => x.ProjectStatusId).GreaterThan(0).WithMessage("Pick a status.");
             RuleFor(x => x.CreatedByUserId).GreaterThan(0)
                 .WithMessage("Every project has an author.");
 
@@ -49,7 +48,6 @@ namespace pwm.Services.Validators
 
             RuleFor(x => x.CustomerId).GreaterThan(0).WithMessage("Pick a customer.");
             RuleFor(x => x.ProjectCategoryId).GreaterThan(0).WithMessage("Pick a category.");
-            RuleFor(x => x.ProjectStatusId).GreaterThan(0).WithMessage("Pick a status.");
             RuleFor(x => x.CreatedByUserId).GreaterThan(0)
                 .WithMessage("Every project has an author.");
 

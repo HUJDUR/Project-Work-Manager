@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
-
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/sarajevo_time.dart';
 import 'auth_provider.dart';
 import 'base_provider.dart';
+import 'package:flutter/material.dart';
 import 'work_log_detail_provider.dart';
+
 
 enum DashboardStatus { idle, loading, ready, failed }
 
@@ -22,7 +23,7 @@ class DashboardProvider extends ChangeNotifier {
     DateTime Function()? clock,
   })  : _workLogDetails = workLogDetails ?? WorkLogDetailProvider(),
         _userId = userId ?? AuthProvider.user?.id,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? SarajevoTime.now;
 
   final BaseProvider<WorkLogDetail> _workLogDetails;
   final int? _userId;

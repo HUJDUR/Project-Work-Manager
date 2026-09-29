@@ -1,17 +1,18 @@
-import 'package:flutter/material.dart';
-
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/sarajevo_time.dart';
 import 'auth_provider.dart';
 import 'base_provider.dart';
 import 'city_provider.dart';
 import 'company_provider.dart';
 import 'company_type_provider.dart';
 import 'country_provider.dart';
+import 'package:flutter/material.dart';
 import 'project_category_provider.dart';
 import 'project_provider.dart';
 import 'project_status_type_provider.dart';
 import 'user_provider.dart';
+
 
 enum ProjectsStatusState { idle, loading, ready, failed }
 
@@ -316,7 +317,7 @@ class ProjectsProvider extends ChangeNotifier {
   /// the highest first; a page of them is read rather than one row because a
   /// hand-typed code in another shape would otherwise sit above the real ones.
   Future<void> _loadNextCode() async {
-    final year = DateTime.now().year;
+    final year = SarajevoTime.now().year;
     final prefix = (year % 100).toString().padLeft(2, '0');
     final pattern = RegExp('^$prefix-(\\d+)\$');
 
@@ -417,18 +418,21 @@ class ProjectsProvider extends ChangeNotifier {
 
   /// Inserts when [id] is null and updates otherwise — the details screen uses
   /// the same form for both. The caller reloads; this only writes.
+  ///
+  /// Carries neither a status nor a production start date: a project always
+  /// starts "Potential" and only ever reaches production, or moves on from
+  /// there, through [ProjectProvider.changeStatus] - see the API's own
+  /// `ProjectInsertRequest` for why this request cannot express either.
   Future<void> saveProject({
     int? id,
     required String name,
     required String code,
     required int customerId,
     required int projectCategoryId,
-    required int projectStatusId,
     required int createdByUserId,
     required ProjectPriority priority,
     required double weight,
     required DateTime creationDate,
-    required DateTime productionStartDate,
     String? description,
     String? notes,
     int? deliveryCompanyId,
@@ -442,14 +446,12 @@ class ProjectsProvider extends ChangeNotifier {
       'priority': priority.value,
       'customerId': customerId,
       'projectCategoryId': projectCategoryId,
-      'projectStatusId': projectStatusId,
       'createdByUserId': createdByUserId,
       'weight': weight,
       // Creation date is NOT NULL in the schema, so the client always sends it.
-      'creationDate': creationDate.toIso8601String(),
-      'productionStartDate': productionStartDate.toIso8601String(),
+      'creationDate': SarajevoTime.toApi(creationDate),
       'deliveryCompanyId': deliveryCompanyId,
-      'deliveryDate': deliveryDate?.toIso8601String(),
+      'deliveryDate': deliveryDate == null ? null : SarajevoTime.toApi(deliveryDate),
     };
 
     if (id == null) {

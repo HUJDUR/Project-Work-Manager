@@ -1,21 +1,22 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_roles.dart';
 import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
 import 'activity_log_provider.dart';
 import 'activity_log_type_provider.dart';
 import 'auth_provider.dart';
 import 'base_provider.dart';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'generated_report_provider.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'project_provider.dart';
 import 'report_provider.dart';
 import 'user_provider.dart';
+
+
 
 enum ReportsStatusState { idle, loading, ready, failed }
 
@@ -39,7 +40,7 @@ class ReportsProvider extends ChangeNotifier {
         _activityLogTypes = activityLogTypes ?? ActivityLogTypeProvider(),
         _users = users ?? UserProvider(),
         _projects = projects ?? ProjectProvider(),
-        _today = today ?? DateTime.now() {
+        _today = today ?? SarajevoTime.now() {
     _year = _today.year;
     _month = _today.month;
     _type = availableTypes.first;
@@ -348,14 +349,16 @@ class ReportsProvider extends ChangeNotifier {
         ].join(' · '),
       ReportType.transportLoads => [
           _projectById[read<int>('projectId')]?.name ?? 'All projects',
-          _rangeLabel(read<String>('dateFrom'), read<String>('dateTo')),
+          _rangeLabel(_storedDate(read<String>('dateFrom')), _storedDate(read<String>('dateTo'))),
         ].join(' · '),
     };
   }
 
-  static String _rangeLabel(String? from, String? to) {
-    final start = from == null ? null : DateTime.tryParse(from);
-    final end = to == null ? null : DateTime.tryParse(to);
+  /// A date out of a stored report's parameters - UTC, as the API wrote it.
+  static DateTime? _storedDate(String? value) =>
+      value == null ? null : SarajevoTime.fromApi(value);
+
+  static String _rangeLabel(DateTime? start, DateTime? end) {
     if (start == null && end == null) return 'All dates';
 
     if (start != null && end != null) {
@@ -377,10 +380,7 @@ class ReportsProvider extends ChangeNotifier {
             _projectById[_projectId]?.name ?? 'All projects',
             _dateRange == null
                 ? 'All dates'
-                : _rangeLabel(
-                    _dateRange!.start.toIso8601String(),
-                    _dateRange!.end.toIso8601String(),
-                  ),
+                : _rangeLabel(_dateRange!.start, _dateRange!.end),
           ].join(' · '),
       };
 

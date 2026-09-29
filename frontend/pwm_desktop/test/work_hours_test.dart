@@ -6,17 +6,28 @@ import 'package:pwm_desktop/providers/work_hours_provider.dart';
 import 'package:pwm_desktop/screens/work_hours_screen.dart';
 
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows) : super('Fake');
 
   final List<T> rows;
+
+  /// The query each read was sent with, so a test can check what was asked.
+  final List<Map<String, dynamic>> filters = [];
 
   /// What was written, so a test can read the bodies back.
   final List<Map<String, dynamic>> inserted = [];
   final List<(int, Map<String, dynamic>)> updated = [];
   final List<int> removed = [];
 
+  Map<String, dynamic> get lastFilter => filters.last;
+
   @override
-  Future<PageResult<T>> get({dynamic filter}) async => PageResult<T>()..items = rows;
+  Future<PageResult<T>> get({dynamic filter}) async {
+    filters.add(Map<String, dynamic>.from(filter as Map? ?? const {}));
+    return PageResult<T>()..items = rows;
+  }
 
   @override
   Future<T> insert(dynamic request) async {
@@ -45,65 +56,101 @@ WorkLog _shift(int id, int userId, DateTime day) => WorkLog(
       hours: 9,
     );
 
-WorkLogDetail _booking({
+/// A row as `GET /WorkLogDetail/Hours` hands it over - already joined and split.
+WorkHoursEntry _entry({
   required int id,
   required int workLogId,
   required int userId,
+  required String worker,
   required int projectId,
+  required String project,
   required DateTime start,
-  required double hours,
-}) =>
-    WorkLogDetail(
-      id: id,
-      workLogId: workLogId,
-      userId: userId,
-      operationTypeId: 1,
-      projectId: projectId,
-      startedAt: start,
-      finishedAt: start.add(Duration(minutes: (hours * 60).round())),
-      hours: hours,
-    );
+  required double regular,
+  double overtime = 0,
+}) {
+  final hours = regular + overtime;
+  return WorkHoursEntry(
+    id: id,
+    workLogId: workLogId,
+    userId: userId,
+    projectId: projectId,
+    operationTypeId: 1,
+    workerName: worker,
+    workerInitials: worker.split(' ').map((part) => part[0]).join(),
+    projectName: project,
+    operationName: 'Welding',
+    date: start,
+    startedAt: start,
+    finishedAt: start.add(Duration(minutes: (hours * 60).round())),
+    regularHours: regular,
+    overtimeHours: overtime,
+    status: WorkHoursStatus.completed,
+  );
+}
 
+late _FakeProvider<WorkHoursEntry> _hourRows;
 late _FakeProvider<WorkLog> _shiftRows;
 late _FakeProvider<WorkLogDetail> _bookingRows;
+late _FakeProvider<User> _userRows;
 
 WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
+      hours: _hourRows = _FakeProvider([
+        _entry(
+            id: 101,
+            workLogId: 10,
+            userId: 1,
+            worker: 'Emir Kovacevic',
+            projectId: 2,
+            project: 'Railing MU-2',
+            start: _today.add(const Duration(hours: 12)),
+            regular: 3,
+            overtime: 1),
+        _entry(
+            id: 100,
+            workLogId: 10,
+            userId: 1,
+            worker: 'Emir Kovacevic',
+            projectId: 1,
+            project: 'Hall roof MU-1',
+            start: _today.add(const Duration(hours: 7)),
+            regular: 5),
+        _entry(
+            id: 102,
+            workLogId: 11,
+            userId: 2,
+            worker: 'Damir Softic',
+            projectId: 1,
+            project: 'Hall roof MU-1',
+            start: _today.add(const Duration(hours: 7)),
+            regular: 6),
+        _entry(
+            id: 103,
+            workLogId: 12,
+            userId: 1,
+            worker: 'Emir Kovacevic',
+            projectId: 1,
+            project: 'Hall roof MU-1',
+            start: _lastWeek.add(const Duration(hours: 7)),
+            regular: 3),
+      ]),
       workLogs: _shiftRows = _FakeProvider([
         _shift(10, 1, _today),
         _shift(11, 2, _today),
         _shift(12, 1, _lastWeek),
       ]),
       workLogDetails: _bookingRows = _FakeProvider([
-        _booking(
-            id: 100,
-            workLogId: 10,
-            userId: 1,
-            projectId: 1,
-            start: _today.add(const Duration(hours: 7)),
-            hours: 5),
-        _booking(
-            id: 101,
-            workLogId: 10,
-            userId: 1,
-            projectId: 2,
-            start: _today.add(const Duration(hours: 12)),
-            hours: 4),
-        _booking(
-            id: 102,
-            workLogId: 11,
-            userId: 2,
-            projectId: 1,
-            start: _today.add(const Duration(hours: 7)),
-            hours: 6),
-        _booking(
+        WorkLogDetail(
             id: 103,
             workLogId: 12,
             userId: 1,
+            operationTypeId: 1,
             projectId: 1,
-            start: _lastWeek.add(const Duration(hours: 7)),
+            startedAt: _lastWeek.add(const Duration(hours: 7)),
             hours: 3),
       ]),
-      users: _FakeProvider(const [
+      // What the API answers for active production workers - unsorted, so the
+      // provider's own ordering is what the test sees.
+      users: _userRows = _FakeProvider(const [
         User(
             id: 1,
             name: 'Emir',
@@ -117,13 +164,6 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
             surname: 'Softic',
             email: 'd@pwm.ba',
             userTypeId: 3,
-            isActive: true),
-        User(
-            id: 4,
-            name: 'Selma',
-            surname: 'Delic',
-            email: 's@pwm.ba',
-            userTypeId: 2,
             isActive: true),
       ]),
       userTypes: _FakeProvider(const [
@@ -164,71 +204,65 @@ void main() {
       await provider.load();
     });
 
-    test('builds one row per booking, newest first', () {
+    test('shows the rows the API answers with, in its order', () {
       expect(provider.status, WorkHoursStatusState.ready);
-      expect(provider.entries.length, 4);
-      expect(provider.entries.first.date.isAfter(provider.entries.last.date), isTrue);
+      expect(provider.entries.map((entry) => entry.id), [101, 100, 102, 103]);
     });
 
-    test('treats a worker-day past eight hours as overtime', () {
-      final byId = {for (final entry in provider.entries) entry.id: entry};
+    test('asks for everything while no filter is set', () {
+      final query = _hourRows.lastFilter;
 
-      expect(byId[100]!.regularHours, 5);
-      expect(byId[100]!.overtimeHours, 0);
-      // The second booking of the day crosses the eight-hour line at 3 h.
-      expect(byId[101]!.regularHours, 3);
-      expect(byId[101]!.overtimeHours, 1);
-      expect(byId[102]!.overtimeHours, 0);
+      expect(query.keys.toSet(), {'page', 'pageSize', 'includeTotalCount'});
     });
 
-    test('totals the visible rows', () {
+    test('totals the rows it holds', () {
       expect(provider.totalHours, 18);
       expect(provider.regularHours, 17);
       expect(provider.overtimeHours, 1);
       expect(provider.workerCount, 2);
     });
 
-    test('filters by worker name', () {
-      provider.setSearch('kovacevic');
+    test('sends the worker search to the API', () async {
+      await provider.setSearch(' kovacevic ');
 
-      expect(provider.entries.map((entry) => entry.workerName).toSet(),
-          {'Emir Kovacevic'});
-      expect(provider.workerCount, 1);
+      expect(_hourRows.lastFilter['search'], 'kovacevic');
     });
 
-    test('filters by project', () {
-      provider.setProject(2);
+    test('sends the project to the API', () async {
+      await provider.setProject(2);
 
-      expect(provider.entries.single.projectName, 'Railing MU-2');
+      expect(_hourRows.lastFilter['projectId'], 2);
     });
 
-    test('filters by date range', () {
-      provider.setDateRange(DateTimeRange(start: _today, end: _today));
+    test('sends the date range to the API as whole days', () async {
+      await provider.setDateRange(DateTimeRange(
+          start: _lastWeek.add(const Duration(hours: 5)), end: _today));
 
-      expect(provider.entries.length, 3);
-      expect(provider.totalHours, 15);
+      expect(_hourRows.lastFilter['dateFrom'], _lastWeek);
+      expect(_hourRows.lastFilter['dateTo'], _today);
     });
 
-    test('filters down to overtime rows', () {
-      provider.setHoursFilter(WorkHoursFilter.overtimeOnly);
+    test('sends the hours filter by the name the API binds', () async {
+      await provider.setHoursFilter(WorkHoursFilter.overtimeOnly);
 
-      expect(provider.entries.single.id, 101);
+      expect(_hourRows.lastFilter['hoursFilter'], 'OvertimeOnly');
     });
 
-    test('clears every filter at once', () {
-      provider
-        ..setSearch('emir')
-        ..setProject(1)
-        ..setHoursFilter(WorkHoursFilter.overtimeOnly);
+    test('clears every filter at once', () async {
+      await provider.setSearch('emir');
+      await provider.setProject(1);
+      await provider.setHoursFilter(WorkHoursFilter.overtimeOnly);
       expect(provider.hasFilters, isTrue);
 
-      provider.clearFilters();
+      await provider.clearFilters();
 
       expect(provider.hasFilters, isFalse);
-      expect(provider.entries.length, 4);
+      expect(_hourRows.lastFilter.keys.toSet(), {'page', 'pageSize', 'includeTotalCount'});
     });
 
-    test('offers only active workers for a new entry', () {
+    test('asks the API for active production workers only, and sorts them', () {
+      expect(_userRows.lastFilter['isActive'], isTrue);
+      expect(_userRows.lastFilter['userTypeId'], 3);
       expect(provider.workers.map((worker) => worker.fullName),
           ['Damir Softic', 'Emir Kovacevic']);
     });
@@ -284,21 +318,12 @@ void main() {
       expect(_bookingRows.inserted, isEmpty);
     });
 
-    test('deletes the shift with the last block booked against it', () async {
-      // Shift 12 carries only booking 103.
+    test('deletes a block in one call - the API removes an emptied shift itself',
+        () async {
       await provider.deleteWorkHours(
           provider.entries.firstWhere((entry) => entry.id == 103));
 
       expect(_bookingRows.removed, [103]);
-      expect(_shiftRows.removed, [12]);
-    });
-
-    test('keeps a shift that still has other blocks on it', () async {
-      // Shift 10 carries bookings 100 and 101.
-      await provider.deleteWorkHours(
-          provider.entries.firstWhere((entry) => entry.id == 100));
-
-      expect(_bookingRows.removed, [100]);
       expect(_shiftRows.removed, isEmpty);
     });
   });
@@ -324,5 +349,56 @@ void main() {
     expect(find.text('Emir Kovacevic'), findsWidgets);
     expect(find.text('Hall roof MU-1'), findsWidgets);
     expect(find.text('Completed'), findsNWidgets(4));
+  });
+
+  testWidgets(
+      'the worker and project fields on a new entry can be searched by name and code',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: WorkHoursScreen(providerFactory: _fakeWorkHours)),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add Work Hours'));
+    await tester.pumpAndSettle();
+
+    // `DropdownMenu`'s own field sets `InputDecoration.label` (a `Text`
+    // widget), not `labelText` - the plain string a `FormBuilderTextField`
+    // uses - so both are checked.
+    Finder fieldLabelled(String label) => find.byWidgetPredicate((widget) {
+          if (widget is! TextField) return false;
+          final decoration = widget.decoration;
+          if (decoration?.labelText == label) return true;
+          final labelWidget = decoration?.label;
+          return labelWidget is Text && labelWidget.data == label;
+        });
+
+    final workerField = fieldLabelled('Worker');
+    await tester.tap(workerField);
+    await tester.pumpAndSettle();
+    await tester.enterText(workerField, 'Softic');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Damir Softic'), findsOneWidget);
+    await tester.tap(find.text('Damir Softic').last);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(workerField).controller?.text, 'Damir Softic');
+
+    final projectField = fieldLabelled('Project');
+    await tester.tap(projectField);
+    await tester.pumpAndSettle();
+    // The two fixture projects' names share no words - only their codes do -
+    // so matching one by the other's code proves the search checks the code.
+    await tester.enterText(projectField, 'MU-2');
+    await tester.pumpAndSettle();
+
+    expect(find.text('MU-2 - Railing MU-2'), findsOneWidget);
+    await tester.tap(find.text('MU-2 - Railing MU-2').last);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(projectField).controller?.text, 'MU-2 - Railing MU-2');
   });
 }

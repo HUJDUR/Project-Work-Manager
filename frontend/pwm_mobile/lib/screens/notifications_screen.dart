@@ -441,7 +441,7 @@ class _NotificationCard extends StatelessWidget {
                           // Sits on the title's first line rather than its top.
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
-                            formatRelative(apiTimeToLocal(notification.createdAt)),
+                            formatRelative(notification.createdAt),
                             style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textMuted,

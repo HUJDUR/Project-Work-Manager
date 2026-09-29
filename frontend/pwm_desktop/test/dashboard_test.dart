@@ -1,166 +1,70 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pwm_desktop/models/models.dart';
-import 'package:pwm_desktop/providers/base_provider.dart';
+import 'package:pwm_desktop/providers/dashboard_api_provider.dart';
 import 'package:pwm_desktop/providers/dashboard_provider.dart';
 import 'package:pwm_desktop/screens/dashboard_screen.dart';
 import 'package:pwm_desktop/utils/api_client_exception.dart';
 
-class _FakeProvider<T> extends BaseProvider<T> {
-  _FakeProvider(this.rows) : super('Fake');
+class _FakeApi extends DashboardApiProvider {
+  _FakeApi(this.json);
 
-  final List<T> rows;
-
-  @override
-  Future<PageResult<T>> get({dynamic filter}) async => PageResult<T>()..items = rows;
-}
-
-class _FailingProvider<T> extends BaseProvider<T> {
-  _FailingProvider() : super('Fake');
+  final Map<String, dynamic> json;
 
   @override
-  Future<PageResult<T>> get({dynamic filter}) async =>
-      throw ApiClientException('The API is unreachable.');
+  Future<DashboardData> fetch() async => fromJson(json);
 }
 
-/// Dates are relative to `now`, keeping every row inside the 30-day window.
-final _now = DateTime.now();
-final _yesterday = _now.subtract(const Duration(days: 1));
-final _twoDaysAgo = _now.subtract(const Duration(days: 2));
+class _FailingApi extends DashboardApiProvider {
+  @override
+  Future<DashboardData> fetch() async => throw ApiClientException('The API is unreachable.');
+}
 
-Project _project({required int id, required String name, required int statusId}) =>
-    Project(
-      id: id,
-      customerId: 1,
-      name: name,
-      code: 'P-$id',
-      weight: 1000,
-      projectCategoryId: 1,
-      creationDate: _now,
-      projectStatusId: statusId,
-      createdByUserId: 1,
-    );
+final _yesterday = DateTime.now().toUtc().subtract(const Duration(days: 1));
 
-DashboardProvider _fakeDashboard() => DashboardProvider(
-      projects: _FakeProvider([
-        _project(id: 1, name: 'Hall roof MU-1', statusId: 3),
-        _project(id: 2, name: 'Railing MU-2', statusId: 3),
-        _project(id: 3, name: 'Trial WM-9', statusId: 6),
-        _project(id: 4, name: 'Frame NM-3', statusId: 5),
-      ]),
-      users: _FakeProvider(const [
-        User(
-            id: 1,
-            name: 'Emir',
-            surname: 'Kovacevic',
-            email: 'e@pwm.ba',
-            userTypeId: 3,
-            isActive: true),
-        User(
-            id: 2,
-            name: 'Damir',
-            surname: 'Softic',
-            email: 'd@pwm.ba',
-            userTypeId: 3,
-            isActive: true),
-        User(
-            id: 3,
-            name: 'Mirza',
-            surname: 'Tufekcic',
-            email: 'm@pwm.ba',
-            userTypeId: 3,
-            isActive: false),
-        User(
-            id: 4,
-            name: 'Selma',
-            surname: 'Delic',
-            email: 's@pwm.ba',
-            userTypeId: 2,
-            isActive: true),
-      ]),
-      companies: _FakeProvider(const [
-        Company(
-            id: 7,
-            name: 'TransBalkan Logistika',
-            countryId: 1,
-            cityId: 1,
-            address: 'Put 1',
-            companyTypeId: 2),
-      ]),
-      workLogs: _FakeProvider([
-        WorkLog(id: 10, userId: 1, clockedIn: _yesterday, hours: 8),
-        WorkLog(id: 11, userId: 2, clockedIn: _twoDaysAgo, hours: 8),
-      ]),
-      workLogDetails: _FakeProvider([
-        WorkLogDetail(
-            id: 100,
-            workLogId: 10,
-            userId: 1,
-            operationTypeId: 4,
-            projectId: 1,
-            startedAt: _yesterday,
-            hours: 5),
-        WorkLogDetail(
-            id: 101,
-            workLogId: 10,
-            userId: 1,
-            operationTypeId: 1,
-            projectId: 2,
-            startedAt: _yesterday,
-            hours: 3),
-        WorkLogDetail(
-            id: 102,
-            workLogId: 11,
-            userId: 2,
-            operationTypeId: 4,
-            projectId: 1,
-            startedAt: _twoDaysAgo,
-            hours: 2),
-        // Older than the 30-day window, so it must not reach the charts.
-        WorkLogDetail(
-            id: 103,
-            workLogId: 11,
-            userId: 2,
-            operationTypeId: 1,
-            projectId: 1,
-            startedAt: _now.subtract(const Duration(days: 90)),
-            hours: 99),
-      ]),
-      truckLoads: _FakeProvider([
-        TruckLoad(
-          id: 50,
-          transportCompanyId: 7,
-          truckLoadStatusId: 1,
-          loadDate: _yesterday,
-          driverName: 'Ivan',
-          driverSurname: 'Maric',
-          vehicleRegistration: 'A12-B-345',
-          emptyWeight: 8000,
-          fullWeight: 20000,
-        ),
-      ]),
-      activityLogs: _FakeProvider([
-        ActivityLog(id: 1, userId: 1, activityLogTypeId: 3, date: _twoDaysAgo),
-        ActivityLog(id: 2, userId: 4, activityLogTypeId: 5, date: _yesterday),
-      ]),
-      projectStatusTypes: _FakeProvider(const [
-        ProjectStatusType(id: 3, name: 'In production'),
-        ProjectStatusType(id: 5, name: 'Delivered'),
-        ProjectStatusType(id: 6, name: 'Rejected'),
-      ]),
-      operationTypes: _FakeProvider(const [
-        OperationType(id: 1, name: 'Cutting'),
-        OperationType(id: 4, name: 'Welding'),
-      ]),
-      activityLogTypes: _FakeProvider(const [
-        ActivityLogType(id: 3, name: 'Clock in'),
-        ActivityLogType(id: 5, name: 'Project created'),
-      ]),
-      userTypes: _FakeProvider(const [
-        UserType(id: 2, type: 'Project manager'),
-        UserType(id: 3, type: 'Production worker'),
-      ]),
-    );
+/// The shape `GET /Dashboard` answers with.
+Map<String, dynamic> _response() => {
+      'windowDays': 30,
+      'hoursLogged': 10,
+      'activeProjects': 2,
+      'inProduction': 2,
+      'activeWorkers': 2,
+      'workersWithBookings': 2,
+      'transports': 1,
+      'shippedWeight': 12000,
+      'hoursByProject': [
+        {'label': 'Hall roof MU-1', 'shortLabel': 'P-1', 'value': 7},
+        {'label': 'Railing MU-2', 'shortLabel': 'P-2', 'value': 3},
+      ],
+      'hoursByOperation': [
+        {'label': 'Welding', 'shortLabel': null, 'value': 7},
+        {'label': 'Cutting', 'shortLabel': null, 'value': 3},
+      ],
+      'recentWork': [
+        {
+          'workerName': 'Emir Kovacevic',
+          'workerInitials': 'EK',
+          'projectName': 'Hall roof MU-1',
+          'operationName': 'Welding',
+          'hours': 5,
+          'startedAt': _yesterday.toIso8601String(),
+        },
+      ],
+      'recentTransports': [
+        {
+          'driverName': 'Ivan Maric',
+          'vehicleRegistration': 'A12-B-345',
+          'carrierName': 'TransBalkan Logistika',
+          'loadDate': _yesterday.toIso8601String(),
+          'netWeight': 12000,
+        },
+      ],
+      'recentActivity': [
+        {'title': 'Project created', 'actorName': 'Selma Delic', 'date': _yesterday.toIso8601String()},
+      ],
+    };
+
+DashboardProvider _fakeDashboard() => DashboardProvider(api: _FakeApi(_response()));
 
 void main() {
   group('DashboardProvider', () {
@@ -170,33 +74,25 @@ void main() {
       controller = _fakeDashboard();
     });
 
-    test('reports ready once every table has loaded', () async {
+    test('reports ready once the dashboard has loaded', () async {
       await controller.load();
 
       expect(controller.status, DashboardStatus.ready);
       expect(controller.data, isNotNull);
     });
 
-    test('counts only projects that are neither delivered nor cancelled', () async {
+    test('words the summary cards from the API counts', () async {
       await controller.load();
 
-      final activeProjects = controller.data!.metrics
-          .firstWhere((metric) => metric.label == 'Active projects');
+      SummaryMetric metric(String label) =>
+          controller.data!.metrics.firstWhere((metric) => metric.label == label);
 
-      expect(activeProjects.value, '2');
-      expect(activeProjects.caption, '2 in production');
-    });
-
-    test('sums hours inside the window only and labels them by project', () async {
-      await controller.load();
-
-      final hours =
-          controller.data!.metrics.firstWhere((metric) => metric.label == 'Hours logged');
-      expect(hours.value, '10 h');
-
-      final byProject = controller.data!.hoursByProject;
-      expect(byProject.map((slice) => slice.label), ['Hall roof MU-1', 'Railing MU-2']);
-      expect(byProject.first.value, 7);
+      expect(metric('Hours logged').value, '10 h');
+      expect(metric('Active projects').value, '2');
+      expect(metric('Active projects').caption, '2 in production');
+      expect(metric('Workers').caption, '2 booked hours');
+      expect(metric('Transports').value, '1');
+      expect(metric('Shipped weight').value, '12.0 t');
     });
 
     test('puts the project code on the axis and the full name in the tooltip', () async {
@@ -204,11 +100,10 @@ void main() {
 
       final slice = controller.data!.hoursByProject.first;
 
-      // The axis used to show the last word of the name, so a project called
-      // "Purlin sets" was labelled "sets".
       expect(slice.label, 'Hall roof MU-1');
       expect(slice.shortLabel, 'P-1');
       expect(slice.axisLabel, 'P-1');
+      expect(slice.value, 7);
     });
 
     test('an operation has no code, so its axis label is its name', () async {
@@ -220,52 +115,24 @@ void main() {
       expect(slice.axisLabel, 'Welding');
     });
 
-    test('groups hours by operation type, largest share first', () async {
+    test('reads the list panels as the API names them', () async {
       await controller.load();
 
-      final byOperation = controller.data!.hoursByOperation;
-      expect(byOperation.map((slice) => slice.label), ['Welding', 'Cutting']);
-      expect(byOperation.first.value, 7);
-    });
-
-    test('counts active workers and excludes managers', () async {
-      await controller.load();
-
-      final workers =
-          controller.data!.metrics.firstWhere((metric) => metric.label == 'Workers');
-
-      expect(workers.value, '2');
-      expect(workers.caption, '2 booked hours');
-    });
-
-    test('reports transport count and shipped cargo weight in tonnes', () async {
-      await controller.load();
-
-      final metrics = controller.data!.metrics;
-      expect(metrics.firstWhere((metric) => metric.label == 'Transports').value, '1');
-      expect(
-          metrics.firstWhere((metric) => metric.label == 'Shipped weight').value, '12.0 t');
-    });
-
-    test('resolves foreign keys into names for the list panels', () async {
-      await controller.load();
-
-      final work = controller.data!.recentWork.first;
+      final work = controller.data!.recentWork.single;
       expect(work.workerName, 'Emir Kovacevic');
       expect(work.workerInitials, 'EK');
-      expect(work.projectName, isNotEmpty);
 
       final transport = controller.data!.recentTransports.single;
       expect(transport.driverName, 'Ivan Maric');
       expect(transport.carrierName, 'TransBalkan Logistika');
 
-      final activity = controller.data!.recentActivity.first;
+      final activity = controller.data!.recentActivity.single;
       expect(activity.title, 'Project created');
       expect(activity.actorName, 'Selma Delic');
     });
 
-    test('surfaces an error state when a table cannot be loaded', () async {
-      final failing = DashboardProvider(projects: _FailingProvider<Project>());
+    test('surfaces an error state when the dashboard cannot be loaded', () async {
+      final failing = DashboardProvider(api: _FailingApi());
 
       await failing.load();
 

@@ -31,9 +31,7 @@ namespace pwm.WebAPI.Controllers
         public async Task<UserResponse> UpdateMe([FromBody] UserProfileUpdateRequest request)
         {
             var id = _currentUser.Id
-                ?? (DevSettings.BypassAuthentication
-                    ? 1
-                    : throw new ForbiddenException("The token carries no user."));
+                ?? throw new ForbiddenException("The token carries no user.");
 
             return await _users.UpdateProfileAsync(id, request);
         }

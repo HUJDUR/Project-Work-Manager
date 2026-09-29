@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
 
 import '../../utils/app_theme.dart';
@@ -88,6 +89,77 @@ class _PasswordFieldState extends State<PasswordField> {
         // rather than duplicating that colour and border shape by hand.
         errorText: widget.hasError ? '' : null,
         errorStyle: const TextStyle(fontSize: 0, height: 0),
+      ),
+    );
+  }
+}
+
+/// Every list this long or longer gets a search box rather than a plain
+/// scroll - past this, scanning by eye stops being faster than typing.
+const int _searchableDropdownThreshold = 8;
+
+/// A dropdown that can be typed into to filter its entries, standing in for
+/// `FormBuilderDropdown` everywhere there is a real list to pick from - the
+/// customer, the worker, the role, and so on - not just the project fields
+/// this started on.
+///
+/// Two things this fixes that a plain `DropdownMenu` does not on its own:
+/// - The menu is capped at [_menuHeight] and scrolls past that, rather than
+///   growing to fit however many entries there are - unbounded, a list of
+///   thirty workers or projects reads as covering most of the window instead
+///   of a panel that opens under the field.
+/// - It is keyed on the current value, so an external reset (the lookup
+///   screen clearing a dependent field when its parent changes) is reflected
+///   immediately - `DropdownMenu` only picks up a changed `initialSelection`
+///   when the new value is one of its entries, which a reset to null never is.
+class SearchableDropdownField<T> extends StatelessWidget {
+  const SearchableDropdownField({
+    super.key,
+    required this.name,
+    required this.label,
+    required this.entries,
+    this.hintText,
+    this.validator,
+    this.enabled = true,
+    this.onChanged,
+  });
+
+  final String name;
+  final String label;
+  final String? hintText;
+  final List<DropdownMenuEntry<T>> entries;
+  final FormFieldValidator<T>? validator;
+  final bool enabled;
+
+  /// Fires after the form field's own value has already been updated.
+  final ValueChanged<T?>? onChanged;
+
+  static const double _menuHeight = 320;
+
+  @override
+  Widget build(BuildContext context) {
+    return FormBuilderField<T>(
+      name: name,
+      validator: validator,
+      enabled: enabled,
+      builder: (field) => DropdownMenu<T>(
+        key: ValueKey(field.value),
+        initialSelection: field.value,
+        expandedInsets: EdgeInsets.zero,
+        // Only turns a search box on past the point scrolling stops being
+        // the faster way to find something - four priorities do not need one.
+        enableFilter: entries.length >= _searchableDropdownThreshold,
+        menuHeight: _menuHeight,
+        requestFocusOnTap: true,
+        enabled: enabled,
+        label: Text(label),
+        hintText: hintText,
+        errorText: field.errorText,
+        dropdownMenuEntries: entries,
+        onSelected: (value) {
+          field.didChange(value);
+          onChanged?.call(value);
+        },
       ),
     );
   }

@@ -12,6 +12,7 @@ import '../utils/app_roles.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
+import '../utils/phone_rules.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
 import 'widgets/user_avatar.dart';
@@ -46,10 +47,16 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
   bool _saving = false;
   String? _error;
 
-  /// Base64, seeded from the row when editing and replaced when a new
-  /// picture is picked, or cleared back to null (the name-letters avatar)
-  /// by Remove.
+  /// Base64, fetched by id when editing (the list the row came from carries
+  /// no pictures) and replaced when a new picture is picked, or cleared back
+  /// to null (the name-letters avatar) by Remove.
   String? _picture;
+
+  /// The fetch behind [_picture]; null for a new account.
+  Future<void>? _pictureLoad;
+
+  /// Set once a picture is picked or removed here, which the fetch must not undo.
+  bool _pictureTouched = false;
 
   /// False until Save has been pressed once. `FormBuilder`'s own
   /// `autovalidateMode` validates every field the moment any one of them
@@ -139,7 +146,15 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
     final row = widget.row;
 
     _selectedRoleId = row?.roleId ?? _roleIdOf(WorkersProvider.workerRole);
-    _picture = row?.picture;
+    if (row != null) {
+      _pictureLoad = widget.provider.fetchPicture(row.id).then((picture) {
+        // A picture picked or removed while this was in flight wins.
+        if (mounted && !_pictureTouched) setState(() => _picture = picture);
+      });
+      // A failed fetch is reported by Save, which awaits this same future -
+      // not as an unhandled error the moment the screen opens.
+      _pictureLoad!.ignore();
+    }
 
     _initialValue = {
       'name': row?.name,
@@ -220,11 +235,15 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
     if (!mounted) return;
     setState(() {
       _picture = base64Encode(bytes);
+      _pictureTouched = true;
       _error = null;
     });
   }
 
-  void _removePicture() => setState(() => _picture = null);
+  void _removePicture() => setState(() {
+        _picture = null;
+        _pictureTouched = true;
+      });
 
   @override
   Widget build(BuildContext context) {
@@ -312,25 +331,23 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
                   child: FormBuilderTextField(
                     name: 'phoneNumber',
                     decoration: appInputDecoration('Phone', hintText: 'Optional'),
+                    validator: PhoneRules.validate,
+                    onChanged: (_) => _revalidateField('phoneNumber'),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: formFieldGap + 10),
-            FormBuilderDropdown<int>(
+            SearchableDropdownField<int>(
               name: 'userTypeId',
-              isExpanded: true,
-              decoration: appInputDecoration('Role'),
+              label: 'Role',
               validator: FormBuilderValidators.required(
                 errorText: 'Pick a role.',
               ),
               onChanged: _onRoleChanged,
-              items: [
+              entries: [
                 for (final UserType role in provider.roles)
-                  DropdownMenuItem(
-                    value: role.id,
-                    child: Text(role.type, overflow: TextOverflow.ellipsis),
-                  ),
+                  DropdownMenuEntry(value: role.id, label: role.type),
               ],
             ),
             const SizedBox(height: formSectionGap),
@@ -453,6 +470,10 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
     });
 
     try {
+      // The API overwrites the picture with whatever is sent, so the current
+      // one has to be known first - saving without it would clear it.
+      if (!_pictureTouched) await _pictureLoad;
+
       await widget.provider.saveWorker(
         id: widget.row?.id,
         name: (values['name'] as String).trim(),

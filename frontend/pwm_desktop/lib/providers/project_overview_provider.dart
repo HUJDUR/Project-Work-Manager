@@ -5,6 +5,7 @@ import '../utils/api_client_exception.dart';
 import 'base_provider.dart';
 import 'company_provider.dart';
 import 'operation_type_provider.dart';
+import 'project_provider.dart';
 import 'truck_load_detail_provider.dart';
 import 'truck_load_provider.dart';
 import 'truck_load_status_type_provider.dart';
@@ -21,6 +22,7 @@ enum ProjectOverviewStatusState { idle, loading, ready, failed }
 class ProjectOverviewProvider extends ChangeNotifier {
   ProjectOverviewProvider({
     required this.projectId,
+    ProjectProvider? projects,
     BaseProvider<WorkLogDetail>? workLogDetails,
     BaseProvider<User>? users,
     BaseProvider<OperationType>? operationTypes,
@@ -28,7 +30,8 @@ class ProjectOverviewProvider extends ChangeNotifier {
     BaseProvider<TruckLoad>? truckLoads,
     BaseProvider<Company>? companies,
     BaseProvider<TruckLoadStatusType>? truckLoadStatusTypes,
-  })  : _workLogDetails = workLogDetails ?? WorkLogDetailProvider(),
+  })  : _projects = projects ?? ProjectProvider(),
+        _workLogDetails = workLogDetails ?? WorkLogDetailProvider(),
         _users = users ?? UserProvider(),
         _operationTypes = operationTypes ?? OperationTypeProvider(),
         _truckLoadDetails = truckLoadDetails ?? TruckLoadDetailProvider(),
@@ -38,6 +41,7 @@ class ProjectOverviewProvider extends ChangeNotifier {
 
   final int projectId;
 
+  final ProjectProvider _projects;
   final BaseProvider<WorkLogDetail> _workLogDetails;
   final BaseProvider<User> _users;
   final BaseProvider<OperationType> _operationTypes;
@@ -50,6 +54,10 @@ class ProjectOverviewProvider extends ChangeNotifier {
   String? _errorMessage;
   List<ProjectWorkEntry> _workEntries = const [];
   List<ProjectTransportEntry> _transportEntries = const [];
+  List<ProjectStatusChangeEntry> _statusHistory = const [];
+
+  bool _changingStatus = false;
+  String? _statusChangeError;
 
   ProjectOverviewStatusState get status => _status;
   String? get errorMessage => _errorMessage;
@@ -58,6 +66,13 @@ class ProjectOverviewProvider extends ChangeNotifier {
   /// Newest first.
   List<ProjectWorkEntry> get workEntries => _workEntries;
   List<ProjectTransportEntry> get transportEntries => _transportEntries;
+
+  /// The project's status history, newest first - the audit trail behind
+  /// its life cycle.
+  List<ProjectStatusChangeEntry> get statusHistory => _statusHistory;
+
+  bool get isChangingStatus => _changingStatus;
+  String? get statusChangeError => _statusChangeError;
 
   /// Every hour in [workEntries], added up per operation and sorted by that
   /// total - the busiest operation on this project first.
@@ -87,6 +102,7 @@ class ProjectOverviewProvider extends ChangeNotifier {
         _truckLoadDetails.getAll(filter: {'projectId': projectId}),
         _companies.getAll(),
         _truckLoadStatusTypes.getAll(),
+        _projects.statusHistory(projectId),
       ]);
 
       final details = results[0] as List<WorkLogDetail>;
@@ -95,6 +111,7 @@ class ProjectOverviewProvider extends ChangeNotifier {
       final lines = results[3] as List<TruckLoadDetail>;
       final companies = results[4] as List<Company>;
       final statuses = results[5] as List<TruckLoadStatusType>;
+      _statusHistory = results[6] as List<ProjectStatusChangeEntry>;
 
       final userById = {for (final user in users) user.id: user};
       final operationById = {for (final operation in operations) operation.id: operation};
@@ -149,5 +166,32 @@ class ProjectOverviewProvider extends ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  /// Moves the project to [newStatusId] and refreshes the history underneath
+  /// it. The row itself (name, customer, the joined `statusName`...) is the
+  /// caller's - `ProjectOverviewScreen` re-reads it through `ProjectsProvider`
+  /// the same way it already does after the edit form writes.
+  Future<bool> changeStatus(int newStatusId) async {
+    _changingStatus = true;
+    _statusChangeError = null;
+    notifyListeners();
+
+    var succeeded = false;
+
+    try {
+      await _projects.changeStatus(projectId, newStatusId);
+      _statusHistory = await _projects.statusHistory(projectId);
+      succeeded = true;
+    } on ApiClientException catch (error) {
+      _statusChangeError = error.message;
+    } catch (error) {
+      _statusChangeError = 'The status could not be changed: $error';
+    }
+
+    _changingStatus = false;
+    notifyListeners();
+
+    return succeeded;
   }
 }

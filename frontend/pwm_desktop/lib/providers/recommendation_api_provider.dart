@@ -12,6 +12,10 @@ import 'base_provider.dart';
 class RecommendationApiProvider extends BaseProvider<RecommendationResult> {
   RecommendationApiProvider() : super('Recommendation');
 
+  @override
+  RecommendationResult fromJson(dynamic data) =>
+      RecommendationResult.fromJson(data as Map<String, dynamic>);
+
   Future<RecommendationResult> estimate({
     required int projectCategoryId,
     required double tonnes,
@@ -31,6 +35,6 @@ class RecommendationApiProvider extends BaseProvider<RecommendationResult> {
 
     validateResponse(response);
 
-    return RecommendationResult.fromJson(jsonDecode(response.body));
+    return fromJson(jsonDecode(response.body));
   }
 }

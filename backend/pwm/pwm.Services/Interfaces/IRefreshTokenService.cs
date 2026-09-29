@@ -15,7 +15,5 @@ namespace pwm.Services.Interfaces
         Task RotateAsync(int userId, string token, DateTime expiresAt);
 
         Task<RefreshToken?> GetStoredTokenAsync(string token);
-
-        Task DeleteAllUserRefreshTokensAsync(int userId);
     }
 }

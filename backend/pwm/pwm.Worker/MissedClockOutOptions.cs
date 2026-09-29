@@ -1,8 +1,7 @@
 namespace pwm.Worker
 {
     /// <summary>
-    /// Bound from the <c>MissedClockOut</c> configuration section - see
-    /// <c>appsettings.json</c>. Both numbers are deliberately configurable rather than
+    /// Bound from the <c>MissedClockOut__*</c> values in <c>backend/.env</c>. Both numbers are deliberately configurable rather than
     /// literals in <see cref="MissedClockOutWorker"/>: a shop with longer legitimate
     /// shifts should be able to raise the threshold without a code change.
     /// </summary>

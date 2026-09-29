@@ -1,12 +1,13 @@
-import 'package:flutter/material.dart';
-
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/sarajevo_time.dart';
 import 'auth_provider.dart';
 import 'base_provider.dart';
 import 'operation_type_provider.dart';
+import 'package:flutter/material.dart';
 import 'project_provider.dart';
 import 'work_log_detail_provider.dart';
+
 
 enum MyHoursStatus { idle, loading, ready, failed }
 
@@ -48,7 +49,7 @@ class MyHoursProvider extends ChangeNotifier {
         _projects = projects ?? ProjectProvider(),
         _operationTypes = operationTypes ?? OperationTypeProvider(),
         _userId = userId ?? AuthProvider.user?.id,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? SarajevoTime.now;
 
   final BaseProvider<WorkLogDetail> _workLogDetails;
   final BaseProvider<Project> _projects;

@@ -40,5 +40,13 @@ namespace pwm.Services.Database
 
         [MaxLength(1000)]
         public string? Note { get; set; }
+
+        /// <summary>
+        /// The invoice amount in EUR, collected by the popup a transport's
+        /// "Finished" transition asks for. Not required by the schema; only
+        /// that transition itself requires it, which is why this stays nullable.
+        /// </summary>
+        [Column(TypeName = "decimal(10,2)")]
+        public decimal? Price { get; set; }
     }
 }

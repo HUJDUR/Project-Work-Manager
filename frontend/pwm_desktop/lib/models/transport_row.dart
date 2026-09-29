@@ -15,6 +15,7 @@ class TransportRow {
     required this.emptyWeight,
     required this.fullWeight,
     this.note,
+    this.price,
   });
 
   final int id;
@@ -34,6 +35,9 @@ class TransportRow {
   final double fullWeight;
 
   final String? note;
+
+  /// The invoice amount in EUR, once the load has been marked "Finished".
+  final double? price;
 
   /// The mockup's Transport No. There is no such column — a load is identified
   /// by its id, and this is that id in the shape the office writes it down.

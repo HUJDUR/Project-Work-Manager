@@ -1,15 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_form_builder/flutter_form_builder.dart';
-import 'package:form_builder_validators/form_builder_validators.dart';
-
 import '../models/models.dart';
 import '../providers/transports_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
+import '../utils/truck_load_status_rules.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
+import 'widgets/transports_table.dart' show TruckLoadStatusChip;
+
 
 /// One truck load, new or existing, with the projects on it underneath. Pops
 /// `'reload'` once it has written, which is the list screen's cue to refetch.
@@ -45,6 +48,22 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
 
   bool get _isNew => widget.row == null;
 
+  /// Everything but Notes and Price - only while still Ordered (and never
+  /// during creation, which is always Ordered anyway). Delivered, Finished
+  /// and Rejected are locked to different degrees - see [_canEditPrice].
+  bool get _generalFieldsLocked =>
+      !_isNew && !TruckLoadStatusRules.canEditGeneralFields(widget.row!.statusName);
+
+  /// Price is only ever hand-edited while Delivered - nothing to invoice
+  /// before that, and Finished/Rejected fix it for good.
+  bool get _canEditPrice =>
+      !_isNew && TruckLoadStatusRules.canEditPrice(widget.row!.statusName);
+
+  /// Cargo is only ever touched while Ordered, and never during creation -
+  /// the load has to be saved once first.
+  bool get _canEditCargo =>
+      !_isNew && TruckLoadStatusRules.canEditCargo(widget.row!.statusName);
+
   @override
   void initState() {
     super.initState();
@@ -53,15 +72,14 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
 
     _initialValue = {
       'transportCompanyId': row?.carrierId,
-      // A load starts life as Ordered unless the seeded statuses say otherwise.
-      'truckLoadStatusId': row?.statusId ?? _statusIdOf('ordered'),
-      'loadDate': row?.loadDate ?? DateUtils.dateOnly(DateTime.now()),
+      'loadDate': row?.loadDate ?? DateUtils.dateOnly(SarajevoTime.now()),
       'driverName': row?.driverName,
       'driverSurname': row?.driverSurname,
       'vehicleRegistration': row?.vehicleRegistration,
       'emptyWeight': row?.emptyWeight.toString(),
       'fullWeight': row?.fullWeight.toString(),
       'note': row?.note,
+      'price': row?.price?.toString(),
     };
 
     if (row != null) _loadLines(row.id);
@@ -87,11 +105,6 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
     }
   }
 
-  int? _statusIdOf(String name) => widget.provider.statusTypes
-      .where((status) => status.name.toLowerCase() == name)
-      .map((status) => status.id)
-      .firstOrNull;
-
   @override
   Widget build(BuildContext context) {
     final provider = widget.provider;
@@ -111,52 +124,43 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_generalFieldsLocked) ...[
+              _LockedStatusBanner(status: widget.row!.statusName),
+              const SizedBox(height: AppSpacing.gap),
+            ],
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
                   flex: 2,
-                  child: FormBuilderDropdown<int>(
+                  child: SearchableDropdownField<int>(
                     name: 'transportCompanyId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Carrier'),
+                    label: 'Carrier',
+                    enabled: !_generalFieldsLocked,
                     validator: FormBuilderValidators.required(
                       errorText: 'Pick the carrier taking the load out.',
                     ),
-                    items: [
+                    entries: [
                       for (final Company carrier in provider.carriers)
-                        DropdownMenuItem(
-                          value: carrier.id,
-                          child: Text(carrier.name, overflow: TextOverflow.ellipsis),
-                        ),
+                        DropdownMenuEntry(value: carrier.id, label: carrier.name),
                     ],
                   ),
                 ),
                 const SizedBox(width: formFieldGap),
                 Expanded(
-                  child: FormBuilderDropdown<int>(
-                    name: 'truckLoadStatusId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Status'),
-                    validator: FormBuilderValidators.required(
-                      errorText: 'Pick a status.',
-                    ),
-                    items: [
-                      for (final TruckLoadStatusType status in provider.statusTypes)
-                        DropdownMenuItem(
-                          value: status.id,
-                          child: Text(status.name, overflow: TextOverflow.ellipsis),
-                        ),
-                    ],
+                  child: _StatusReadout(
+                    status: widget.row?.statusName ?? 'Ordered',
                   ),
                 ),
                 const SizedBox(width: formFieldGap),
                 Expanded(
                   child: FormBuilderDateTimePicker(
                     name: 'loadDate',
+                    enabled: !_generalFieldsLocked,
                     inputType: InputType.date,
                     format: formFieldDateFormat,
-                    firstDate: DateTime(DateTime.now().year - 2),
-                    lastDate: DateTime(DateTime.now().year + 1, 12, 31),
+                    firstDate: DateTime(SarajevoTime.now().year - 2),
+                    lastDate: DateTime(SarajevoTime.now().year + 1, 12, 31),
                     decoration: appInputDecoration('Load date'),
                     validator: FormBuilderValidators.required(
                       errorText: 'A load needs a date.',
@@ -171,6 +175,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'emptyWeight',
+                    enabled: !_generalFieldsLocked,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: appInputDecoration('Empty weight', suffixText: 'kg'),
                     valueTransformer: (value) => value?.replaceAll(',', '.'),
@@ -193,6 +198,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'fullWeight',
+                    enabled: !_generalFieldsLocked,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: appInputDecoration('Full weight', suffixText: 'kg'),
                     valueTransformer: (value) => value?.replaceAll(',', '.'),
@@ -237,6 +243,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                   child: FormBuilderTextField(
                     name: 'driverName',
                     autofocus: _isNew,
+                    enabled: !_generalFieldsLocked,
                     decoration: appInputDecoration('Driver name'),
                     validator: FormBuilderValidators.required(
                       errorText: 'The driver needs a name.',
@@ -247,6 +254,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'driverSurname',
+                    enabled: !_generalFieldsLocked,
                     decoration: appInputDecoration('Driver surname'),
                     validator: FormBuilderValidators.required(
                       errorText: 'The driver needs a surname.',
@@ -261,6 +269,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                 Expanded(
                   child: FormBuilderTextField(
                     name: 'vehicleRegistration',
+                    enabled: !_generalFieldsLocked,
                     decoration: appInputDecoration(
                       'Registration',
                       hintText: 'A12-K-345',
@@ -274,6 +283,29 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
               ],
             ),
             const SizedBox(height: formFieldGap),
+            // Only ever hand-edited while Delivered - see _canEditPrice. Shown
+            // even when disabled, rather than hidden, so it is obvious where
+            // the invoice amount the "Finish transport" popup asks for ends up.
+            FormBuilderTextField(
+              name: 'price',
+              enabled: _canEditPrice,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: appInputDecoration(
+                'Invoice amount',
+                suffixText: 'EUR',
+                hintText: _canEditPrice ? null : 'Not set',
+              ),
+              valueTransformer: (value) => value?.replaceAll(',', '.'),
+              validator: FormBuilderValidators.compose([
+                FormBuilderValidators.numeric(
+                  errorText: 'The invoice amount must be a number.',
+                ),
+                FormBuilderValidators.min(
+                  0,
+                  errorText: 'The invoice amount cannot be negative.',
+                ),
+              ]),
+            ),
             const SizedBox(height: formFieldGap),
             FormBuilderTextField(
               name: 'note',
@@ -284,18 +316,23 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                 hintText: 'Anything the driver or the yard should know',
               ),
             ),
-            const SizedBox(height: 24),
-            const Divider(height: 1),
-            const SizedBox(height: 20),
-            _CargoSection(
-              lines: _lines,
-              loading: _loadingLines,
-              projects: provider.projects,
-              calculatedBrutoWeight: _calculatedBrutoWeight,
-              onAdd: _addLine,
-              onEdit: _editLine,
-              onRemove: _removeLine,
-            ),
+            // Cargo is never shown while making a new transport - it has to
+            // be saved once before anything can be loaded onto it.
+            if (!_isNew) ...[
+              const SizedBox(height: 24),
+              const Divider(height: 1),
+              const SizedBox(height: 20),
+              _CargoSection(
+                lines: _lines,
+                loading: _loadingLines,
+                editable: _canEditCargo,
+                projects: provider.projects,
+                calculatedBrutoWeight: _calculatedBrutoWeight,
+                onAdd: _addLine,
+                onEdit: _editLine,
+                onRemove: _removeLine,
+              ),
+            ],
           ],
         ),
       ),
@@ -365,10 +402,11 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
     });
 
     try {
+      final priceText = _trimToNull(values['price']);
+
       await widget.provider.saveTransport(
         id: widget.row?.id,
         transportCompanyId: values['transportCompanyId'] as int,
-        truckLoadStatusId: values['truckLoadStatusId'] as int,
         loadDate: values['loadDate'] as DateTime,
         driverName: (values['driverName'] as String).trim(),
         driverSurname: (values['driverSurname'] as String).trim(),
@@ -376,6 +414,7 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
         emptyWeight: double.parse(values['emptyWeight'] as String),
         fullWeight: double.parse(values['fullWeight'] as String),
         note: _trimToNull(values['note']),
+        price: priceText == null ? null : double.parse(priceText),
         lines: _lines,
         originalLines: _originalLines,
       );
@@ -429,12 +468,86 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
       error is ApiClientException ? error.message : '$fallback: $error';
 }
 
+/// What the field would be - actually changed from the transport overview
+/// screen, not here. Boxed the same as its neighbours so the row lines up;
+/// a dot and plain text rather than the table's pill, which is taller than a
+/// field's value line and threw the row off.
+class _StatusReadout extends StatelessWidget {
+  const _StatusReadout({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (_, accent) = TruckLoadStatusChip.colorsFor(status);
+
+    return InputDecorator(
+      decoration: appInputDecoration('Status'),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              status,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A transport Delivered, Finished or Rejected only ever has some of its
+/// fields changed here - everything else is quietly ignored by the API, so
+/// this says so up front rather than letting an edit look like it landed.
+class _LockedStatusBanner extends StatelessWidget {
+  const _LockedStatusBanner({required this.status});
+
+  final String status;
+
+  String get _message => switch (status) {
+        TruckLoadStatusRules.delivered =>
+          'This transport is "Delivered" - only its notes and invoice amount can be saved from here.',
+        _ => 'This transport is "$status" - only its notes can be saved from here.',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.warningSoft,
+        border: Border.all(color: AppColors.warningBorder),
+        borderRadius: BorderRadius.circular(AppSpacing.cardRadius),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, size: 18, color: AppColors.warning),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(_message, style: TextStyle(fontSize: 13, color: AppColors.warning)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// The projects on the truck, in the order they come off it. They are rows in
 /// `TruckLoadDetails`, so they are edited here and diffed when the form saves.
 class _CargoSection extends StatelessWidget {
   const _CargoSection({
     required this.lines,
     required this.loading,
+    required this.editable,
     required this.projects,
     required this.calculatedBrutoWeight,
     required this.onAdd,
@@ -444,6 +557,10 @@ class _CargoSection extends StatelessWidget {
 
   final List<TransportLine> lines;
   final bool loading;
+
+  /// Only while the load is still Ordered - see `TruckLoadStatusRules.canEditCargo`.
+  final bool editable;
+
   final List<Project> projects;
 
   /// The truck's own bruto capacity — full weight less the empty truck — so
@@ -489,21 +606,22 @@ class _CargoSection extends StatelessWidget {
                 ],
               ),
             ),
-            Tooltip(
-              message: projects.isEmpty
-                  ? 'There are no projects to load onto this truck yet.'
-                  : 'Add cargo',
-              child: OutlinedButton.icon(
-                onPressed: projects.isEmpty ? null : onAdd,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add cargo'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: BorderSide(color: AppColors.accent),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            if (editable)
+              Tooltip(
+                message: projects.isEmpty
+                    ? 'There are no projects to load onto this truck yet.'
+                    : 'Add cargo',
+                child: OutlinedButton.icon(
+                  onPressed: projects.isEmpty ? null : onAdd,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add cargo'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: formFieldGap),
@@ -530,8 +648,8 @@ class _CargoSection extends StatelessWidget {
           for (final (index, line) in lines.indexed) ...[
             _CargoLineTile(
               line: line,
-              onEdit: () => onEdit(index),
-              onRemove: () => onRemove(index),
+              onEdit: editable ? () => onEdit(index) : null,
+              onRemove: editable ? () => onRemove(index) : null,
             ),
             const SizedBox(height: 8),
           ],
@@ -602,13 +720,16 @@ class _OverweightWarning extends StatelessWidget {
 class _CargoLineTile extends StatelessWidget {
   const _CargoLineTile({
     required this.line,
-    required this.onEdit,
-    required this.onRemove,
+    this.onEdit,
+    this.onRemove,
   });
 
   final TransportLine line;
-  final VoidCallback onEdit;
-  final VoidCallback onRemove;
+
+  /// Null once the load has moved past Ordered - cargo is then read-only,
+  /// so neither editing nor removing it is offered any more.
+  final VoidCallback? onEdit;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -657,11 +778,12 @@ class _CargoLineTile extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: onRemove,
-                tooltip: 'Take off the truck',
-                icon: Icon(Icons.close, size: 18, color: AppColors.textMuted),
-              ),
+              if (onRemove != null)
+                IconButton(
+                  onPressed: onRemove,
+                  tooltip: 'Take off the truck',
+                  icon: Icon(Icons.close, size: 18, color: AppColors.textMuted),
+                ),
             ],
           ),
         ),
@@ -779,18 +901,19 @@ class _CargoLineDialogState extends State<_CargoLineDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FormBuilderDropdown<int>(
+                SearchableDropdownField<int>(
                   name: 'projectId',
-                  isExpanded: true,
-                  decoration: appInputDecoration('Project'),
+                  label: 'Project',
                   validator: FormBuilderValidators.required(
                     errorText: 'Pick what is being loaded.',
                   ),
-                  items: [
+                  // The project's code as well as its name, so "26-028"
+                  // finds it as fast as "Silo".
+                  entries: [
                     for (final project in widget.projects)
-                      DropdownMenuItem(
+                      DropdownMenuEntry(
                         value: project.id,
-                        child: Text(project.name, overflow: TextOverflow.ellipsis),
+                        label: '${project.code} - ${project.name}',
                       ),
                   ],
                 ),
@@ -863,27 +986,21 @@ class _CargoLineDialogState extends State<_CargoLineDialog> {
                     ),
                     const SizedBox(width: formFieldGap),
                     Expanded(
-                      child: FormBuilderDropdown<String>(
+                      child: SearchableDropdownField<String>(
                         name: 'unloadColor',
-                        isExpanded: true,
-                        decoration: appInputDecoration('Marking colour'),
-                        items: [
+                        label: 'Marking colour',
+                        entries: [
                           for (final entry in unloadColors.entries)
-                            DropdownMenuItem(
+                            DropdownMenuEntry(
                               value: entry.key,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: entry.value,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(entry.key),
-                                ],
+                              label: entry.key,
+                              leadingIcon: Container(
+                                width: 12,
+                                height: 12,
+                                decoration: BoxDecoration(
+                                  color: entry.value,
+                                  shape: BoxShape.circle,
+                                ),
                               ),
                             ),
                         ],

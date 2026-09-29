@@ -91,6 +91,7 @@ namespace pwm.Services.Database.Seed
 
             _projectStatuses =
             [
+                new ProjectStatusType { Name = "Potential" },
                 new ProjectStatusType { Name = "Delivered" },
                 new ProjectStatusType { Name = "In production" },
                 new ProjectStatusType { Name = "On hold" },
@@ -101,9 +102,9 @@ namespace pwm.Services.Database.Seed
             _truckLoadStatuses =
             [
                 new TruckLoadStatusType { Name = "Ordered" },
-                new TruckLoadStatusType { Name = "In transit" },
                 new TruckLoadStatusType { Name = "Delivered" },
                 new TruckLoadStatusType { Name = "Finished" },
+                new TruckLoadStatusType { Name = "Rejected" },
             ];
             await AddRangeAsync(_truckLoadStatuses);
 

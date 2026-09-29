@@ -1,8 +1,3 @@
-import 'dart:async';
-
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
 import '../models/active_session.dart';
 import '../models/operation_type.dart';
 import '../models/project.dart';
@@ -11,6 +6,12 @@ import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+
 
 /// Clock In / Clock Out, laid out as in `docs/mockups/mobile/Clockin clockout.png`:
 /// the session that is running on top, the form to start one underneath.
@@ -169,7 +170,7 @@ class _ActiveSessionCardState extends State<_ActiveSessionCard> {
       );
     }
 
-    final elapsed = session.elapsedAt(DateTime.now());
+    final elapsed = session.elapsedAt(SarajevoTime.now());
 
     return AppCard(
       padding: const EdgeInsets.all(16),
@@ -193,7 +194,7 @@ class _ActiveSessionCardState extends State<_ActiveSessionCard> {
           _DetailRow(
             icon: Icons.schedule_outlined,
             label: 'Start Time',
-            value: formatTime(apiTimeToLocal(session.startedAt)),
+            value: formatTime(session.startedAt),
           ),
           _DetailRow(
             icon: Icons.timer_outlined,

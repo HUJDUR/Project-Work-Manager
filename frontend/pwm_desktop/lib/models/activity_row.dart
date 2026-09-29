@@ -23,7 +23,6 @@ class ActivityRow {
   /// seeded `ActivityLogTypes` — already the full, human-readable description.
   final String activityTypeName;
 
-  /// As the API sent it — unspecified-but-actually-UTC. Run it through
-  /// `apiTimeToLocal` before showing it.
+  /// Sarajevo wall-clock time, like every date in the app - see `SarajevoTime`.
   final DateTime date;
 }

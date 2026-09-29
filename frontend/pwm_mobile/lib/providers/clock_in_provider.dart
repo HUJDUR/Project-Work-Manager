@@ -1,16 +1,17 @@
-import 'package:flutter/material.dart';
-
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/sarajevo_time.dart';
 import '../utils/shop_floor.dart';
 import 'auth_provider.dart';
 import 'base_provider.dart';
 import 'operation_type_provider.dart';
+import 'package:flutter/material.dart';
 import 'project_provider.dart';
 import 'project_status_type_provider.dart';
 import 'user_operation_provider.dart';
 import 'work_log_detail_provider.dart';
 import 'work_log_provider.dart';
+
 
 enum ClockInStatus { idle, loading, ready, failed }
 
@@ -52,7 +53,7 @@ class ClockInProvider extends ChangeNotifier {
         _operationTypes = operationTypes ?? OperationTypeProvider(),
         _userOperations = userOperations ?? UserOperationProvider(),
         _userId = userId ?? AuthProvider.user?.id,
-        _clock = clock ?? DateTime.now;
+        _clock = clock ?? SarajevoTime.now;
 
   /// The status whose projects may be booked against — the same definition the
   /// Projects tab lists by, kept in one place.
@@ -198,7 +199,7 @@ class ClockInProvider extends ChangeNotifier {
         'userId': userId,
         'operationTypeId': operationId,
         'projectId': projectId,
-        'startedAt': now.toIso8601String(),
+        'startedAt': SarajevoTime.toApi(now),
         'finishedAt': null,
         'hours': 0,
       });
@@ -234,8 +235,8 @@ class ClockInProvider extends ChangeNotifier {
         'userId': userId,
         'operationTypeId': session.block.operationTypeId,
         'projectId': session.block.projectId,
-        'startedAt': session.startedAt.toIso8601String(),
-        'finishedAt': now.toIso8601String(),
+        'startedAt': SarajevoTime.toApi(session.startedAt),
+        'finishedAt': SarajevoTime.toApi(now),
         'hours': hours,
       });
 
@@ -250,8 +251,8 @@ class ClockInProvider extends ChangeNotifier {
 
       await _workLogs.update(shift.id, {
         'userId': userId,
-        'clockedIn': shift.clockedIn.toIso8601String(),
-        'clockedOut': now.toIso8601String(),
+        'clockedIn': SarajevoTime.toApi(shift.clockedIn),
+        'clockedOut': SarajevoTime.toApi(now),
         'hours': double.parse(total.toStringAsFixed(2)),
       });
 
@@ -292,7 +293,7 @@ class ClockInProvider extends ChangeNotifier {
     if (existing == null) {
       return await _workLogs.insert({
         'userId': userId,
-        'clockedIn': now.toIso8601String(),
+        'clockedIn': SarajevoTime.toApi(now),
         'clockedOut': null,
         'hours': 0,
       });
@@ -304,7 +305,7 @@ class ClockInProvider extends ChangeNotifier {
 
     return await _workLogs.update(existing.id, {
       'userId': userId,
-      'clockedIn': existing.clockedIn.toIso8601String(),
+      'clockedIn': SarajevoTime.toApi(existing.clockedIn),
       // Back on the clock: the day is not over after all.
       'clockedOut': null,
       'hours': existing.hours,

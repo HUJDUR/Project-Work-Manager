@@ -1,41 +1,49 @@
-import 'package:flutter/material.dart';
-
 import '../models/models.dart';
-import '../utils/app_roles.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/app_roles.dart';
+import '../utils/sarajevo_time.dart';
 import 'base_provider.dart';
 import 'operation_type_provider.dart';
+import 'package:flutter/material.dart';
 import 'project_provider.dart';
 import 'user_provider.dart';
 import 'user_type_provider.dart';
+import 'work_hours_api_provider.dart';
 import 'work_log_detail_provider.dart';
 import 'work_log_provider.dart';
 
+
 enum WorkHoursStatusState { idle, loading, ready, failed }
 
+/// The "hours" dropdown. [apiName] is what `GET /WorkLogDetail/Hours` takes.
 enum WorkHoursFilter {
-  regularOnly('Regular hours only'),
-  overtimeOnly('Overtime hours only'),
-  inProgressOnly('In progress only');
+  regularOnly('Regular hours only', 'RegularOnly'),
+  overtimeOnly('Overtime hours only', 'OvertimeOnly'),
+  inProgressOnly('In progress only', 'InProgressOnly');
 
-  const WorkHoursFilter(this.label);
+  const WorkHoursFilter(this.label, this.apiName);
 
   final String label;
+  final String apiName;
 }
 
-/// Rows come from `WorkLogDetail`, but the worker, project and operation names
-/// live in three other tables and regular/overtime is not stored at all, so the
-/// whole screen is assembled here.
+/// The Work Hours screen. The rows - joined to their worker, project and
+/// operation, split into regular and overtime, and filtered - come ready-made
+/// from `GET /WorkLogDetail/Hours`; changing a filter asks the API again rather
+/// than narrowing a downloaded table. The lookups loaded alongside only feed the
+/// filter and form dropdowns.
 class WorkHoursProvider extends ChangeNotifier {
   WorkHoursProvider({
     int? initialProjectId,
+    BaseProvider<WorkHoursEntry>? hours,
     BaseProvider<WorkLog>? workLogs,
     BaseProvider<WorkLogDetail>? workLogDetails,
     BaseProvider<User>? users,
     BaseProvider<UserType>? userTypes,
     BaseProvider<Project>? projects,
     BaseProvider<OperationType>? operationTypes,
-  })  : _workLogs = workLogs ?? WorkLogProvider(),
+  })  : _hours = hours ?? WorkHoursApiProvider(),
+        _workLogs = workLogs ?? WorkLogProvider(),
         _workLogDetails = workLogDetails ?? WorkLogDetailProvider(),
         _users = users ?? UserProvider(),
         _userTypes = userTypes ?? UserTypeProvider(),
@@ -46,8 +54,10 @@ class WorkHoursProvider extends ChangeNotifier {
         _projectId = initialProjectId;
 
   /// A worker's day is regular up to this many hours; the rest is overtime.
+  /// Mirrors `WorkLogDetailService.RegularHoursPerDay`, which does the split.
   static const double regularHoursPerDay = 8;
 
+  final BaseProvider<WorkHoursEntry> _hours;
   final BaseProvider<WorkLog> _workLogs;
   final BaseProvider<WorkLogDetail> _workLogDetails;
   final BaseProvider<User> _users;
@@ -57,10 +67,14 @@ class WorkHoursProvider extends ChangeNotifier {
 
   WorkHoursStatusState _status = WorkHoursStatusState.idle;
   String? _errorMessage;
-  List<WorkHoursEntry> _allEntries = const [];
+  List<WorkHoursEntry> _entries = const [];
   List<Project> _projectList = const [];
   List<User> _workerList = const [];
   List<OperationType> _operationList = const [];
+
+  /// Bumped per entries request, so an older answer arriving after a newer
+  /// one (filters changed quickly) is dropped instead of overwriting it.
+  int _request = 0;
 
   String _search = '';
   int? _projectId;
@@ -83,67 +97,40 @@ class WorkHoursProvider extends ChangeNotifier {
   bool get hasFilters =>
       _search.isNotEmpty || _projectId != null || _dateRange != null || _hoursFilter != null;
 
-  List<WorkHoursEntry> get entries {
-    final needle = _search.trim().toLowerCase();
+  /// Every row the filters match, newest first.
+  List<WorkHoursEntry> get entries => _entries;
 
-    return _allEntries.where((entry) {
-      if (needle.isNotEmpty && !entry.workerName.toLowerCase().contains(needle)) {
-        return false;
-      }
-      if (_projectId != null && entry.projectId != _projectId) return false;
-      switch (_hoursFilter) {
-        case WorkHoursFilter.regularOnly:
-          if (entry.isOvertime) return false;
-        case WorkHoursFilter.overtimeOnly:
-          if (!entry.isOvertime) return false;
-        case WorkHoursFilter.inProgressOnly:
-          if (entry.status != WorkHoursStatus.inProgress) return false;
-        case null:
-          break;
-      }
+  double get totalHours => _entries.fold(0, (sum, entry) => sum + entry.totalHours);
+  double get regularHours => _entries.fold(0, (sum, entry) => sum + entry.regularHours);
+  double get overtimeHours => _entries.fold(0, (sum, entry) => sum + entry.overtimeHours);
+  int get workerCount => _entries.map((entry) => entry.userId).toSet().length;
 
-      final range = _dateRange;
-      if (range != null) {
-        final day = DateUtils.dateOnly(entry.date);
-        if (day.isBefore(DateUtils.dateOnly(range.start))) return false;
-        if (day.isAfter(DateUtils.dateOnly(range.end))) return false;
-      }
-
-      return true;
-    }).toList();
-  }
-
-  double get totalHours => entries.fold(0, (sum, entry) => sum + entry.totalHours);
-  double get regularHours => entries.fold(0, (sum, entry) => sum + entry.regularHours);
-  double get overtimeHours => entries.fold(0, (sum, entry) => sum + entry.overtimeHours);
-  int get workerCount => entries.map((entry) => entry.userId).toSet().length;
-
-  void setSearch(String value) {
+  Future<void> setSearch(String value) {
     _search = value;
-    notifyListeners();
+    return _reloadEntries();
   }
 
-  void setProject(int? id) {
+  Future<void> setProject(int? id) {
     _projectId = id;
-    notifyListeners();
+    return _reloadEntries();
   }
 
-  void setDateRange(DateTimeRange? range) {
+  Future<void> setDateRange(DateTimeRange? range) {
     _dateRange = range;
-    notifyListeners();
+    return _reloadEntries();
   }
 
-  void setHoursFilter(WorkHoursFilter? value) {
+  Future<void> setHoursFilter(WorkHoursFilter? value) {
     _hoursFilter = value;
-    notifyListeners();
+    return _reloadEntries();
   }
 
-  void clearFilters() {
+  Future<void> clearFilters() {
     _search = '';
     _projectId = null;
     _dateRange = null;
     _hoursFilter = null;
-    notifyListeners();
+    return _reloadEntries();
   }
 
   Future<void> load() async {
@@ -153,35 +140,21 @@ class WorkHoursProvider extends ChangeNotifier {
 
     try {
       final results = await Future.wait([
-        _rows(_workLogs),
-        _rows(_workLogDetails),
-        _rows(_users),
-        _rows(_userTypes),
-        _rows(_projects),
-        _rows(_operationTypes),
+        _projects.getAll(),
+        _userTypes.getAll(),
+        _operationTypes.getAll(),
+        _fetchEntries(),
       ]);
 
-      final workLogs = results[0] as List<WorkLog>;
-      final details = results[1] as List<WorkLogDetail>;
-      final users = results[2] as List<User>;
-      final userTypes = results[3] as List<UserType>;
-      final projects = results[4] as List<Project>;
-      final operations = results[5] as List<OperationType>;
+      final projects = results[0] as List<Project>;
+      final userTypes = results[1] as List<UserType>;
+      final operations = results[2] as List<OperationType>;
+      _entries = results[3] as List<WorkHoursEntry>;
 
       _projectList = [...projects]..sort((a, b) => a.name.compareTo(b.name));
       _operationList = [...operations]..sort((a, b) => a.name.compareTo(b.name));
+      _workerList = await _activeWorkers(userTypes);
 
-      final workerTypeId = userTypes
-          .where((type) => type.type == AppRoles.productionWorker)
-          .map((type) => type.id)
-          .firstOrNull;
-      _workerList = users
-          .where((user) =>
-              user.isActive && (workerTypeId == null || user.userTypeId == workerTypeId))
-          .toList()
-        ..sort((a, b) => a.fullName.compareTo(b.fullName));
-
-      _allEntries = _buildEntries(workLogs, details, users, projects, operations);
       _status = WorkHoursStatusState.ready;
     } on ApiClientException catch (error) {
       _errorMessage = error.message;
@@ -194,60 +167,56 @@ class WorkHoursProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// A whole lookup table, paged through by [BaseProvider.getAll] because the
-  /// API caps how many rows one request may return.
-  Future<List<E>> _rows<E>(BaseProvider<E> provider) => provider.getAll();
+  /// The workers a new entry can be booked for: active production workers,
+  /// filtered by the API rather than out of the whole user table.
+  Future<List<User>> _activeWorkers(List<UserType> userTypes) async {
+    final workerTypeId = userTypes
+        .where((type) => type.type == AppRoles.productionWorker)
+        .map((type) => type.id)
+        .firstOrNull;
 
-  List<WorkHoursEntry> _buildEntries(
-    List<WorkLog> workLogs,
-    List<WorkLogDetail> details,
-    List<User> users,
-    List<Project> projects,
-    List<OperationType> operations,
-  ) {
-    final workLogById = {for (final log in workLogs) log.id: log};
-    final userById = {for (final user in users) user.id: user};
-    final projectById = {for (final project in projects) project.id: project};
-    final operationById = {for (final operation in operations) operation.id: operation};
+    final users = await _users.getAll(filter: {
+      'isActive': true,
+      'userTypeId': ?workerTypeId,
+    });
 
-    // Overtime is whatever a worker books past eight hours on a given day, so
-    // the split depends on the other rows of that day and on their order.
-    final ordered = [...details]..sort((a, b) => a.startedAt.compareTo(b.startedAt));
-    final usedPerWorkerDay = <String, double>{};
+    return [...users]..sort((a, b) => a.fullName.compareTo(b.fullName));
+  }
 
-    final entries = <WorkHoursEntry>[];
-    for (final detail in ordered) {
-      final workLog = workLogById[detail.workLogId];
-      final worker = userById[detail.userId];
-      final day = DateUtils.dateOnly(detail.startedAt);
-      final key = '${detail.userId}-${day.toIso8601String()}';
+  Future<List<WorkHoursEntry>> _fetchEntries() {
+    final range = _dateRange;
 
-      final used = usedPerWorkerDay[key] ?? 0;
-      final regular = (regularHoursPerDay - used).clamp(0, detail.hours).toDouble();
-      usedPerWorkerDay[key] = used + detail.hours;
+    return _hours.getAll(filter: {
+      if (_search.trim().isNotEmpty) 'search': _search.trim(),
+      'projectId': ?_projectId,
+      if (range != null) 'dateFrom': DateUtils.dateOnly(range.start),
+      if (range != null) 'dateTo': DateUtils.dateOnly(range.end),
+      'hoursFilter': ?_hoursFilter?.apiName,
+    });
+  }
 
-      entries.add(WorkHoursEntry(
-        id: detail.id,
-        workLogId: detail.workLogId,
-        userId: detail.userId,
-        projectId: detail.projectId,
-        operationTypeId: detail.operationTypeId,
-        workerName: worker?.fullName ?? 'Unknown worker',
-        workerInitials: worker?.initials ?? '?',
-        projectName: projectById[detail.projectId]?.name ?? 'Unknown project',
-        operationName: operationById[detail.operationTypeId]?.name ?? 'Unknown operation',
-        date: detail.startedAt,
-        startedAt: detail.startedAt,
-        finishedAt: detail.finishedAt,
-        regularHours: regular,
-        overtimeHours: detail.hours - regular,
-        status: detail.finishedAt == null || workLog?.clockedOut == null
-            ? WorkHoursStatus.inProgress
-            : WorkHoursStatus.completed,
-      ));
+  Future<void> _reloadEntries() async {
+    final request = ++_request;
+    notifyListeners();
+
+    try {
+      final entries = await _fetchEntries();
+      if (request != _request) return;
+
+      _entries = entries;
+      _errorMessage = null;
+      _status = WorkHoursStatusState.ready;
+    } on ApiClientException catch (error) {
+      if (request != _request) return;
+      _errorMessage = error.message;
+      _status = WorkHoursStatusState.failed;
+    } catch (error) {
+      if (request != _request) return;
+      _errorMessage = 'Something went wrong while loading work hours: $error';
+      _status = WorkHoursStatusState.failed;
     }
 
-    return entries.reversed.toList();
+    notifyListeners();
   }
 
   /// Inserts when [id] is null and updates otherwise. Adding writes the shift
@@ -266,8 +235,8 @@ class WorkHoursProvider extends ChangeNotifier {
 
     final shift = {
       'userId': userId,
-      'clockedIn': startedAt.toIso8601String(),
-      'clockedOut': finishedAt.toIso8601String(),
+      'clockedIn': SarajevoTime.toApi(startedAt),
+      'clockedOut': SarajevoTime.toApi(finishedAt),
       'hours': hours,
     };
 
@@ -280,8 +249,8 @@ class WorkHoursProvider extends ChangeNotifier {
       'userId': userId,
       'operationTypeId': operationTypeId,
       'projectId': projectId,
-      'startedAt': startedAt.toIso8601String(),
-      'finishedAt': finishedAt.toIso8601String(),
+      'startedAt': SarajevoTime.toApi(startedAt),
+      'finishedAt': SarajevoTime.toApi(finishedAt),
       'hours': hours,
     };
 
@@ -292,15 +261,8 @@ class WorkHoursProvider extends ChangeNotifier {
     }
   }
 
-  /// Removes the block, and the shift with it when nothing else was booked
-  /// against it - a shift with no work on it is not a record of anything.
-  Future<void> deleteWorkHours(WorkHoursEntry entry) async {
-    await _workLogDetails.remove(entry.id);
-
-    final siblings = _allEntries
-        .where((other) => other.workLogId == entry.workLogId && other.id != entry.id);
-    if (siblings.isEmpty) {
-      await _workLogs.remove(entry.workLogId);
-    }
-  }
+  /// Removes the block; the API drops the shift with it when nothing else was
+  /// booked against it, in the same save.
+  Future<void> deleteWorkHours(WorkHoursEntry entry) =>
+      _workLogDetails.remove(entry.id);
 }

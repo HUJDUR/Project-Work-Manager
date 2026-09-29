@@ -1,8 +1,9 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../utils/sarajevo_time.dart';
 
 part 'work_log.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(converters: [ApiDateTimeConverter()])
 class WorkLog {
   const WorkLog({
     required this.id,

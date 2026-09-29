@@ -21,5 +21,7 @@ namespace pwm.Model.Responses
         public double FullWeight { get; set; }
 
         public string? Note { get; set; }
+
+        public decimal? Price { get; set; }
     }
 }

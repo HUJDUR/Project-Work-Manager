@@ -1,15 +1,16 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_form_builder/flutter_form_builder.dart';
-import 'package:form_builder_validators/form_builder_validators.dart';
-
 import '../models/models.dart';
 import '../providers/work_hours_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:form_builder_validators/form_builder_validators.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
+
 
 /// One booked block of work, new or existing. Pops `'reload'` once it has
 /// written. Both timestamps are `NOT NULL` in the schema, so the form always
@@ -57,7 +58,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
 
   /// A shift that has not been booked yet starts at seven this morning.
   static DateTime _defaultStart() {
-    final today = DateUtils.dateOnly(DateTime.now());
+    final today = DateUtils.dateOnly(SarajevoTime.now());
     return today.add(const Duration(hours: 7));
   }
 
@@ -80,56 +81,49 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            FormBuilderDropdown<int>(
+            SearchableDropdownField<int>(
               name: 'userId',
-              isExpanded: true,
-              decoration: appInputDecoration('Worker'),
+              label: 'Worker',
               validator: FormBuilderValidators.required(
                 errorText: 'Pick who worked these hours.',
               ),
-              items: [
+              entries: [
                 for (final User worker in provider.workers)
-                  DropdownMenuItem(
-                    value: worker.id,
-                    child: Text(worker.fullName, overflow: TextOverflow.ellipsis),
-                  ),
+                  DropdownMenuEntry(value: worker.id, label: worker.fullName),
               ],
             ),
             const SizedBox(height: formFieldGap),
             Row(
               children: [
                 Expanded(
-                  child: FormBuilderDropdown<int>(
+                  child: SearchableDropdownField<int>(
                     name: 'projectId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Project'),
+                    label: 'Project',
                     validator: FormBuilderValidators.required(
                       errorText: 'Pick the project worked on.',
                     ),
-                    items: [
+                    // The project's code as well as its name, so "26-028"
+                    // finds it as fast as "Silo".
+                    entries: [
                       for (final Project project in provider.projects)
-                        DropdownMenuItem(
+                        DropdownMenuEntry(
                           value: project.id,
-                          child: Text(project.name, overflow: TextOverflow.ellipsis),
+                          label: '${project.code} - ${project.name}',
                         ),
                     ],
                   ),
                 ),
                 const SizedBox(width: formFieldGap),
                 Expanded(
-                  child: FormBuilderDropdown<int>(
+                  child: SearchableDropdownField<int>(
                     name: 'operationTypeId',
-                    isExpanded: true,
-                    decoration: appInputDecoration('Operation'),
+                    label: 'Operation',
                     validator: FormBuilderValidators.required(
                       errorText: 'Pick the operation.',
                     ),
-                    items: [
+                    entries: [
                       for (final OperationType operation in provider.operationTypes)
-                        DropdownMenuItem(
-                          value: operation.id,
-                          child: Text(operation.name, overflow: TextOverflow.ellipsis),
-                        ),
+                        DropdownMenuEntry(value: operation.id, label: operation.name),
                     ],
                   ),
                 ),
@@ -143,8 +137,8 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
                     name: 'date',
                     inputType: InputType.date,
                     format: formFieldDateFormat,
-                    firstDate: DateTime(DateTime.now().year - 2),
-                    lastDate: DateTime.now().add(const Duration(days: 1)),
+                    firstDate: DateTime(SarajevoTime.now().year - 2),
+                    lastDate: SarajevoTime.now().add(const Duration(days: 1)),
                     decoration: appInputDecoration('Date'),
                     validator: FormBuilderValidators.required(
                       errorText: 'Pick the day worked.',

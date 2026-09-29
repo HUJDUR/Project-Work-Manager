@@ -8,6 +8,9 @@ import 'package:pwm_desktop/screens/recommendations_screen.dart';
 import 'package:pwm_desktop/utils/api_client_exception.dart';
 
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows) : super('Fake');
 
   final List<T> rows;

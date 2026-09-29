@@ -25,15 +25,16 @@ namespace pwm.Services.Database.Seed
             {
                 CreateTruckLoad("TransBalkan Logistika d.o.o.", "Senad", "Alispahic", "A12-K-345",
                     daysAgo: 13, emptyWeight: 14200, fullWeight: 26650.5, status: "Finished",
-                    note: "Loaded through the north gate, customs cleared in Tuzla."),
+                    note: "Loaded through the north gate, customs cleared in Tuzla.",
+                    price: 1850.00m),
 
                 CreateTruckLoad("Euro Spedicija d.o.o.", "Ivica", "Maric", "ZG-4417-BK",
                     daysAgo: 5, emptyWeight: 13800, fullWeight: 17620, status: "Delivered",
                     note: null),
 
                 CreateTruckLoad("TransBalkan Logistika d.o.o.", "Mladen", "Peric", "T88-J-902",
-                    daysAgo: 2, emptyWeight: 14050, fullWeight: 15690.75, status: "In transit",
-                    note: "Partial load, second truck follows on Monday."),
+                    daysAgo: 2, emptyWeight: 14050, fullWeight: 15690.75, status: "Rejected",
+                    note: "Rejected - the customer's dock could not take an oversized load that week."),
 
                 CreateTruckLoad("Euro Spedicija d.o.o.", "Fahrudin", "Salkic", "E31-M-119",
                     daysAgo: 0, emptyWeight: 13950, fullWeight: 16160, status: "Ordered",
@@ -44,11 +45,12 @@ namespace pwm.Services.Database.Seed
                 .Where(c => c.CompanyTypeId == FindCompanyType("Transport").Id)
                 .ToArray();
 
-            var statuses = new[] { "Ordered", "In transit", "Delivered", "Finished" };
+            var statuses = new[] { "Ordered", "Delivered", "Finished", "Rejected" };
 
             for (var i = 0; i < 16; i++)
             {
                 var emptyWeight = _random.Next(13500, 14500);
+                var status = statuses[i % statuses.Length];
 
                 loads.Add(CreateTruckLoad(
                     Pick(carriers).Name,
@@ -58,8 +60,13 @@ namespace pwm.Services.Database.Seed
                     daysAgo: _random.Next(1, 60),
                     emptyWeight: emptyWeight,
                     fullWeight: emptyWeight + _random.Next(800, 12000) + Math.Round(_random.NextDouble(), 2),
-                    status: statuses[i % statuses.Length],
-                    note: null));
+                    status: status,
+                    note: null,
+                    // Only a Finished load ever carries an invoice amount - see
+                    // TruckLoadStatusRules.CanEditPrice.
+                    price: status == "Finished"
+                        ? (decimal?)Math.Round(600 + _random.NextDouble() * 2400, 2)
+                        : null));
             }
 
             _truckLoads = loads.ToArray();
@@ -107,7 +114,8 @@ namespace pwm.Services.Database.Seed
             double emptyWeight,
             double fullWeight,
             string status,
-            string? note)
+            string? note,
+            decimal? price = null)
         {
             return new TruckLoad
             {
@@ -120,6 +128,7 @@ namespace pwm.Services.Database.Seed
                 EmptyWeight = emptyWeight,
                 FullWeight = fullWeight,
                 Note = note,
+                Price = price,
             };
         }
 

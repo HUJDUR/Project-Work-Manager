@@ -25,7 +25,6 @@ namespace pwm.Services.Validators
                 .MaximumLength(20);
 
             RuleFor(x => x.TransportCompanyId).GreaterThan(0).WithMessage("Pick a carrier.");
-            RuleFor(x => x.TruckLoadStatusId).GreaterThan(0).WithMessage("Pick a status.");
 
             RuleFor(x => x.EmptyWeight)
                 .GreaterThanOrEqualTo(0).WithMessage("Empty weight cannot be negative.");
@@ -33,6 +32,10 @@ namespace pwm.Services.Validators
             RuleFor(x => x.FullWeight)
                 .GreaterThanOrEqualTo(x => x.EmptyWeight)
                 .WithMessage("Full weight cannot be below the empty weight.");
+
+            RuleFor(x => x.Price)
+                .GreaterThan(0).WithMessage("The invoice amount cannot be zero or negative.")
+                .When(x => x.Price != null);
         }
     }
 
@@ -53,7 +56,6 @@ namespace pwm.Services.Validators
                 .MaximumLength(20);
 
             RuleFor(x => x.TransportCompanyId).GreaterThan(0).WithMessage("Pick a carrier.");
-            RuleFor(x => x.TruckLoadStatusId).GreaterThan(0).WithMessage("Pick a status.");
 
             RuleFor(x => x.EmptyWeight)
                 .GreaterThanOrEqualTo(0).WithMessage("Empty weight cannot be negative.");
@@ -61,6 +63,10 @@ namespace pwm.Services.Validators
             RuleFor(x => x.FullWeight)
                 .GreaterThanOrEqualTo(x => x.EmptyWeight)
                 .WithMessage("Full weight cannot be below the empty weight.");
+
+            RuleFor(x => x.Price)
+                .GreaterThan(0).WithMessage("The invoice amount cannot be zero or negative.")
+                .When(x => x.Price != null);
         }
     }
 }

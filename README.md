@@ -42,9 +42,12 @@ on the row. The desktop app polls `GET /Report/{id}/Status` until it reads
    cp backend/.env.example backend/.env
    ```
 
-   `DB_PASSWORD` is the SQL Server `sa` password; `JWT_SECRET` signs the
-   access tokens the API issues. Both are read by `docker-compose.yml` and by
-   `pwm.WebAPI/Program.cs` (`LoadDotEnvFile`) from the same file.
+   Every setting lives in this one file - the database, JWT, RabbitMQ and
+   the worker's missed clock-out watchdog; `appsettings.json` holds only
+   logging. `DB_PASSWORD` is the SQL Server `sa` password and `JWT_SECRET`
+   signs the access tokens the API issues. `docker-compose.yml` loads the file
+   into the `api` and `worker` containers, and a host-run process reads it via
+   `EnvironmentConfig.LoadDotEnvFile`.
 
 2. Start SQL Server, RabbitMQ, the API and the report-generation worker:
 
@@ -125,26 +128,18 @@ name pools, or query the `Users` table after seeding.
 
 ### Notes
 
-- The connection string in `appsettings.json` carries everything except the
-  password, which always comes from `.env`/`DB_PASSWORD`.
-- `pwm.WebAPI/DevSettings.BypassAuthenticationRequested` must stay `false`
-  outside a local, throwaway debugging session — flipping it on turns off
-  every `[Authorization]` check for the whole API. It only ever takes effect
-  under `ASPNETCORE_ENVIRONMENT=Development`, so leaving it on by mistake
-  cannot disable auth in a deployed environment.
+- The connection string is built from `.env`'s `DB_SERVER`, `DB_NAME`,
+  `DB_USER` and `DB_PASSWORD` (`EnvironmentConfig.BuildConnectionString`).
 - `pwm.WebAPI` and `pwm.Worker` are each built from their own Dockerfile with
   build context `backend/pwm` (both need their sibling projects visible to
   restore). After changing anything either depends on, rebuild it with
   `docker compose up -d --build api` / `--build worker`.
-- Nothing about RabbitMQ - host, port, credentials, queue name - lives in
-  `appsettings.json`; all five `RabbitMq:*` values come from `.env` (see
-  `.env.example`). Host and port differ by how a process reaches the broker:
-  a host-run `dotnet run --project pwm.WebAPI` uses `.env`'s `localhost:5672`
-  (the container's port is published to the host); the `api`/`worker`
-  containers instead get `rabbitmq:5672` directly from `docker-compose.yml`,
-  since that is compose-network topology rather than something `.env` should
-  own. The credentials and queue name are the same either way, so both read
-  those from `.env`.
+- `.env` holds host-side addresses (`localhost` and the published ports),
+  which a host-run `dotnet run` uses. Inside the compose network the
+  containers reach SQL Server and RabbitMQ by service name instead, so
+  `docker-compose.yml` overrides only `DB_SERVER`, `RabbitMq__HostName` and
+  `RabbitMq__Port` (the `x-in-network` block) - everything else comes from
+  `.env` unchanged.
 
 ## Frontend
 
@@ -156,9 +151,11 @@ flutter pub get
 flutter run
 ```
 
-Both apps default to `http://localhost:7094/` for the API (see
-`lib/providers/base_provider.dart`). Override it at run time if needed:
+The API address is read from `API_BASE_URL` (`String.fromEnvironment` in
+`lib/providers/base_provider.dart`). The desktop app defaults to
+`http://localhost:7094`, and the mobile app to `http://10.0.2.2:7094` on the
+Android emulator (its alias for the host machine). Override it at run time:
 
 ```
-flutter run --dart-define=baseUrl=http://localhost:7094/
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:7094
 ```

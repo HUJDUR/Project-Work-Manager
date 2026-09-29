@@ -321,17 +321,19 @@ class TruckLoadStatusChip extends StatelessWidget {
   /// on a white card and a dark one alike.
   static const _palette = <String, Color>{
     'ordered': _neutral,
-    'in transit': Color(0xFF2563EB),
-    'delivered': Color(0xFF6D3EDB),
+    'delivered': Color(0xFF2563EB),
     'finished': Color(0xFF107A4D),
+    'rejected': Color(0xFFB91C1C),
   };
 
   final String status;
 
+  static (Color background, Color foreground) colorsFor(String status) =>
+      AppColors.chip(_palette[status.toLowerCase()] ?? _neutral);
+
   @override
   Widget build(BuildContext context) {
-    final (background, foreground) =
-        AppColors.chip(_palette[status.toLowerCase()] ?? _neutral);
+    final (background, foreground) = colorsFor(status);
 
     return Align(
       alignment: Alignment.centerLeft,

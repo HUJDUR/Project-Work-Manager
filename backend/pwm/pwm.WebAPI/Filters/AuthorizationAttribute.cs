@@ -26,11 +26,6 @@ namespace pwm.WebAPI.Filters
 
             public void OnAuthorization(AuthorizationFilterContext context)
             {
-                if (DevSettings.BypassAuthentication)
-                {
-                    return;
-                }
-
                 var role = context.HttpContext.User.Claims
                     .FirstOrDefault(c => c.Type == ClaimNames.Role)?.Value;
 

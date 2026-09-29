@@ -1,17 +1,18 @@
-import 'dart:io';
-
-import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:printing/printing.dart';
-import 'package:provider/provider.dart';
-
 import '../layouts/window_chrome.dart';
 import '../models/models.dart';
 import '../providers/reports_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
+import 'dart:io';
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:printing/printing.dart';
+import 'package:provider/provider.dart';
+
+
 
 /// Generates the two PDFs and lists what has been run before, laid out as in
 /// `docs/mockups/desktop/Reports.png`.
@@ -482,7 +483,7 @@ class _DateRangeField extends StatelessWidget {
   /// there is never data past today to report on. Every "last …" preset is a
   /// full, wholly-past period.
   static DateTimeRange _rangeFor(_DatePreset preset) {
-    final now = DateTime.now();
+    final now = SarajevoTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final startOfThisWeek = today.subtract(Duration(days: today.weekday - 1));
 
@@ -505,7 +506,7 @@ class _DateRangeField extends StatelessWidget {
   }
 
   Future<void> _pickCustom(BuildContext context) async {
-    final now = DateTime.now();
+    final now = SarajevoTime.now();
     final picked = await pickDateRange(
       context,
       initialDateRange: provider.dateRange,
@@ -895,7 +896,7 @@ class _RecentTile extends StatelessWidget {
                     report.generatedAt == null
                         ? report.generatedByName
                         : '${report.generatedByName} · '
-                            '${formatRelative(apiTimeToLocal(report.generatedAt!))}',
+                            '${formatRelative(report.generatedAt!)}',
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
                   ),

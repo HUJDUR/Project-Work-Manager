@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import 'sarajevo_time.dart';
 
 final _dayMonth = DateFormat('d MMM');
 final _weekdayDayMonth = DateFormat('EEE, d MMM');
@@ -25,38 +26,13 @@ String formatDayLabel(DateTime date) => _weekdayDayMonth.format(date);
 
 String formatFullDate(DateTime date) => _dayMonthYear.format(date);
 
-/// A timestamp from the API, as local time.
-///
-/// The API now forces every `DateTime` it serialises to carry a `Z` (see
-/// `UtcDateTimeConverter` on the backend), so a value read from the wire
-/// arrives with `isUtc == true` and the first branch below is the one that
-/// actually runs. The second branch is a leftover safety net for anything
-/// that predates that fix or was parsed some other way - a naive value is
-/// still assumed to be UTC (the backend's own convention) rather than
-/// already-local, which is the mistake this function exists to undo. Call
-/// this wherever a stamp is shown as a *time*, not only where something
-/// counts backwards from now; a bare *date* rarely needs it, but a clock
-/// reading does. The desktop app carries the same helper for the same reason.
-DateTime apiTimeToLocal(DateTime value) => value.isUtc
-    ? value.toLocal()
-    : DateTime.utc(
-        value.year,
-        value.month,
-        value.day,
-        value.hour,
-        value.minute,
-        value.second,
-        value.millisecond,
-        value.microsecond,
-      ).toLocal();
-
 /// How long ago something happened, for a list read top-down where the exact
 /// minute does not matter — "12 min ago", "3 h ago", then a plain date once it
 /// is a week old and "ago" stops meaning anything useful. The desktop's
 /// `formatRelative` is the same function; a stamp should not read two ways
 /// across the two apps.
 String formatRelative(DateTime date, {DateTime? now}) {
-  final reference = now ?? DateTime.now();
+  final reference = now ?? SarajevoTime.now();
   final difference = reference.difference(date);
 
   if (difference.isNegative) return formatDate(date);

@@ -1,16 +1,18 @@
-import 'dart:async';
-
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
 import '../models/models.dart';
 import '../providers/transports_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'transport_details_screen.dart';
+import 'transport_overview_screen.dart';
 import 'widgets/search_field.dart';
 import 'widgets/transports_table.dart';
+
+
 
 /// Every truck load with its carrier, driver and weights, laid out as in
 /// `docs/mockups/desktop/Transports.png`.
@@ -41,20 +43,34 @@ class TransportScreen extends StatelessWidget {
   }
 }
 
-/// Opens one load — or a blank form when [row] is null — and refetches once the
-/// details screen reports it wrote something.
+/// Books a blank load and refetches once the details screen reports it wrote
+/// something.
 Future<void> openTransportDetails(
   BuildContext context,
-  TransportsProvider provider, {
-  TransportRow? row,
-}) async {
+  TransportsProvider provider,
+) async {
   final result = await Navigator.of(context).push<String>(
     MaterialPageRoute(
-      builder: (_) => TransportDetailsScreen(provider: provider, row: row),
+      builder: (_) => TransportDetailsScreen(provider: provider),
     ),
   );
 
   if (result == 'reload') await provider.refresh();
+}
+
+/// Opens one load's read-only overview - the same split Project Details
+/// already has. Its own "Edit Transport" button is the only way into
+/// [TransportDetailsScreen] from here.
+void openTransportOverview(
+  BuildContext context,
+  TransportsProvider provider,
+  TransportRow row,
+) {
+  Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => TransportOverviewScreen(provider: provider, row: row),
+    ),
+  );
 }
 
 class _Body extends StatelessWidget {
@@ -76,7 +92,7 @@ class _Body extends StatelessWidget {
           Expanded(
             child: TransportsTable(
               provider: provider,
-              onRowTap: (row) => openTransportDetails(context, provider, row: row),
+              onRowTap: (row) => openTransportOverview(context, provider, row),
             ),
           ),
         ],
@@ -246,7 +262,7 @@ class _DateRangeField extends StatelessWidget {
   }
 
   Future<void> _pick(BuildContext context) async {
-    final now = DateTime.now();
+    final now = SarajevoTime.now();
     final picked = await pickDateRange(
       context,
       initialDateRange: provider.dateRange,

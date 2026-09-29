@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using pwm.Common.Services.Hosting;
 using pwm.Model.Access;
 using pwm.Model.Exceptions;
 using pwm.Services.Interfaces;
@@ -20,8 +21,8 @@ namespace pwm.WebAPI.Services.AccessManager
         private readonly IActivityLogService _activityLogService;
         private readonly INotificationService _notificationService;
         private readonly string _jwtSecret;
-        private readonly string? _jwtIssuer;
-        private readonly string? _jwtAudience;
+        private readonly string _jwtIssuer;
+        private readonly string _jwtAudience;
         private readonly int _accessTokenDurationInMinutes;
         private readonly int _refreshTokenDurationInDays;
 
@@ -29,26 +30,21 @@ namespace pwm.WebAPI.Services.AccessManager
             IUserService userService,
             IRefreshTokenService refreshTokenService,
             IActivityLogService activityLogService,
-            INotificationService notificationService,
-            IConfiguration configuration)
+            INotificationService notificationService)
         {
             _userService = userService;
             _refreshTokenService = refreshTokenService;
             _activityLogService = activityLogService;
             _notificationService = notificationService;
 
-            // The signing key is a secret, so it comes from JWT_SECRET in backend/.env
-            // alone - the same resolution Program.cs's AddJwtAuthentication uses to
-            // validate the tokens this issues, never from appsettings.json. Read once
-            // here rather than on every token issued.
-            _jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
-                ?? throw new InvalidOperationException("JWT_SECRET is not set - add it to backend/.env.");
-            _jwtIssuer = configuration["JwtToken:Issuer"];
-            _jwtAudience = configuration["JwtToken:Audience"];
-            _accessTokenDurationInMinutes =
-                int.TryParse(configuration["JwtToken:DurationInMinutes"], out var minutes) ? minutes : 60;
-            _refreshTokenDurationInDays =
-                int.TryParse(configuration["JwtToken:RefreshTokenDurationInDays"], out var days) ? days : 7;
+            // All from backend/.env - the same values Program.cs's AddJwtAuthentication
+            // validates the tokens this issues against. Read once here rather than on
+            // every token issued.
+            _jwtSecret = EnvironmentConfig.Require("JWT_SECRET");
+            _jwtIssuer = EnvironmentConfig.Require("JwtToken__Issuer");
+            _jwtAudience = EnvironmentConfig.Require("JwtToken__Audience");
+            _accessTokenDurationInMinutes = int.Parse(EnvironmentConfig.Require("JwtToken__DurationInMinutes"));
+            _refreshTokenDurationInDays = int.Parse(EnvironmentConfig.Require("JwtToken__RefreshTokenDurationInDays"));
         }
 
         public async Task<UserLoginResponse> LoginAsync(UserLoginRequest request)
@@ -66,13 +62,12 @@ namespace pwm.WebAPI.Services.AccessManager
                 throw new ClientException("Incorrect email/username or password.");
             }
 
-            var response = await IssueTokensAsync(authenticated);
-
             // Recorded here, not inside IssueTokensAsync: LoginWithRefreshTokenAsync shares
-            // that method too, and a silent token refresh is not a fresh "Log In".
+            // that method too, and a silent token refresh is not a fresh "Log In". Staged
+            // first, so the refresh-token rotation's own save commits it alongside.
             await _activityLogService.RecordAsync(authenticated.User.Id, ActivityLogTypeNames.LogIn);
 
-            return response;
+            return await IssueTokensAsync(authenticated);
         }
 
         public async Task<UserLoginResponse> LoginWithRefreshTokenAsync(RefreshAccessTokenRequest request)
@@ -111,15 +106,12 @@ namespace pwm.WebAPI.Services.AccessManager
                 : await _refreshTokenService.GetStoredTokenAsync(request.RefreshToken);
 
             // Signing out with an already unknown token is not an error
+            // SignOutAsync also bumps the token version, so the access token this
+            // session was still holding - unexpired, and otherwise usable - is rejected
+            // by OnTokenValidated on its very next use, not only once it expires.
             if (stored != null)
             {
-                await _refreshTokenService.DeleteAllUserRefreshTokensAsync(stored.UserId);
-                // Bumps the account's token version, so the access token this session
-                // was still holding - unexpired, and otherwise perfectly usable - is
-                // rejected by OnTokenValidated on its very next use, not just when it
-                // eventually expires on its own.
-                await _userService.RevokeTokensAsync(stored.UserId);
-                await _activityLogService.RecordAsync(stored.UserId, ActivityLogTypeNames.LogOut);
+                await _userService.SignOutAsync(stored.UserId);
             }
         }
 

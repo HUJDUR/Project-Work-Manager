@@ -5,18 +5,20 @@ import 'package:provider/provider.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
-import 'layouts/master_screen.dart';
 import 'providers/providers.dart';
 import 'screens/login_screen.dart';
 import 'utils/app_theme.dart';
 
-/// Set this to true only for a local, throwaway debugging session, to skip
-/// [LoginScreen] and open straight on [MasterScreen] as the seeded
-/// administrator — the API side has its own switch,
-/// `pwm.WebAPI/DevSettings.BypassAuthentication`, which must stay off too.
-const bool bypassLogin = false;
-const String _devEmail = 'nadir.hujdur@pwm.ba';
-const String _devPassword = 'test';
+/// The root navigator, so an expired session can return to sign-in from
+/// wherever the user is - see [AuthProvider.expireSession].
+final _navigatorKey = GlobalKey<NavigatorState>();
+
+void _returnToSignIn() => _navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(notice: AuthProvider.sessionExpiredMessage),
+      ),
+      (route) => false,
+    );
 
 /// The window the app opens in. The OS title bar is hidden because the app draws
 /// its own into the top bar - see `layouts/window_chrome.dart`.
@@ -31,6 +33,7 @@ const _windowOptions = WindowOptions(
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AuthProvider.onSessionExpired = _returnToSignIn;
   await windowManager.ensureInitialized();
 
   // Shown only once it is sized, positioned and stripped of its title bar, so
@@ -108,45 +111,12 @@ class PwmDesktopApp extends StatelessWidget {
 
     return MaterialApp(
       title: 'Project Work Manager',
+      navigatorKey: _navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: mode,
-      home: bypassLogin ? _SignedInAsAdmin() : LoginScreen(),
-    );
-  }
-}
-
-/// TEMPORARY companion to [bypassLogin]: signs in as the seeded administrator in
-/// the background so the top bar and any future role checks have a real user, and
-/// opens the app either way — with the API's own bypass on, no token is needed.
-class _SignedInAsAdmin extends StatefulWidget {
-  const _SignedInAsAdmin();
-
-  @override
-  State<_SignedInAsAdmin> createState() => _SignedInAsAdminState();
-}
-
-class _SignedInAsAdminState extends State<_SignedInAsAdmin> {
-  late final Future<void> _signIn;
-
-  @override
-  void initState() {
-    super.initState();
-    _signIn = context
-        .read<AuthProvider>()
-        .login(_devEmail, _devPassword)
-        .catchError((_) {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<void>(
-      future: _signIn,
-      builder: (context, snapshot) =>
-          snapshot.connectionState == ConnectionState.done
-              ? MasterScreen()
-              : const Scaffold(body: Center(child: CircularProgressIndicator())),
+      home: LoginScreen(),
     );
   }
 }
