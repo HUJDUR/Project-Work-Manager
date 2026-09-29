@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
+using pwm.Services.Business;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
 
@@ -55,7 +56,7 @@ namespace pwm.Services.Implementations
             var pastProjects = await _dbContext.Projects
                 .Include(x => x.ProjectStatus)
                 .Where(x => x.ProjectCategoryId == category.Id)
-                .Where(x => x.ProjectStatus.Name == "Delivered")
+                .Where(x => x.ProjectStatus.Name == ProjectStatusRules.Delivered)
                 .ToListAsync();
 
             if (pastProjects.Count < MinSampleSize)

@@ -2,6 +2,13 @@ using pwm.Model.Enums;
 
 namespace pwm.Model.Requests
 {
+    /// <summary>
+    /// Deliberately carries neither <c>ProjectStatusId</c> nor
+    /// <c>ProductionStartDate</c>: a project always starts life "Potential" and
+    /// reaches the shop floor only through <c>ProjectController.ChangeStatus</c>,
+    /// which is also the only thing that ever sets <c>ProductionStartDate</c>.
+    /// This request cannot express either, on insert or on update.
+    /// </summary>
     public class ProjectInsertRequest
     {
         public int CustomerId { get; set; }
@@ -26,10 +33,6 @@ namespace pwm.Model.Requests
         public int? DeliveryCompanyId { get; set; }
 
         public DateTime CreationDate { get; set; }
-
-        public DateTime? ProductionStartDate { get; set; }
-
-        public int ProjectStatusId { get; set; }
 
         /// <summary>Who raised the project.</summary>
         public int CreatedByUserId { get; set; }

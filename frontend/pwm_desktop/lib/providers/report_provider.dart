@@ -1,22 +1,26 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import 'package:http/http.dart' as http;
-
 import '../models/generated_report.dart';
 import '../models/report_queue_state.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/sarajevo_time.dart';
 import 'base_provider.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+
+
 
 /// The `/Report` endpoints. Generating one no longer answers the PDF directly -
 /// `pwm.Worker` is a separate process, off RabbitMQ, that renders it - so a
 /// request here only ever queues the row and hands back its id; poll [status]
 /// until it says "Completed", then [download]. It rides on [BaseProvider] for
 /// the auth header, the one-shot refresh after a 401 and the API's own error
-/// messages, but the type parameter is only there to satisfy the base class -
-/// [fromJson] is unused.
+/// messages.
 class ReportProvider extends BaseProvider<GeneratedReport> {
   ReportProvider() : super('Report');
+
+  @override
+  GeneratedReport fromJson(dynamic data) =>
+      GeneratedReport.fromJson(data as Map<String, dynamic>);
 
   /// Hours per worker for one month, split into regular and overtime.
   Future<ReportQueueState> monthlyWorkHours({
@@ -40,8 +44,8 @@ class ReportProvider extends BaseProvider<GeneratedReport> {
   }) =>
       _post('TransportLoads', {
         'projectId': projectId,
-        'dateFrom': dateFrom?.toIso8601String(),
-        'dateTo': dateTo?.toIso8601String(),
+        'dateFrom': dateFrom == null ? null : SarajevoTime.toApi(dateFrom),
+        'dateTo': dateTo == null ? null : SarajevoTime.toApi(dateTo),
       });
 
   /// What [monthlyWorkHours]/[transportLoads] is up to right now.

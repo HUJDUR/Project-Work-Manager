@@ -24,10 +24,12 @@ namespace pwm.Services.Database
         public DbSet<ProjectStatusType> ProjectStatusTypes { get; set; }
         public DbSet<TruckLoadStatusType> TruckLoadStatusTypes { get; set; }
         public DbSet<Project> Projects { get; set; }
+        public DbSet<ProjectStatusChange> ProjectStatusChanges { get; set; }
         public DbSet<WorkLog> WorkLogs { get; set; }
         public DbSet<WorkLogDetail> WorkLogDetails { get; set; }
         public DbSet<TruckLoad> TruckLoads { get; set; }
         public DbSet<TruckLoadDetail> TruckLoadDetails { get; set; }
+        public DbSet<TruckLoadStatusChange> TruckLoadStatusChanges { get; set; }
         public DbSet<ReportType> ReportTypes { get; set; }
         public DbSet<GeneratedReport> GeneratedReports { get; set; }
         public DbSet<MonthlyHourReport> MonthlyHourReports { get; set; }
@@ -63,12 +65,14 @@ namespace pwm.Services.Database
             modelBuilder.Entity<ProjectStatusType>().ToTable("ProjectStatusTypes");
             modelBuilder.Entity<TruckLoadStatusType>().ToTable("TruckLoadStatusTypes");
             modelBuilder.Entity<Project>().ToTable("Projects");
+            modelBuilder.Entity<ProjectStatusChange>().ToTable("ProjectStatusChanges");
 
             modelBuilder.Entity<WorkLog>().ToTable("WorkLogs");
             modelBuilder.Entity<WorkLogDetail>().ToTable("WorkLogDetails");
 
             modelBuilder.Entity<TruckLoad>().ToTable("TruckLoads");
             modelBuilder.Entity<TruckLoadDetail>().ToTable("TruckLoadDetails");
+            modelBuilder.Entity<TruckLoadStatusChange>().ToTable("TruckLoadStatusChanges");
 
             modelBuilder.Entity<ReportType>().ToTable("ReportTypes");
             modelBuilder.Entity<GeneratedReport>().ToTable("GeneratedReports");
@@ -223,6 +227,37 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Cascade, not Restrict: every project writes at least one of these
+            // (its own creation), so Restrict here would make a project
+            // permanently undeletable - its status history is not independently
+            // meaningful once the project itself is gone.
+            modelBuilder.Entity<ProjectStatusChange>()
+                .HasOne(x => x.Project)
+                .WithMany()
+                .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProjectStatusChange>()
+                .HasOne(x => x.FromStatus)
+                .WithMany()
+                .HasForeignKey(x => x.FromStatusId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ProjectStatusChange>()
+                .HasOne(x => x.ToStatus)
+                .WithMany()
+                .HasForeignKey(x => x.ToStatusId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Restrict, same reasoning as ActivityLog/WorkLog.User: this is audit
+            // history, not personal data that should vanish with the account.
+            modelBuilder.Entity<ProjectStatusChange>()
+                .HasOne(x => x.ChangedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.ChangedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Restrict, not Cascade: a WorkLog is a shift the shop paid for, not
             // personal data that should vanish with the account. Hard-deleting a User
             // who has ever clocked in is refused rather than silently erasing their
@@ -289,6 +324,37 @@ namespace pwm.Services.Database
                 .HasOne(x => x.Project)
                 .WithMany()
                 .HasForeignKey(x => x.ProjectId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Cascade, not Restrict: every load writes at least one of these
+            // (its own creation), so Restrict here would make a load
+            // permanently undeletable - its status history is not independently
+            // meaningful once the load itself is gone.
+            modelBuilder.Entity<TruckLoadStatusChange>()
+                .HasOne(x => x.TruckLoad)
+                .WithMany()
+                .HasForeignKey(x => x.TruckLoadId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<TruckLoadStatusChange>()
+                .HasOne(x => x.FromStatus)
+                .WithMany()
+                .HasForeignKey(x => x.FromStatusId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TruckLoadStatusChange>()
+                .HasOne(x => x.ToStatus)
+                .WithMany()
+                .HasForeignKey(x => x.ToStatusId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Restrict, same reasoning as ProjectStatusChange.ChangedByUser: this
+            // is audit history, not personal data that should vanish with the account.
+            modelBuilder.Entity<TruckLoadStatusChange>()
+                .HasOne(x => x.ChangedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.ChangedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<MonthlyHourReportDetail>()

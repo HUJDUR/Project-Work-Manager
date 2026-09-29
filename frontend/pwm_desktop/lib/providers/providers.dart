@@ -1,5 +1,6 @@
 export 'auth_provider.dart';
 export 'base_provider.dart';
+export 'dashboard_api_provider.dart';
 export 'dashboard_provider.dart';
 export 'activities_provider.dart';
 export 'activity_log_provider.dart';

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using pwm.Common.Services.CryptoService;
+using pwm.Common.Services.Time;
 
 namespace pwm.Services.Database.Seed
 {
@@ -16,8 +17,9 @@ namespace pwm.Services.Database.Seed
         private readonly ICryptoService _cryptoService;
 
         // Anchor for all generated dates, so a seeded database always looks
-        // like it has been in use up to today.
-        private readonly DateTime _today = DateTime.UtcNow.Date;
+        // like it has been in use up to today. Sarajevo's today: every date the
+        // seeder makes up is Sarajevo wall-clock time until AddRangeAsync stores it.
+        private readonly DateTime _today = SarajevoTime.Today;
 
         private Country[] _countries = [];
         private City[] _cities = [];
@@ -66,6 +68,7 @@ namespace pwm.Services.Database.Seed
             await SeedProjectsAsync();
             await SeedWorkLogsAsync();
             await SeedTruckLoadsAsync();
+            await SeedStatusHistoryAsync();
             await SeedMonthlyHourReportsAsync();
             await SeedGeneratedReportsAsync();
             await SeedNotificationsAsync();
@@ -85,11 +88,13 @@ namespace pwm.Services.Database.Seed
             await _db.ReportTypes.ExecuteDeleteAsync();
             await _db.MonthlyHourReportDetails.ExecuteDeleteAsync();
             await _db.MonthlyHourReports.ExecuteDeleteAsync();
+            await _db.TruckLoadStatusChanges.ExecuteDeleteAsync();
             await _db.TruckLoadDetails.ExecuteDeleteAsync();
             await _db.TruckLoads.ExecuteDeleteAsync();
             await _db.TruckLoadStatusTypes.ExecuteDeleteAsync();
             await _db.WorkLogDetails.ExecuteDeleteAsync();
             await _db.WorkLogs.ExecuteDeleteAsync();
+            await _db.ProjectStatusChanges.ExecuteDeleteAsync();
             await _db.Projects.ExecuteDeleteAsync();
             await _db.ProjectStatusTypes.ExecuteDeleteAsync();
             await _db.ProjectCategories.ExecuteDeleteAsync();
@@ -121,8 +126,37 @@ namespace pwm.Services.Database.Seed
 
         private async Task AddRangeAsync<T>(T[] entities) where T : class
         {
+            foreach (var entity in entities)
+            {
+                StoreDatesAsUtc(entity);
+            }
+
             await _db.Set<T>().AddRangeAsync(entities);
             await _db.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// The seeder writes its dates the way the shop reads them - "07:00 on a
+        /// weekday" is 07:00 in Sarajevo - and the database stores UTC, so every
+        /// date is converted once, here, on its way in. A value that is already UTC
+        /// (one taken from <see cref="DateTime.UtcNow"/>, or copied from a row this
+        /// has already stored) is left alone, which is what its Kind says.
+        /// </summary>
+        private static void StoreDatesAsUtc(object entity)
+        {
+            foreach (var property in entity.GetType().GetProperties())
+            {
+                if (!property.CanWrite
+                    || (property.PropertyType != typeof(DateTime) && property.PropertyType != typeof(DateTime?)))
+                {
+                    continue;
+                }
+
+                if (property.GetValue(entity) is DateTime value && value.Kind != DateTimeKind.Utc)
+                {
+                    property.SetValue(entity, SarajevoTime.ToUtc(value));
+                }
+            }
         }
 
         // Weekdays only, counting back from today

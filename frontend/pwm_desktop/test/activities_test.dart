@@ -9,6 +9,9 @@ import 'package:pwm_desktop/utils/app_roles.dart';
 /// Stands in for one controller, applying the search object it is handed the
 /// way the backend would — which is what pins the contract the provider sends.
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows) : super('Fake');
 
   final List<T> rows;

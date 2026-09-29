@@ -14,11 +14,15 @@ import '../utils/dialogs.dart';
 /// Sign-in. Every other screen needs the token this one fetches, so it is what
 /// `main` opens on.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, this.onSignedIn});
+  const LoginScreen({super.key, this.onSignedIn, this.notice});
 
   /// Where to go once the token is in hand. Defaults to the app frame; a test
   /// passes its own so signing in does not start loading dashboards.
   final VoidCallback? onSignedIn;
+
+  /// Why the user is here again, shown until they try to sign in - e.g.
+  /// [AuthProvider.sessionExpiredMessage].
+  final String? notice;
 
   static const _wideLayoutFrom = 880.0;
   static const _cardWidth = 900.0;
@@ -34,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
-  String? _errorMessage;
+  late String? _errorMessage = widget.notice;
 
   @override
   void dispose() {

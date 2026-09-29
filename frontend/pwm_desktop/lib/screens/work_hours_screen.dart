@@ -1,16 +1,19 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
 import '../models/models.dart';
 import '../providers/work_hours_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'widgets/clear_filters_button.dart';
 import 'widgets/search_field.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/work_hours_table.dart';
 import 'work_hours_details_screen.dart';
+
+
 
 /// Opens one block of hours - or a blank form when [entry] is null - and
 /// reloads once the details screen reports it wrote something.
@@ -186,15 +189,26 @@ class _FilterBar extends StatefulWidget {
 class _FilterBarState extends State<_FilterBar> {
   final _searchController = TextEditingController();
 
+  /// Each search asks the API, so typing waits for a pause first - as on the
+  /// projects screen.
+  Timer? _debounce;
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
   void _clearFilters() {
+    _debounce?.cancel();
     _searchController.clear();
     widget.provider.clearFilters();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () => widget.provider.setSearch(value));
   }
 
   @override
@@ -211,7 +225,7 @@ class _FilterBarState extends State<_FilterBar> {
           child: SearchField(
             controller: _searchController,
             hintText: 'Search workers...',
-            onChanged: provider.setSearch,
+            onChanged: _onSearchChanged,
           ),
         ),
         const SizedBox(width: 12),
@@ -308,7 +322,7 @@ class _DateRangeField extends StatelessWidget {
   }
 
   Future<void> _pick(BuildContext context) async {
-    final now = DateTime.now();
+    final now = SarajevoTime.now();
     final picked = await pickDateRange(
       context,
       initialDateRange: provider.dateRange,

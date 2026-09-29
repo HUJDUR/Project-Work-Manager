@@ -1,19 +1,22 @@
+import '../models/page_result.dart';
+import '../utils/api_client_exception.dart';
+import '../utils/sarajevo_time.dart';
+import 'auth_provider.dart';
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/http.dart';
 
-import '../models/page_result.dart';
-import '../utils/api_client_exception.dart';
-import 'auth_provider.dart';
+
 
 abstract class BaseProvider<T> with ChangeNotifier {
-  /// Must end in a slash: routes are built as `{baseUrl}{endpoint}`.
-  static const String baseUrl = String.fromEnvironment(
-    "baseUrl",
-    defaultValue: "http://localhost:7094/",
-  );
+  /// Set with `--dart-define=API_BASE_URL=...`. Routes are built as
+  /// `{baseUrl}{endpoint}`, so a missing trailing slash is added here.
+  static const String _configuredBaseUrl =
+      String.fromEnvironment("API_BASE_URL", defaultValue: "http://localhost:7094/");
+
+  static final String baseUrl =
+      _configuredBaseUrl.endsWith('/') ? _configuredBaseUrl : '$_configuredBaseUrl/';
 
   /// The largest page the API will serve: `BaseSearchObject.MaxPageSize` clamps
   /// anything bigger, so asking for a whole table in one request does not work.
@@ -120,7 +123,9 @@ abstract class BaseProvider<T> with ChangeNotifier {
   }
 
   /// Sends the request, and once the access token has expired, retries it with a
-  /// fresh one rather than making the user sign in again mid-session.
+  /// fresh one rather than making the user sign in again mid-session. A 401 that
+  /// survives that - the refresh token was refused too, or the session was
+  /// signed out elsewhere - ends the session and returns to sign-in.
   @protected
   Future<Response> send(Future<Response> Function(Map<String, String> headers) request) async {
     var response = await request(createHeaders());
@@ -129,12 +134,14 @@ abstract class BaseProvider<T> with ChangeNotifier {
       response = await request(createHeaders());
     }
 
+    if (response.statusCode == 401) {
+      AuthProvider.expireSession();
+    }
+
     return response;
   }
 
-  T fromJson(dynamic data) {
-    throw Exception("Method not implemented");
-  }
+  T fromJson(dynamic data);
 
   /// Throws [ApiClientException] with a message from the API when status is not successful.
   void validateResponse(Response response) {
@@ -193,7 +200,7 @@ abstract class BaseProvider<T> with ChangeNotifier {
         }
         query += '$prefix$key=$encoded';
       } else if (value is DateTime) {
-        query += '$prefix$key=${value.toIso8601String()}';
+        query += '$prefix$key=${Uri.encodeComponent(SarajevoTime.toApi(value))}';
       } else if (value is List || value is Map) {
         if (value is List) value = value.asMap();
         value.forEach((k, v) {

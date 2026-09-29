@@ -163,8 +163,8 @@ class _EntryCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 formatTimeRange(
-                  apiTimeToLocal(entry.startedAt),
-                  entry.finishedAt == null ? null : apiTimeToLocal(entry.finishedAt!),
+                  entry.startedAt,
+                  entry.finishedAt,
                 ),
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),

@@ -1,14 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:pwm_desktop/models/models.dart';
+import 'package:pwm_desktop/providers/auth_provider.dart';
 import 'package:pwm_desktop/providers/base_provider.dart';
 import 'package:pwm_desktop/providers/transports_provider.dart';
+import 'package:pwm_desktop/providers/truck_load_provider.dart';
+import 'package:pwm_desktop/screens/transport_overview_screen.dart';
 import 'package:pwm_desktop/screens/transport_screen.dart';
+import 'package:pwm_desktop/utils/app_roles.dart';
+import 'package:pwm_desktop/utils/sarajevo_time.dart';
+
+/// The status panel reads `AuthProvider` - every screen test that can reach
+/// it needs it in the tree, the same way `project_overview_test.dart`
+/// already provides it.
+Widget _wrapped(Widget child) => ChangeNotifierProvider(
+      create: (_) => AuthProvider(),
+      child: MaterialApp(home: child),
+    );
 
 /// Stands in for one controller. Filtering, sorting and paging belong to the
 /// API, so the fake applies the search object it is handed the way the backend
 /// would — which is what pins the contract the provider sends.
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows, {this.matches}) : super('Fake');
 
   final List<T> rows;
@@ -56,6 +73,57 @@ class _FakeProvider<T> extends BaseProvider<T> {
 
   @override
   Future remove(int id) async => removed.add(id);
+
+  @override
+  Future<T> getById(int id) async => rows.firstWhere((row) => (row as dynamic).id == id);
+}
+
+/// The `truckLoads:` fake, wrapping a `_FakeProvider<TruckLoad>` for the
+/// plain CRUD it already knows how to fake, and adding the status-change
+/// endpoints `TruckLoadProvider` carries beyond a bare `BaseProvider`.
+class _FakeTruckLoadProvider extends TruckLoadProvider {
+  _FakeTruckLoadProvider(this._inner);
+
+  final _FakeProvider<TruckLoad> _inner;
+
+  /// Every status-change call, so a test can read back what was asked for.
+  final List<(int id, int statusId, double? price)> statusChanges = [];
+
+  List<Map<String, dynamic>> get requests => _inner.requests;
+  List<Map<String, dynamic>> get inserted => _inner.inserted;
+  List<(int, Map<String, dynamic>)> get updated => _inner.updated;
+  List<int> get removed => _inner.removed;
+
+  @override
+  Future<PageResult<TruckLoad>> get({dynamic filter}) => _inner.get(filter: filter);
+
+  @override
+  Future<TruckLoad> getById(int id) => _inner.getById(id);
+
+  @override
+  Future<TruckLoad> insert(dynamic request) => _inner.insert(request);
+
+  @override
+  Future<TruckLoad> update(int id, [dynamic request]) => _inner.update(id, request);
+
+  @override
+  Future remove(int id) => _inner.remove(id);
+
+  @override
+  Future<TruckLoad> changeStatus(int id, int newStatusId, {double? price}) async {
+    statusChanges.add((id, newStatusId, price));
+    return _inner.getById(id);
+  }
+
+  @override
+  Future<List<TruckLoadStatusChangeEntry>> statusHistory(int id) async => [
+        TruckLoadStatusChangeEntry(
+          id: 1,
+          toStatusName: 'Ordered',
+          changedByName: 'Nadir Hujdur',
+          changedAt: DateTime.utc(2026, 8, 30, 7),
+        ),
+      ];
 }
 
 DateTime _day(int daysAgo) =>
@@ -273,10 +341,10 @@ bool _applyLoadFilters(TruckLoad load, Map<String, dynamic> filter) {
   if (statusId != null && load.truckLoadStatusId != statusId) return false;
 
   final from = filter['dateFrom'] as String?;
-  if (from != null && load.loadDate.isBefore(DateTime.parse(from))) return false;
+  if (from != null && load.loadDate.isBefore(SarajevoTime.fromApi(from))) return false;
 
   final to = filter['dateTo'] as String?;
-  if (to != null && load.loadDate.isAfter(DateTime.parse(to))) return false;
+  if (to != null && load.loadDate.isAfter(SarajevoTime.fromApi(to))) return false;
 
   return true;
 }
@@ -286,11 +354,13 @@ bool _applyDetailFilters(TruckLoadDetail detail, Map<String, dynamic> filter) {
   return truckLoadId == null || detail.truckLoadId == truckLoadId;
 }
 
-late _FakeProvider<TruckLoad> _loadRows;
+late _FakeProvider<TruckLoad> _loadRowsInner;
+late _FakeTruckLoadProvider _loadRows;
 late _FakeProvider<TruckLoadDetail> _detailRows;
 
 TransportsProvider _fakeTransports() {
-  _loadRows = _FakeProvider(_loads, matches: _applyLoadFilters);
+  _loadRowsInner = _FakeProvider(_loads, matches: _applyLoadFilters);
+  _loadRows = _FakeTruckLoadProvider(_loadRowsInner);
   _detailRows = _FakeProvider(_details, matches: _applyDetailFilters);
 
   return TransportsProvider(
@@ -305,7 +375,7 @@ TransportsProvider _fakeTransports() {
       TruckLoadStatusType(id: 1, name: 'Ordered'),
       TruckLoadStatusType(id: 2, name: 'Delivered'),
       TruckLoadStatusType(id: 3, name: 'Finished'),
-      TruckLoadStatusType(id: 4, name: 'In transit'),
+      TruckLoadStatusType(id: 4, name: 'Rejected'),
     ]),
     projects: _FakeProvider(_projects),
     projectStatusTypes: _FakeProvider(const [
@@ -320,6 +390,23 @@ Map<String, dynamic> _lastPageRequest() => _loadRows.requests
     .lastWhere((request) => request['pageSize'] == TransportsProvider.pageSize);
 
 void main() {
+  setUp(() {
+    AuthProvider.user = const User(
+      id: 1,
+      name: 'Nadir',
+      surname: 'Hujdur',
+      email: 'admin@pwm.ba',
+      userTypeId: 1,
+      isActive: true,
+    );
+    AuthProvider.role = 'Admin';
+  });
+
+  tearDown(() {
+    AuthProvider.user = null;
+    AuthProvider.role = '';
+  });
+
   group('TransportsProvider', () {
     late TransportsProvider provider;
 
@@ -333,7 +420,7 @@ void main() {
 
       final row = provider.rows.firstWhere((row) => row.id == 1);
       expect(row.carrierName, 'TransBalkan Logistika');
-      expect(row.statusName, 'In transit');
+      expect(row.statusName, 'Rejected');
       expect(row.driverFullName, 'Senad Alispahic');
       expect(row.vehicleRegistration, 'A12-K-345');
       // The ids ride along so the details form can prefill.
@@ -390,9 +477,9 @@ void main() {
       );
 
       final request = _lastPageRequest();
-      expect(DateTime.parse(request['dateFrom'] as String), _day(3));
+      expect(SarajevoTime.fromApi(request['dateFrom'] as String), _day(3));
       expect(
-        DateTime.parse(request['dateTo'] as String),
+        SarajevoTime.fromApi(request['dateTo'] as String),
         _day(2).add(const Duration(hours: 23, minutes: 59, seconds: 59)),
       );
       expect(provider.rows.map((row) => row.id), [2, 3]);
@@ -457,7 +544,6 @@ void main() {
         () async {
       await provider.saveTransport(
         transportCompanyId: 2,
-        truckLoadStatusId: 1,
         loadDate: DateTime(2026, 9, 1),
         driverName: 'Senad',
         driverSurname: 'Alispahic',
@@ -480,8 +566,9 @@ void main() {
 
       final body = _loadRows.inserted.single;
       expect(body['transportCompanyId'], 2);
-      expect(body['truckLoadStatusId'], 1);
-      expect(body['loadDate'], '2026-09-01T00:00:00.000');
+      expect(body.containsKey('truckLoadStatusId'), isFalse);
+      // Sarajevo midnight, sent as the UTC instant it names (CEST, UTC+2).
+      expect(body['loadDate'], '2026-08-31T22:00:00.000Z');
       expect(body['vehicleRegistration'], 'A12-K-345');
       expect(body['fullWeight'], 26650.5);
       expect(body['note'], 'Wide load.');
@@ -502,7 +589,6 @@ void main() {
       await provider.saveTransport(
         id: 1,
         transportCompanyId: 3,
-        truckLoadStatusId: 5,
         loadDate: DateTime(2026, 9, 1),
         driverName: 'Senad',
         driverSurname: 'Alispahic',
@@ -527,7 +613,7 @@ void main() {
 
       final (id, body) = _loadRows.updated.single;
       expect(id, 1);
-      expect(body['truckLoadStatusId'], 5);
+      expect(body.containsKey('truckLoadStatusId'), isFalse);
       expect(_loadRows.inserted, isEmpty);
 
       // The kept line is put back, the new one inserted, the dropped one gone.
@@ -634,8 +720,10 @@ void main() {
     expect(find.text('Load date'), findsOneWidget);
     expect(find.text('Empty weight'), findsOneWidget);
     expect(find.text('Full weight'), findsOneWidget);
-    expect(find.text('Cargo'), findsOneWidget);
-    expect(find.text('Nothing loaded yet.'), findsOneWidget);
+    // Cargo is never shown while making a new transport - the load has to
+    // be saved once before anything can be loaded onto it.
+    expect(find.text('Cargo'), findsNothing);
+    expect(find.text('Nothing loaded yet.'), findsNothing);
     // Adding cannot delete, and an empty form refuses to save.
     expect(find.text('Delete'), findsNothing);
 
@@ -646,32 +734,44 @@ void main() {
     expect(_loadRows.inserted, isEmpty);
   });
 
-  testWidgets('tapping a row opens that load with its cargo already on it',
+  testWidgets(
+      'tapping a row opens the transport overview with its cargo already on it',
       (tester) async {
     tester.view.physicalSize = const Size(1600, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: TransportScreen(providerFactory: _fakeTransports)),
+    await tester.pumpWidget(_wrapped(
+      Scaffold(body: TransportScreen(providerFactory: _fakeTransports)),
     ));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('TR-0001'));
     await tester.pumpAndSettle();
 
-    // The title is the load, and an existing load can be deleted.
-    expect(find.text('TR-0001'), findsOneWidget);
+    // The overview reads, it does not edit - the cargo is fetched for the
+    // load that was opened, not for the page.
+    expect(find.text('Transport Details'), findsOneWidget);
+    expect(find.text('Senad Alispahic'), findsOneWidget);
+    expect(find.text('Hall roof structure'), findsOneWidget);
+    expect(find.text('Cladding panels'), findsOneWidget);
+
+    // "Edit Transport" is the only way into the edit form - and TR-0001 is
+    // Rejected, so it opens locked to everything but its notes.
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Edit Transport'));
+    await tester.pumpAndSettle();
+
     expect(find.widgetWithText(OutlinedButton, 'Delete'), findsOneWidget);
+    expect(
+      find.textContaining('only its notes can be saved from here'),
+      findsOneWidget,
+    );
 
     final driverField = tester.widget<TextField>(find.byWidgetPredicate(
       (widget) => widget is TextField && widget.decoration?.labelText == 'Driver name',
     ));
     expect(driverField.controller?.text, 'Senad');
-
-    // The cargo is fetched for the load that was opened, not for the page.
-    expect(find.text('Hall roof structure'), findsOneWidget);
-    expect(find.text('Cladding panels'), findsOneWidget);
+    expect(driverField.enabled, isFalse);
   });
 
   testWidgets(
@@ -681,12 +781,15 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: TransportScreen(providerFactory: _fakeTransports)),
+    await tester.pumpWidget(_wrapped(
+      Scaffold(body: TransportScreen(providerFactory: _fakeTransports)),
     ));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('TR-0001'));
+    // TR-0003 is still Ordered - cargo can only be added while it is.
+    await tester.tap(find.text('TR-0003'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Edit Transport'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Add cargo'));
@@ -707,5 +810,141 @@ void main() {
     await tester.pump();
 
     expect(find.text('Cannot be above the bruto weight.'), findsOneWidget);
+  });
+
+  testWidgets('the project field on a cargo line can be searched by its code',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_wrapped(
+      Scaffold(body: TransportScreen(providerFactory: _fakeTransports)),
+    ));
+    await tester.pumpAndSettle();
+
+    // TR-0003 is still Ordered - cargo can only be added while it is.
+    await tester.tap(find.text('TR-0003'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Edit Transport'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add cargo'));
+    await tester.pumpAndSettle();
+
+    // Scoped to the dialog: the screen underneath has its own "Load date"
+    // TextField, which a bare `find.byType(TextField)` would hit first.
+    final projectField = find
+        .descendant(of: find.byType(AlertDialog), matching: find.byType(TextField))
+        .first;
+
+    // Both projects' names are unrelated words - only their codes tie them
+    // together, so finding one by typing the other's code proves the search
+    // matches the code, not just the name.
+    await tester.tap(projectField);
+    await tester.pumpAndSettle();
+    await tester.enterText(projectField, 'AK-2202');
+    await tester.pumpAndSettle();
+
+    expect(find.text('AK-2202 - Cladding panels'), findsOneWidget);
+
+    await tester.tap(find.text('AK-2202 - Cladding panels').last);
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextField>(projectField).controller?.text,
+        'AK-2202 - Cladding panels');
+  });
+
+  testWidgets(
+      'an admin sees only the legal next statuses, and picking one calls the API',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final provider = _fakeTransports();
+    await provider.load();
+    final row = provider.rows.firstWhere((r) => r.id == 3); // Ordered
+
+    await tester.pumpWidget(_wrapped(
+      TransportOverviewScreen(provider: provider, row: row),
+    ));
+    await tester.pumpAndSettle();
+
+    // Ordered can move to Delivered or Rejected - never straight to Finished.
+    expect(find.widgetWithText(OutlinedButton, 'Mark delivered'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Reject'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Finish transport'), findsNothing);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Move TR-0003 from "Ordered" to "Rejected"?'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Move to Rejected'));
+    await tester.pumpAndSettle();
+
+    expect(_loadRows.statusChanges.single, (3, 4, null));
+  });
+
+  testWidgets('finishing a transport asks for the invoice amount first',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final provider = _fakeTransports();
+    await provider.load();
+    final row = provider.rows.firstWhere((r) => r.id == 2); // Delivered
+
+    await tester.pumpWidget(_wrapped(
+      TransportOverviewScreen(provider: provider, row: row),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Finish transport'));
+    await tester.pumpAndSettle();
+
+    final amountField = find.byWidgetPredicate(
+      (widget) => widget is TextField && widget.decoration?.labelText == 'Invoice amount',
+    );
+    expect(amountField, findsOneWidget);
+
+    // An empty amount refuses to close the popup - Finished always needs one.
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+    expect(_loadRows.statusChanges, isEmpty);
+
+    await tester.enterText(amountField, '1850.50');
+    await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
+    await tester.pumpAndSettle();
+
+    expect(_loadRows.statusChanges.single, (2, 3, 1850.5));
+  });
+
+  testWidgets(
+      'a production worker sees the status but cannot change it',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    AuthProvider.role = AppRoles.productionWorker;
+
+    final provider = _fakeTransports();
+    await provider.load();
+    final row = provider.rows.firstWhere((r) => r.id == 3); // Ordered
+
+    await tester.pumpWidget(_wrapped(
+      TransportOverviewScreen(provider: provider, row: row),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(OutlinedButton, 'Mark delivered'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Reject'), findsNothing);
+    expect(
+      find.text('Only an administrator or project manager can change this'),
+      findsOneWidget,
+    );
   });
 }

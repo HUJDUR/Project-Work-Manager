@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using pwm.Model.Access;
 using pwm.Services.Database;
+using pwm.Common.Services.Time;
 
 namespace pwm.Worker;
 
@@ -97,7 +98,7 @@ public class MissedClockOutWorker : BackgroundService
                 var elapsedHours = (now - workLog.ClockedIn).TotalHours;
                 var message =
                     $"{workLog.User.Name} {workLog.User.Surname} clocked in on " +
-                    $"{workLog.ClockedIn:yyyy-MM-dd HH:mm} UTC and still has not clocked out " +
+                    $"{SarajevoTime.FromUtc(workLog.ClockedIn):dd.MM.yyyy HH:mm} and still has not clocked out " +
                     $"({elapsedHours:F1} hours and counting). Please check up on them.";
 
                 dbContext.Notifications.AddRange(recipientIds.Select(userId => new Notification

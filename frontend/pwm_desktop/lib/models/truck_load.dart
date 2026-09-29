@@ -1,8 +1,9 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../utils/sarajevo_time.dart';
 
 part 'truck_load.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(converters: [ApiDateTimeConverter()])
 class TruckLoad {
   const TruckLoad({
     required this.id,
@@ -15,6 +16,7 @@ class TruckLoad {
     required this.emptyWeight,
     required this.fullWeight,
     this.note,
+    this.price,
   });
 
   final int id;
@@ -27,6 +29,10 @@ class TruckLoad {
   final double emptyWeight;
   final double fullWeight;
   final String? note;
+
+  /// The invoice amount in EUR, once the load has been marked "Finished" -
+  /// null before that.
+  final double? price;
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   String get driverFullName => '$driverName $driverSurname'.trim();

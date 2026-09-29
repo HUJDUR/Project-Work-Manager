@@ -24,6 +24,29 @@ class AuthProvider with ChangeNotifier {
 
   static bool get isSignedIn => (accesstoken ?? '').isNotEmpty;
 
+  /// What the sign-in screen says after [expireSession] sent the user there.
+  static const sessionExpiredMessage = 'Your session has expired. Please sign in again.';
+
+  /// How [expireSession] gets back to the sign-in screen. Set once by
+  /// `main.dart`, which owns the navigator; a provider does not import screens.
+  static VoidCallback? onSessionExpired;
+
+  /// The access token was refused and the refresh token could not replace it,
+  /// so the session is over - drop it and go back to sign-in rather than leave
+  /// the screen showing an error it cannot recover from. Screens load several
+  /// things at once, so several requests can land here together: only the
+  /// first, while there is still a session to end, navigates.
+  static void expireSession() {
+    if (!isSignedIn) return;
+
+    accesstoken = null;
+    refreshtoken = null;
+    user = null;
+    role = '';
+
+    onSessionExpired?.call();
+  }
+
   User? get currentUser => user;
   String get currentRole => role;
 

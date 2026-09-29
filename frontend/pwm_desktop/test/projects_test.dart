@@ -1,14 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:pwm_desktop/models/models.dart';
+import 'package:pwm_desktop/providers/auth_provider.dart';
 import 'package:pwm_desktop/providers/base_provider.dart';
 import 'package:pwm_desktop/providers/projects_provider.dart';
 import 'package:pwm_desktop/screens/projects_screen.dart';
+
+/// The project overview's status panel reads `AuthProvider` - every screen
+/// test that can reach it needs it in the tree, the same way
+/// `project_overview_test.dart` already provides it.
+Widget _wrapped(Widget child) => ChangeNotifierProvider(
+      create: (_) => AuthProvider(),
+      child: MaterialApp(home: child),
+    );
 
 /// Stands in for one controller. Filtering, sorting and paging belong to the
 /// API now, so the fake applies the search object it is handed the way the
 /// backend would — which is what pins the contract the provider sends.
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows, {this.matches}) : super('Fake');
 
   final List<T> rows;
@@ -210,6 +223,23 @@ Map<String, dynamic> _lastPageRequest() => _projectRows.requests
     .lastWhere((request) => request['pageSize'] == ProjectsProvider.pageSize);
 
 void main() {
+  setUp(() {
+    AuthProvider.user = const User(
+      id: 1,
+      name: 'Nadir',
+      surname: 'Hujdur',
+      email: 'admin@pwm.ba',
+      userTypeId: 1,
+      isActive: true,
+    );
+    AuthProvider.role = 'Admin';
+  });
+
+  tearDown(() {
+    AuthProvider.user = null;
+    AuthProvider.role = '';
+  });
+
   group('ProjectsProvider', () {
     late ProjectsProvider provider;
 
@@ -336,12 +366,10 @@ void main() {
         description: 'A welded frame.',
         customerId: 2,
         projectCategoryId: 1,
-        projectStatusId: 1,
         createdByUserId: 2,
         priority: ProjectPriority.high,
         weight: 1250.5,
         creationDate: DateTime(2026, 8, 29),
-        productionStartDate: DateTime(2026, 8, 30),
       );
 
       final body = _projectRows.inserted.single;
@@ -353,11 +381,16 @@ void main() {
       // The enum goes over the wire as the int the column stores.
       expect(body['priority'], ProjectPriority.high.value);
       expect(body['createdByUserId'], 2);
-      expect(body['productionStartDate'], '2026-08-30T00:00:00.000');
+      // The API decides the status (always "Potential") and the production
+      // start date (only ever set by a later status change) - this request
+      // cannot express either.
+      expect(body.containsKey('projectStatusId'), isFalse);
+      expect(body.containsKey('productionStartDate'), isFalse);
       // Nullable in the schema, and the API accepts it missing.
       expect(body['deliveryDate'], isNull);
       // NOT NULL in the schema, so the client has to supply it.
-      expect(body['creationDate'], '2026-08-29T00:00:00.000');
+      // Sarajevo midnight, sent as the UTC instant it names (CEST, UTC+2).
+      expect(body['creationDate'], '2026-08-28T22:00:00.000Z');
       expect(_projectRows.updated, isEmpty);
     });
 
@@ -369,21 +402,20 @@ void main() {
         code: 'WM-7',
         customerId: 1,
         projectCategoryId: 2,
-        projectStatusId: 5,
         createdByUserId: 1,
         priority: ProjectPriority.low,
         weight: 900,
         creationDate: DateTime(2026, 8, 20),
-        productionStartDate: DateTime(2026, 8, 21),
         deliveryCompanyId: 3,
         deliveryDate: DateTime(2026, 9, 15),
       );
 
       final (id, body) = _projectRows.updated.single;
       expect(id, 7);
-      expect(body['projectStatusId'], 5);
+      expect(body.containsKey('projectStatusId'), isFalse);
+      expect(body.containsKey('productionStartDate'), isFalse);
       expect(body['deliveryCompanyId'], 3);
-      expect(body['deliveryDate'], '2026-09-15T00:00:00.000');
+      expect(body['deliveryDate'], '2026-09-14T22:00:00.000Z');
       expect(_projectRows.inserted, isEmpty);
     });
 
@@ -425,9 +457,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: ProjectsScreen(providerFactory: _fakeProjects)),
-    ));
+    await tester.pumpWidget(_wrapped(Scaffold(
+      body: ProjectsScreen(providerFactory: _fakeProjects),
+    )));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Add Project'));
@@ -438,7 +470,10 @@ void main() {
     expect(find.text('Customer'), findsWidgets);
     expect(find.text('Category'), findsWidgets);
     expect(find.text('Weight'), findsOneWidget);
-    expect(find.text('Production start'), findsOneWidget);
+    // Production start is no longer picked here - it is set automatically the
+    // moment the project actually moves into production.
+    expect(find.text('Status'), findsOneWidget);
+    expect(find.text('Potential'), findsOneWidget);
     expect(find.text('Delivery date'), findsOneWidget);
     expect(find.text('Project code'), findsOneWidget);
     expect(find.text('Description'), findsOneWidget);
@@ -469,9 +504,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: ProjectsScreen(providerFactory: _fakeProjects)),
-    ));
+    await tester.pumpWidget(_wrapped(Scaffold(
+      body: ProjectsScreen(providerFactory: _fakeProjects),
+    )));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Hall roof MU-1'));
@@ -489,9 +524,9 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: ProjectsScreen(providerFactory: _fakeProjects)),
-    ));
+    await tester.pumpWidget(_wrapped(Scaffold(
+      body: ProjectsScreen(providerFactory: _fakeProjects),
+    )));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Hall roof MU-1'));
@@ -508,6 +543,50 @@ void main() {
       (widget) => widget is TextField && widget.decoration?.labelText == 'Project name',
     ));
     expect(nameField.controller?.text, 'Hall roof MU-1');
+  });
+
+  testWidgets(
+      'editing an On hold project locks every field but notes, matching the API',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_wrapped(Scaffold(
+      body: ProjectsScreen(providerFactory: _fakeProjects),
+    )));
+    await tester.pumpAndSettle();
+
+    // "Panels AS-5" is seeded with statusId 1, "On hold".
+    await tester.tap(find.text('Panels AS-5'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Edit Project'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('This project is "On hold" - only its notes can be saved from here.'),
+      findsOneWidget,
+    );
+
+    // `DropdownMenu`'s own field sets `InputDecoration.label` (a `Text`
+    // widget), not `labelText` - the plain string a `FormBuilderTextField`
+    // uses - so both are checked.
+    TextField fieldLabelled(String label) => tester.widget<TextField>(find.byWidgetPredicate((widget) {
+          if (widget is! TextField) return false;
+          final decoration = widget.decoration;
+          if (decoration?.labelText == label) return true;
+          final labelWidget = decoration?.label;
+          return labelWidget is Text && labelWidget.data == label;
+        }));
+
+    expect(fieldLabelled('Project name').enabled, isFalse);
+    expect(fieldLabelled('Project code').enabled, isFalse);
+    expect(fieldLabelled('Weight').enabled, isFalse);
+    expect(fieldLabelled('Description').enabled, isFalse);
+    // A searchable dropdown field, same as the plain text ones above.
+    expect(fieldLabelled('Category').enabled, isFalse);
+    // Notes is the one field the API still writes for a locked project.
+    expect(fieldLabelled('Notes').enabled, isTrue);
   });
 
   group('the next project code', () {

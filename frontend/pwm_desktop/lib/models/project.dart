@@ -1,10 +1,11 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'project_priority.dart';
+import '../utils/sarajevo_time.dart';
 
 part 'project.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(converters: [ApiDateTimeConverter()])
 class Project {
   const Project({
     required this.id,

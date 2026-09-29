@@ -5,11 +5,15 @@ import 'package:pwm_mobile/providers/base_provider.dart';
 import 'package:pwm_mobile/providers/clock_in_provider.dart';
 import 'package:pwm_mobile/screens/clock_in_screen.dart';
 import 'package:pwm_mobile/utils/api_client_exception.dart';
+import 'package:pwm_mobile/utils/sarajevo_time.dart';
 
 /// Reads back whatever it was given, and records every write so a test can see
 /// exactly what the screen sent — an open session is only open because of what
 /// is in the body.
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows, {this.onInsert, this.onUpdate}) : super('Fake');
 
   List<T> rows;
@@ -56,6 +60,9 @@ class _FakeProvider<T> extends BaseProvider<T> {
 }
 
 class _FailingProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FailingProvider() : super('Fake');
 
   @override
@@ -263,7 +270,7 @@ void main() {
 
       final shift = fixture.shifts.inserted.single;
       expect(shift['userId'], 20);
-      expect(shift['clockedIn'], _now.toIso8601String());
+      expect(shift['clockedIn'], SarajevoTime.toApi(_now));
       // The whole point: no end time, so the session reads as running.
       expect(shift['clockedOut'], isNull);
       expect(shift['hours'], 0);
@@ -288,7 +295,7 @@ void main() {
       expect(block['workLogId'], 500, reason: "hangs off today's shift");
       expect(block['projectId'], 3);
       expect(block['operationTypeId'], 15);
-      expect(block['startedAt'], _now.toIso8601String());
+      expect(block['startedAt'], SarajevoTime.toApi(_now));
       expect(block['finishedAt'], isNull);
     });
 
@@ -316,7 +323,7 @@ void main() {
       expect(reopened.body['clockedOut'], isNull);
       expect(reopened.body['hours'], 3);
       expect(reopened.body['clockedIn'],
-          _now.subtract(const Duration(hours: 4)).toIso8601String());
+          SarajevoTime.toApi(_now.subtract(const Duration(hours: 4))));
     });
 
     test('the session becomes the active one, named', () async {
@@ -371,14 +378,14 @@ void main() {
 
       final block = fixture.blocks.updated.single;
       expect(block.id, 900);
-      expect(block.body['finishedAt'], _now.toIso8601String());
+      expect(block.body['finishedAt'], SarajevoTime.toApi(_now));
       expect(block.body['hours'], 1.5);
       // The start must survive the write untouched.
-      expect(block.body['startedAt'], started.toIso8601String());
+      expect(block.body['startedAt'], SarajevoTime.toApi(started));
 
       final shift = fixture.shifts.updated.single;
       expect(shift.id, 500);
-      expect(shift.body['clockedOut'], _now.toIso8601String());
+      expect(shift.body['clockedOut'], SarajevoTime.toApi(_now));
       expect(shift.body['hours'], 1.5);
 
       expect(fixture.provider.hasActiveSession, isFalse);

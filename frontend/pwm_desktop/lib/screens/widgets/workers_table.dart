@@ -228,8 +228,10 @@ class _Worker extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        // Initials only: list responses carry no pictures, and a table of
+        // thumbnails would mean one picture request per row.
         UserAvatar(
-          picture: row.picture,
+          picture: null,
           initials: row.initials,
           size: 32,
           radius: 8,

@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../utils/sarajevo_time.dart';
 
 part 'notification.g.dart';
 
@@ -9,7 +10,7 @@ part 'notification.g.dart';
 /// `package:flutter/material.dart` with a `hide Notification` clause. This is
 /// the desktop's model verbatim, the same bargain the `User`/`WorkLog` models
 /// strike — one fix, both apps.
-@JsonSerializable()
+@JsonSerializable(converters: [ApiDateTimeConverter()])
 class Notification {
   const Notification({
     required this.id,

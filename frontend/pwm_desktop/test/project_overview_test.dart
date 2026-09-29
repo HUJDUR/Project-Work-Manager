@@ -1,16 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:pwm_desktop/models/models.dart';
+import 'package:pwm_desktop/providers/auth_provider.dart';
 import 'package:pwm_desktop/providers/base_provider.dart';
 import 'package:pwm_desktop/providers/project_overview_provider.dart';
+import 'package:pwm_desktop/providers/project_provider.dart';
 import 'package:pwm_desktop/providers/projects_provider.dart';
 import 'package:pwm_desktop/screens/project_overview_screen.dart';
+
+/// Stands in for the status-history/status-change endpoints, so `load()`
+/// never makes a real HTTP call - the same reason every other lookup here is
+/// a `_FakeProvider`.
+class _FakeProjectStatusProvider extends ProjectProvider {
+  _FakeProjectStatusProvider([this.history = const []]);
+
+  final List<ProjectStatusChangeEntry> history;
+
+  /// Every status id `changeStatus` was asked to move to.
+  final List<int> requestedStatusIds = [];
+
+  @override
+  Future<List<ProjectStatusChangeEntry>> statusHistory(int id) async => history;
+
+  @override
+  Future<Project> changeStatus(int id, int newStatusId) async {
+    requestedStatusIds.add(newStatusId);
+    return _project;
+  }
+}
 
 /// Stands in for one controller, the same way the other screens' tests do:
 /// the fake applies the search object it is handed the way the API would,
 /// which is what pins that `ProjectOverviewProvider` actually scopes its two
 /// reads to the project it was given rather than reading everything.
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows) : super('Fake');
 
   final List<T> rows;
@@ -74,12 +101,18 @@ TruckLoadDetail _line({
 
 late _FakeProvider<WorkLogDetail> _bookingRows;
 late _FakeProvider<TruckLoadDetail> _lineRows;
+late _FakeProjectStatusProvider _statusProvider;
 
 /// One target project (id 5) with work and cargo of its own, plus a booking
 /// and a load line that both belong to a different project (9) - there to
 /// prove they get filtered out rather than summed in by mistake.
-ProjectOverviewProvider _fakeOverview({int projectId = 5}) => ProjectOverviewProvider(
+ProjectOverviewProvider _fakeOverview({
+  int projectId = 5,
+  List<ProjectStatusChangeEntry> statusHistory = const [],
+}) =>
+    ProjectOverviewProvider(
       projectId: projectId,
+      projects: _statusProvider = _FakeProjectStatusProvider(statusHistory),
       workLogDetails: _bookingRows = _FakeProvider([
         _booking(
             id: 1, userId: 1, operationTypeId: 1, projectId: 5, day: _today, hours: 3),
@@ -174,6 +207,9 @@ ProjectOverviewProvider _fakeOverview({int projectId = 5}) => ProjectOverviewPro
 /// One project, with the lookups a `ProjectsProvider` needs to join it - the
 /// same fixture shape `projects_test.dart` uses.
 class _FakePageProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakePageProvider(this.rows) : super('Fake');
 
   final List<T> rows;
@@ -227,7 +263,12 @@ ProjectsProvider _fakeProjects() => ProjectsProvider(
       ]),
       companyTypes: _FakePageProvider(const [CompanyType(id: 1, name: 'Customer')]),
       categories: _FakePageProvider(const [ProjectCategory(id: 1, name: 'Steel construction')]),
-      statusTypes: _FakePageProvider(const [ProjectStatusType(id: 1, name: 'In production')]),
+      statusTypes: _FakePageProvider(const [
+        ProjectStatusType(id: 1, name: 'In production'),
+        ProjectStatusType(id: 2, name: 'On hold'),
+        ProjectStatusType(id: 3, name: 'Delivered'),
+        ProjectStatusType(id: 4, name: 'Rejected'),
+      ]),
       users: _FakePageProvider(const [
         User(
             id: 1,
@@ -241,7 +282,32 @@ ProjectsProvider _fakeProjects() => ProjectsProvider(
       countries: _FakePageProvider(const [Country(id: 1, name: 'Bosnia and Herzegovina', code: 'BA')]),
     );
 
+/// The top bar's account chip and the status panel's role check both read
+/// `AuthProvider` - every screen test needs it in the tree the same way
+/// `account_settings_test.dart` already does.
+Widget _wrapped(Widget child) => ChangeNotifierProvider(
+      create: (_) => AuthProvider(),
+      child: MaterialApp(home: child),
+    );
+
 void main() {
+  setUp(() {
+    AuthProvider.user = const User(
+      id: 1,
+      name: 'Nadir',
+      surname: 'Hujdur',
+      email: 'admin@pwm.ba',
+      userTypeId: 1,
+      isActive: true,
+    );
+    AuthProvider.role = 'Admin';
+  });
+
+  tearDown(() {
+    AuthProvider.user = null;
+    AuthProvider.role = '';
+  });
+
   group('ProjectOverviewProvider', () {
     late ProjectOverviewProvider provider;
 
@@ -291,13 +357,11 @@ void main() {
     await projects.load();
     final row = projects.rows.single;
 
-    await tester.pumpWidget(MaterialApp(
-      home: ProjectOverviewScreen(
-        provider: projects,
-        row: row,
-        overviewProviderFactory: (_) => _fakeOverview(),
-      ),
-    ));
+    await tester.pumpWidget(_wrapped(ProjectOverviewScreen(
+      provider: projects,
+      row: row,
+      overviewProviderFactory: (_) => _fakeOverview(),
+    )));
     await tester.pumpAndSettle();
 
     expect(find.text('Project Details'), findsOneWidget);
@@ -323,13 +387,11 @@ void main() {
     await projects.load();
     final row = projects.rows.single;
 
-    await tester.pumpWidget(MaterialApp(
-      home: ProjectOverviewScreen(
-        provider: projects,
-        row: row,
-        overviewProviderFactory: (_) => _fakeOverview(),
-      ),
-    ));
+    await tester.pumpWidget(_wrapped(ProjectOverviewScreen(
+      provider: projects,
+      row: row,
+      overviewProviderFactory: (_) => _fakeOverview(),
+    )));
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Edit Project'));
@@ -340,5 +402,79 @@ void main() {
       (widget) => widget is TextField && widget.decoration?.labelText == 'Project name',
     ));
     expect(nameField.controller?.text, 'Hall roof MU-1');
+  });
+
+  testWidgets(
+      'an admin sees only the legal next statuses, and picking one calls the API',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final projects = _fakeProjects();
+    await projects.load();
+    final row = projects.rows.single;
+
+    await tester.pumpWidget(_wrapped(ProjectOverviewScreen(
+      provider: projects,
+      row: row,
+      overviewProviderFactory: (_) => _fakeOverview(
+        statusHistory: [
+          ProjectStatusChangeEntry(
+            id: 1,
+            toStatusName: 'In production',
+            changedByName: 'Nadir Hujdur',
+            changedAt: DateTime.utc(2026, 8, 30, 7),
+          ),
+        ],
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    // "In production" only moves on to these three - never back to Potential.
+    expect(find.widgetWithText(OutlinedButton, 'Put on hold'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Mark delivered'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Reject'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Resume as Potential'), findsNothing);
+
+    // The history row the creation writes, resolved to names already.
+    expect(find.textContaining('Raised as "In production"'), findsOneWidget);
+    expect(find.textContaining('Nadir Hujdur'), findsWidgets);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Put on hold'));
+    await tester.pumpAndSettle();
+    // The confirmation dialog, not yet the API call.
+    expect(_statusProvider.requestedStatusIds, isEmpty);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Move to On hold'));
+    await tester.pumpAndSettle();
+
+    expect(_statusProvider.requestedStatusIds, [2]);
+  });
+
+  testWidgets('a production worker sees the status but no action buttons',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    AuthProvider.role = 'Production worker';
+
+    final projects = _fakeProjects();
+    await projects.load();
+    final row = projects.rows.single;
+
+    await tester.pumpWidget(_wrapped(ProjectOverviewScreen(
+      provider: projects,
+      row: row,
+      overviewProviderFactory: (_) => _fakeOverview(),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(OutlinedButton, 'Put on hold'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Mark delivered'), findsNothing);
+    expect(
+      find.text('Only an administrator or project manager can change this'),
+      findsOneWidget,
+    );
   });
 }

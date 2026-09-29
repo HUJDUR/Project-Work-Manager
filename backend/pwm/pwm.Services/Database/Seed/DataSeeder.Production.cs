@@ -77,6 +77,22 @@ namespace pwm.Services.Database.Seed
                     description: "Sample batch for a facade tender.",
                     notes: "Rejected - the customer did not win the tender."),
 
+                // Still being quoted - no production hours or delivery company yet,
+                // only the office work an offer needs.
+                CreateProject("Loading dock canopy", "Alpina Systems GmbH", "General steel construction",
+                    weight: 5400.0, createdDaysAgo: 6, startedDaysAgo: 0, deliveryInDays: 70,
+                    status: "Potential", deliveryArranged: false,
+                    priority: ProjectPriority.Medium, createdBy: "kenan.fajic@pwm.ba",
+                    description: "Cantilevered canopy over the customer's loading dock - awaiting their go-ahead.",
+                    notes: null),
+
+                CreateProject("Filter tower access", "Adria Konstrukcije d.o.o.", "General steel construction",
+                    weight: 2900.0, createdDaysAgo: 2, startedDaysAgo: 0, deliveryInDays: 90,
+                    status: "Potential", deliveryArranged: false,
+                    priority: ProjectPriority.Low, createdBy: "zuhdija.delic@pwm.ba",
+                    description: "Access platform and ladder cage for a new filter tower - drawings in progress.",
+                    notes: null),
+
                 // These four exist so the Recommendations screen's estimator has
                 // more than one delivered project of a category to learn from -
                 // RecommendationService.MinSampleSize is 3, and without them no
@@ -145,7 +161,8 @@ namespace pwm.Services.Database.Seed
 
             var office = OfficeUsers;
             var priorities = Enum.GetValues<ProjectPriority>();
-            var statuses = new[] { "Delivered", "In production", "In production", "On hold", "Rejected" };
+            var statuses = new[]
+                { "Delivered", "In production", "In production", "On hold", "Rejected", "Potential" };
 
             var subjects = new[]
             {
@@ -160,7 +177,8 @@ namespace pwm.Services.Database.Seed
             {
                 var customer = Pick(customers);
                 var status = statuses[(startingAt + i) % statuses.Length];
-                var createdDaysAgo = _random.Next(6, 110);
+                var isPotential = status == "Potential";
+                var createdDaysAgo = isPotential ? _random.Next(0, 14) : _random.Next(6, 110);
                 var startedDaysAgo = createdDaysAgo - _random.Next(2, 9);
 
                 yield return new Project
@@ -174,12 +192,17 @@ namespace pwm.Services.Database.Seed
                     ProjectCategoryId = Pick(_projectCategories).Id,
                     Weight = Math.Round(_random.Next(200, 14000) + _random.NextDouble(), 2),
                     CreationDate = _today.AddDays(-createdDaysAgo).AddHours(8),
-                    ProductionStartDate = _today.AddDays(-startedDaysAgo).AddHours(7),
+                    // Null while still being quoted - a Potential project has not
+                    // reached the shop floor yet.
+                    ProductionStartDate =
+                        isPotential ? null : _today.AddDays(-startedDaysAgo).AddHours(7),
                     DeliveryDate = _today.AddDays(_random.Next(-30, 60)).AddHours(14),
                     // Null while delivery is not arranged yet; otherwise where the
                     // customer takes it - never the carrier, which is a TruckLoad's.
-                    DeliveryCompanyId =
-                        _random.Next(3) == 0 ? null : DeliveryPlaceFor(customer).Id,
+                    // Never arranged for a project still being quoted, either.
+                    DeliveryCompanyId = isPotential || _random.Next(3) == 0
+                        ? null
+                        : DeliveryPlaceFor(customer).Id,
                     ProjectStatusId = FindStatus(status).Id,
                     CreatedByUserId = Pick(office).Id,
                 };
@@ -201,6 +224,10 @@ namespace pwm.Services.Database.Seed
             string? description,
             string? notes)
         {
+            // Still being quoted - no production start and no delivery arranged,
+            // whatever the caller passed for either.
+            var isPotential = status == "Potential";
+
             return new Project
             {
                 Name = name,
@@ -212,10 +239,11 @@ namespace pwm.Services.Database.Seed
                 ProjectCategoryId = FindCategory(category).Id,
                 Weight = weight,
                 CreationDate = _today.AddDays(-createdDaysAgo).AddHours(8),
-                ProductionStartDate = _today.AddDays(-startedDaysAgo).AddHours(7),
+                ProductionStartDate = isPotential ? null : _today.AddDays(-startedDaysAgo).AddHours(7),
                 DeliveryDate = _today.AddDays(deliveryInDays).AddHours(14),
-                DeliveryCompanyId =
-                    deliveryArranged ? DeliveryPlaceFor(FindCompany(customer)).Id : null,
+                DeliveryCompanyId = isPotential || !deliveryArranged
+                    ? null
+                    : DeliveryPlaceFor(FindCompany(customer)).Id,
                 ProjectStatusId = FindStatus(status).Id,
                 CreatedByUserId = FindUser(createdBy).Id,
             };
@@ -227,9 +255,11 @@ namespace pwm.Services.Database.Seed
                 .Where(u => u.IsActive && u.UserTypeId == FindUserType("Production worker").Id)
                 .ToArray();
 
-            // A rejected project never reached the shop floor
+            // A rejected project - or one still being quoted - never reached the
+            // shop floor, so there are no production hours to seed against it.
             var bookableProjects = _projects
-                .Where(p => p.ProjectStatusId != FindStatus("Rejected").Id)
+                .Where(p => p.ProjectStatusId != FindStatus("Rejected").Id
+                    && p.ProjectStatusId != FindStatus("Potential").Id)
                 .ToArray();
 
             var workLogs = new List<WorkLog>();

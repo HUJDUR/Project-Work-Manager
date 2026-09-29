@@ -15,9 +15,18 @@ namespace pwm.WebAPI.Controllers
     /// </summary>
     public class WorkLogDetailController : BaseCRUDController<WorkLogDetailResponse, WorkLogDetailSearchObject, WorkLogDetailInsertRequest, WorkLogDetailUpdateRequest>
     {
+        private readonly IWorkLogDetailService _workLogDetails;
+
         public WorkLogDetailController(IWorkLogDetailService service) : base(service)
         {
+            _workLogDetails = service;
         }
+
+        /// <summary>The desktop's Work Hours screen - the office roles it is open to.</summary>
+        [HttpGet("Hours")]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
+        public Task<PageResult<WorkHoursEntryResponse>> Hours([FromQuery] WorkHoursSearchObject searchObject) =>
+            _workLogDetails.GetHoursAsync(searchObject);
 
         [HttpPost]
         [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]

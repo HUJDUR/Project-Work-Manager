@@ -9,6 +9,9 @@ import 'package:pwm_mobile/utils/api_client_exception.dart';
 /// Pages its rows the way the API does, so a test can see what the screen asked
 /// for and what it did with the answer.
 class _PagedProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _PagedProvider(this.rows) : super('Fake');
 
   final List<T> rows;
@@ -48,6 +51,9 @@ class _PagedProvider<T> extends BaseProvider<T> {
 }
 
 class _ListProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _ListProvider(this.rows) : super('Fake');
 
   final List<T> rows;
@@ -61,6 +67,9 @@ class _ListProvider<T> extends BaseProvider<T> {
 }
 
 class _FailingProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FailingProvider() : super('Fake');
 
   @override

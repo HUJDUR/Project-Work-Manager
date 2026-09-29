@@ -34,16 +34,9 @@ namespace pwm.Services.Implementations
             return await _dbContext.RefreshTokens.FirstOrDefaultAsync(x => x.Token == token);
         }
 
-        public async Task DeleteAllUserRefreshTokensAsync(int userId)
-        {
-            await RemoveStaleTokensAsync(userId);
-            await _dbContext.SaveChangesAsync();
-        }
-
         /// <summary>
         /// Stages the user's own tokens, plus anything expired for anyone, for removal -
-        /// shared by a rotate (which adds the new token before saving) and a full sign-out
-        /// (which saves right away).
+        /// a rotate adds the new token before its one save.
         /// </summary>
         private async Task RemoveStaleTokensAsync(int userId)
         {

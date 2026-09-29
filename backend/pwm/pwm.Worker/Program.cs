@@ -19,7 +19,7 @@ EnvironmentConfig.LoadDotEnvFile();
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddDbContext<PWMDbContext>(options =>
-    options.UseSqlServer(EnvironmentConfig.BuildConnectionString(builder.Configuration)));
+    options.UseSqlServer(EnvironmentConfig.BuildConnectionString()));
 
 builder.Services.AddScoped<ReportBuilder>();
 

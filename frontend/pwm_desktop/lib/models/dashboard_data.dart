@@ -1,4 +1,7 @@
+import '../utils/formatters.dart';
+import '../utils/sarajevo_time.dart';
 import 'package:flutter/material.dart';
+
 
 class SummaryMetric {
   const SummaryMetric({
@@ -85,6 +88,88 @@ class DashboardData {
     required this.recentActivity,
     required this.windowDays,
   });
+
+  /// `GET /Dashboard`, which does every count, sum and grouping on the server;
+  /// only the wording and icons of the summary cards are decided here.
+  factory DashboardData.fromJson(Map<String, dynamic> json) {
+    final windowDays = json['windowDays'] as int;
+
+    List<ChartSlice> slices(String key) => [
+          for (final slice in json[key] as List)
+            ChartSlice(
+              label: slice['label'] as String,
+              shortLabel: slice['shortLabel'] as String?,
+              value: (slice['value'] as num).toDouble(),
+            ),
+        ];
+
+    return DashboardData(
+      windowDays: windowDays,
+      metrics: [
+        SummaryMetric(
+          icon: Icons.schedule_outlined,
+          label: 'Hours logged',
+          value: formatHours((json['hoursLogged'] as num).toDouble()),
+          caption: 'last $windowDays days',
+        ),
+        SummaryMetric(
+          icon: Icons.folder_outlined,
+          label: 'Active projects',
+          value: formatCount(json['activeProjects'] as int),
+          caption: '${json['inProduction']} in production',
+        ),
+        SummaryMetric(
+          icon: Icons.groups_outlined,
+          label: 'Workers',
+          value: formatCount(json['activeWorkers'] as int),
+          caption: '${json['workersWithBookings']} booked hours',
+        ),
+        SummaryMetric(
+          icon: Icons.local_shipping_outlined,
+          label: 'Transports',
+          value: formatCount(json['transports'] as int),
+          caption: 'last $windowDays days',
+        ),
+        SummaryMetric(
+          icon: Icons.scale_outlined,
+          label: 'Shipped weight',
+          value: formatTonnes((json['shippedWeight'] as num).toDouble()),
+          caption: 'last $windowDays days',
+        ),
+      ],
+      hoursByProject: slices('hoursByProject'),
+      hoursByOperation: slices('hoursByOperation'),
+      recentWork: [
+        for (final work in json['recentWork'] as List)
+          WorkEntry(
+            workerName: work['workerName'] as String,
+            workerInitials: work['workerInitials'] as String,
+            projectName: work['projectName'] as String,
+            operationName: work['operationName'] as String,
+            hours: (work['hours'] as num).toDouble(),
+            startedAt: SarajevoTime.fromApi(work['startedAt'] as String),
+          ),
+      ],
+      recentTransports: [
+        for (final load in json['recentTransports'] as List)
+          TransportEntry(
+            driverName: load['driverName'] as String,
+            vehicleRegistration: load['vehicleRegistration'] as String,
+            carrierName: load['carrierName'] as String,
+            loadDate: SarajevoTime.fromApi(load['loadDate'] as String),
+            netWeight: (load['netWeight'] as num).toDouble(),
+          ),
+      ],
+      recentActivity: [
+        for (final activity in json['recentActivity'] as List)
+          ActivityEntry(
+            title: activity['title'] as String,
+            actorName: activity['actorName'] as String,
+            date: SarajevoTime.fromApi(activity['date'] as String),
+          ),
+      ],
+    );
+  }
 
   final List<SummaryMetric> metrics;
   final List<ChartSlice> hoursByProject;

@@ -5,6 +5,7 @@ import 'package:pwm_mobile/providers/notification_provider.dart';
 import 'package:pwm_mobile/providers/notifications_provider.dart';
 import 'package:pwm_mobile/screens/notifications_screen.dart';
 import 'package:pwm_mobile/utils/api_client_exception.dart';
+import 'package:pwm_mobile/utils/sarajevo_time.dart';
 
 /// Answers the way the API does — narrowed by `userId` and `isRead`, paged, and
 /// marking read server-side from the ids alone — so a test can see what the
@@ -376,10 +377,10 @@ void main() {
 
     testWidgets('a stamp with no zone is read as UTC, not as local time',
         (tester) async {
-      // What the API actually sends: `DateTime.UtcNow` serialised without a
-      // trailing Z. Parsed as local it would read hours old the moment it was
-      // sent, by however far this machine sits from UTC.
-      final sentNow = DateTime.parse(
+      // `DateTime.UtcNow` serialised without a trailing Z, read the way every
+      // model reads a stamp. Taken as this machine's local time it would read
+      // hours old the moment it was sent.
+      final sentNow = SarajevoTime.fromApi(
         DateTime.now().toUtc().toIso8601String().replaceFirst('Z', ''),
       );
 

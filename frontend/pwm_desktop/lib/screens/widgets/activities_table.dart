@@ -32,7 +32,7 @@ final _columns = <ExcelColumn<ActivityRow>>[
     label: 'Date',
     flex: 3,
     sortKey: (row) => row.date.toIso8601String(),
-    filterValues: (row) => [formatFullDate(apiTimeToLocal(row.date))],
+    filterValues: (row) => [formatFullDate(row.date)],
   ),
 ];
 
@@ -175,7 +175,7 @@ class _ActivityRowTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final local = apiTimeToLocal(row.date);
+    final local = row.date;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

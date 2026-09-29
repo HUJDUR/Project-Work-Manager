@@ -19,6 +19,7 @@ namespace pwm.Services.Implementations
         private readonly IValidator<UserProfileUpdateRequest> _profileValidator;
         private readonly ICryptoService _cryptoService;
         private readonly IMemoryCache _cache;
+        private readonly IActivityLogService _activityLogService;
 
         public UserService(
             PWMDbContext dbContext,
@@ -27,9 +28,11 @@ namespace pwm.Services.Implementations
             IValidator<UserUpdateRequest> updateValidator,
             IValidator<UserProfileUpdateRequest> profileValidator,
             ICryptoService cryptoService,
-            IMemoryCache cache)
+            IMemoryCache cache,
+            IActivityLogService activityLogService)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
+            _activityLogService = activityLogService;
             _profileValidator = profileValidator;
             _cryptoService = cryptoService;
             _cache = cache;
@@ -112,7 +115,7 @@ namespace pwm.Services.Implementations
             if (version.HasValue)
             {
                 // Same five-minute safety-net window CachedLookupService uses - the
-                // normal way a change here is seen is immediate, via RevokeTokensAsync
+                // normal way a change here is seen is immediate, via SignOutAsync
                 // dropping this entry, not this expiry.
                 _cache.Set(key, version.Value, TimeSpan.FromMinutes(5));
             }
@@ -120,7 +123,7 @@ namespace pwm.Services.Implementations
             return version;
         }
 
-        public async Task RevokeTokensAsync(int userId)
+        public async Task SignOutAsync(int userId)
         {
             var user = await _dbContext.Users.FirstOrDefaultAsync(x => x.Id == userId);
             if (user is null)
@@ -128,7 +131,14 @@ namespace pwm.Services.Implementations
                 return;
             }
 
+            var tokens = await _dbContext.RefreshTokens.Where(x => x.UserId == userId).ToListAsync();
+            _dbContext.RefreshTokens.RemoveRange(tokens);
+
             user.TokenVersion++;
+
+            // Tracked on the same context, not saved yet - see RecordAsync's doc.
+            await _activityLogService.RecordAsync(userId, ActivityLogTypeNames.LogOut);
+
             await _dbContext.SaveChangesAsync();
 
             _cache.Remove(TokenVersionCacheKey(userId));
@@ -149,12 +159,7 @@ namespace pwm.Services.Implementations
                 ?? throw new ClientException("That account no longer exists.");
 
             var email = request.Email.Trim();
-            var taken = await _dbContext.Users
-                .AnyAsync(x => x.Id != userId && x.Email == email);
-            if (taken)
-            {
-                throw new ClientException("Another account already uses that e-mail address.");
-            }
+            await EnsureEmailFreeAsync(email, userId);
 
             if (!string.IsNullOrEmpty(request.NewPassword))
             {
@@ -180,6 +185,47 @@ namespace pwm.Services.Implementations
 
             return _mapper.Map<UserResponse>(user);
         }
+
+        // The unique index on Email would otherwise surface as a bare 500.
+        public override async Task<UserResponse> InsertAsync(UserInsertRequest request)
+        {
+            await EnsureEmailFreeAsync(request.Email.Trim(), exceptUserId: null);
+            return await base.InsertAsync(request);
+        }
+
+        public override async Task<UserResponse> UpdateAsync(int id, UserUpdateRequest request)
+        {
+            await EnsureEmailFreeAsync(request.Email.Trim(), exceptUserId: id);
+            return await base.UpdateAsync(id, request);
+        }
+
+        private async Task EnsureEmailFreeAsync(string email, int? exceptUserId)
+        {
+            var taken = await _dbContext.Users
+                .AnyAsync(x => x.Id != exceptUserId && x.Email == email);
+
+            if (taken)
+            {
+                throw new ClientException("Another account already uses that e-mail address.");
+            }
+        }
+
+        /// <summary>
+        /// Lists never carry the picture - up to 5 MB each - and do not read the
+        /// column at all. <c>GET /User/{id}</c>, sign-in and <c>PUT /User/Me</c>
+        /// return it for the one account they are about.
+        /// </summary>
+        protected override IQueryable<UserResponse> ProjectForList(IQueryable<User> query) =>
+            query.Select(x => new UserResponse
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Surname = x.Surname,
+                PhoneNumber = x.PhoneNumber,
+                Email = x.Email,
+                UserTypeId = x.UserTypeId,
+                IsActive = x.IsActive,
+            });
 
         protected override IQueryable<User> ApplyFilters(IQueryable<User> query, UserSearchObject? search)
         {

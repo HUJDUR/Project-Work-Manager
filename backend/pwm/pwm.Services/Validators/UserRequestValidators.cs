@@ -26,7 +26,10 @@ namespace pwm.Services.Validators
 
     /// <summary>
     /// Mirrored on the desktop and mobile pickers, which cap the file they let
-    /// the user pick at the same size, so this is a backstop, not the primary check.
+    /// the user pick at the same size and offer the same four formats. The bytes
+    /// arrive as JSON with no name or MIME type attached, so the format is read
+    /// from the file's own signature (its magic bytes) - a renamed file of any
+    /// other kind is refused.
     /// </summary>
     public static class PictureRules
     {
@@ -37,8 +40,33 @@ namespace pwm.Services.Validators
         {
             return rule
                 .Must(p => p == null || p.Length <= MaxSizeBytes)
-                .WithMessage("Picture must be 5 MB or smaller.");
+                    .WithMessage("Picture must be 5 MB or smaller.")
+                .Must(p => p == null || IsSupportedImage(p))
+                    .WithMessage("Picture must be a JPEG, PNG, GIF or WebP image.");
         }
+
+        private static bool IsSupportedImage(byte[] bytes) =>
+            StartsWith(bytes, 0xFF, 0xD8, 0xFF)                                        // JPEG
+            || StartsWith(bytes, 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)       // PNG
+            || StartsWith(bytes, 0x47, 0x49, 0x46, 0x38)                               // GIF8
+            || (StartsWith(bytes, 0x52, 0x49, 0x46, 0x46)                              // RIFF....WEBP
+                && bytes.Length >= 12
+                && bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50);
+
+        private static bool StartsWith(byte[] bytes, params byte[] signature) =>
+            bytes.Length >= signature.Length && bytes.AsSpan(0, signature.Length).SequenceEqual(signature);
+    }
+
+    /// <summary>
+    /// Optional everywhere, but when given it has to look like a phone number.
+    /// Mirrored by <c>utils/phone_rules.dart</c> in both apps.
+    /// </summary>
+    public static class PhoneRules
+    {
+        public const string Pattern = @"^\+?[0-9][0-9 /-]{5,18}[0-9]$";
+
+        public const string Message =
+            "Enter a phone number like +387 61 234 567 - digits, spaces, / or -, with an optional leading +.";
     }
 
     /// <summary>
@@ -68,6 +96,10 @@ namespace pwm.Services.Validators
                 .NotEmpty().WithMessage("A new account needs a password.")
                 .Password();
 
+            RuleFor(x => x.PhoneNumber)
+                .Matches(PhoneRules.Pattern).WithMessage(PhoneRules.Message)
+                .When(x => !string.IsNullOrWhiteSpace(x.PhoneNumber));
+
             RuleFor(x => x.Picture).Picture();
         }
     }
@@ -96,6 +128,10 @@ namespace pwm.Services.Validators
             RuleFor(x => x.Password)
                 .Password()
                 .When(x => !string.IsNullOrEmpty(x.Password));
+
+            RuleFor(x => x.PhoneNumber)
+                .Matches(PhoneRules.Pattern).WithMessage(PhoneRules.Message)
+                .When(x => !string.IsNullOrWhiteSpace(x.PhoneNumber));
 
             RuleFor(x => x.Picture).Picture();
         }
@@ -131,6 +167,10 @@ namespace pwm.Services.Validators
                 .NotEmpty()
                 .WithMessage("Type your current password to change it.")
                 .When(x => !string.IsNullOrEmpty(x.NewPassword));
+
+            RuleFor(x => x.PhoneNumber)
+                .Matches(PhoneRules.Pattern).WithMessage(PhoneRules.Message)
+                .When(x => !string.IsNullOrWhiteSpace(x.PhoneNumber));
 
             RuleFor(x => x.Picture).Picture();
         }

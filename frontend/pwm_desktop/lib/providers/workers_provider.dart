@@ -300,7 +300,6 @@ class WorkersProvider extends ChangeNotifier {
         roleName: roleById[user.userTypeId]?.type ?? 'Unknown',
         isActive: user.isActive,
         phoneNumber: user.phoneNumber,
-        picture: user.picture,
         operations: held
             .map((qualification) => operationById[qualification.operationTypeId]?.name)
             .whereType<String>()
@@ -311,6 +310,10 @@ class WorkersProvider extends ChangeNotifier {
       );
     }).toList();
   }
+
+  /// The account's picture (base64), or null when it has none. The list the
+  /// table is built from never carries pictures, so the details form asks for it.
+  Future<String?> fetchPicture(int userId) async => (await _users.getById(userId)).picture;
 
   /// Inserts when [id] is null and updates otherwise. Qualifications are stored
   /// as rows, so they are diffed: what was ticked and is new gets inserted, what

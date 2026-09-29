@@ -1,7 +1,9 @@
+import '../utils/sarajevo_time.dart';
+
 enum WorkHoursStatus { completed, inProgress }
 
 /// One booked block of work, already joined to the worker and project it
-/// belongs to and split into regular and overtime hours. The ids and the two
+/// belongs to and split into regular and overtime hours - by the API. The ids and the two
 /// timestamps ride along so the details form can prefill and write back.
 class WorkHoursEntry {
   const WorkHoursEntry({
@@ -21,6 +23,30 @@ class WorkHoursEntry {
     required this.status,
     this.finishedAt,
   });
+
+  /// One row of `GET /WorkLogDetail/Hours`.
+  factory WorkHoursEntry.fromJson(Map<String, dynamic> json) {
+    final startedAt = SarajevoTime.fromApi(json['startedAt'] as String);
+    final finishedAt = json['finishedAt'] as String?;
+
+    return WorkHoursEntry(
+      id: json['id'] as int,
+      workLogId: json['workLogId'] as int,
+      userId: json['userId'] as int,
+      projectId: json['projectId'] as int,
+      operationTypeId: json['operationTypeId'] as int,
+      workerName: json['workerName'] as String,
+      workerInitials: json['workerInitials'] as String,
+      projectName: json['projectName'] as String,
+      operationName: json['operationName'] as String,
+      date: startedAt,
+      startedAt: startedAt,
+      finishedAt: finishedAt == null ? null : SarajevoTime.fromApi(finishedAt),
+      regularHours: (json['regularHours'] as num).toDouble(),
+      overtimeHours: (json['overtimeHours'] as num).toDouble(),
+      status: json['inProgress'] as bool ? WorkHoursStatus.inProgress : WorkHoursStatus.completed,
+    );
+  }
 
   final int id;
 

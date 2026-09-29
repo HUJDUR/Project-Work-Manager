@@ -7,6 +7,9 @@ import 'package:pwm_mobile/screens/my_hours_screen.dart';
 import 'package:pwm_mobile/utils/api_client_exception.dart';
 
 class _FakeProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FakeProvider(this.rows) : super('Fake');
 
   final List<T> rows;
@@ -31,6 +34,9 @@ class _FakeProvider<T> extends BaseProvider<T> {
 }
 
 class _FailingProvider<T> extends BaseProvider<T> {
+  @override
+  T fromJson(dynamic data) => throw UnimplementedError();
+
   _FailingProvider() : super('Fake');
 
   @override

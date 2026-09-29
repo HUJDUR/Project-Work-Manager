@@ -55,9 +55,7 @@ namespace pwm.Services
                 .Skip((search.Page!.Value - 1) * search.PageSize!.Value)
                 .Take(search.PageSize.Value);
 
-            var list = await query
-                .Select(item => _mapper.Map<TResponse>(item))
-                .ToListAsync();
+            var list = await ProjectForList(query).ToListAsync();
 
             return new PageResult<TResponse>
             {
@@ -105,13 +103,21 @@ namespace pwm.Services
         /// Keeps every list endpoint inside <see cref="BaseSearchObject.MaxPageSize"/>: a page
         /// is never bigger than the ceiling, and never smaller than one row.
         /// </summary>
-        private static void ClampPaging(TSearch search)
+        protected static void ClampPaging(BaseSearchObject search)
         {
             search.Page = Math.Max(search.Page ?? 1, 1);
 
             var pageSize = search.PageSize ?? BaseSearchObject.DefaultPageSize;
             search.PageSize = Math.Clamp(pageSize, 1, BaseSearchObject.MaxPageSize);
         }
+
+        /// <summary>
+        /// How a list page is shaped. Override to leave out columns a list has no use
+        /// for - a picture, a document - so they are never even read from the database;
+        /// the by-id endpoint still returns the whole row.
+        /// </summary>
+        protected virtual IQueryable<TResponse> ProjectForList(IQueryable<TEntity> query) =>
+            query.Select(item => _mapper.Map<TResponse>(item));
 
         // Override in derived classes to include related entities if necessary.
         protected virtual Task<IQueryable<TEntity>> IncludeRelatedEntitiesAsync(TSearch? search, IQueryable<TEntity> query)

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/models.dart';
+import '../providers/auth_provider.dart';
 import '../providers/project_overview_provider.dart';
 import '../providers/projects_provider.dart';
+import '../utils/app_roles.dart';
 import '../utils/app_theme.dart';
+import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
+import '../utils/project_status_rules.dart';
 import 'project_details_screen.dart';
 import 'transport_screen.dart';
 import 'widgets/panel.dart';
@@ -60,12 +64,45 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen> {
     );
     if (result != 'reload' || !mounted) return;
 
+    await _refreshRow();
+  }
+
+  /// Re-reads [_row] through [ProjectsProvider] the way it is already joined
+  /// for the table - both the edit form and a status change need this same
+  /// refresh, since either can change what `_InfoCard` shows.
+  Future<void> _refreshRow() async {
     await widget.provider.refresh();
     if (!mounted) return;
 
     final fresh = await widget.provider.fetchRow(_row.id);
     if (!mounted) return;
     setState(() => _row = fresh);
+  }
+
+  Future<void> _changeStatus(
+    ProjectOverviewProvider overview,
+    String targetStatus,
+    int targetStatusId,
+  ) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Change status',
+      message: 'Move "${_row.name}" from "${_row.statusName}" to "$targetStatus"?'
+          '${ProjectStatusRules.isEditLocked(targetStatus) ? ' Only its notes can be changed after that.' : ''}',
+      confirmLabel: 'Move to $targetStatus',
+      destructive: targetStatus == ProjectStatusRules.rejected,
+    );
+    if (!confirmed || !mounted) return;
+
+    final succeeded = await overview.changeStatus(targetStatusId);
+    if (!mounted) return;
+
+    if (succeeded) {
+      showSavedSnackBar(context, 'Status changed to $targetStatus');
+      await _refreshRow();
+    } else if (overview.statusChangeError case final message?) {
+      showErrorSnackBar(context, message);
+    }
   }
 
   @override
@@ -89,6 +126,12 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _InfoCard(row: _row),
+                      const SizedBox(height: AppSpacing.gap),
+                      _StatusPanel(
+                        row: _row,
+                        statusTypes: widget.provider.statusTypes,
+                        onChangeStatus: _changeStatus,
+                      ),
                       const SizedBox(height: AppSpacing.gap),
                       SizedBox(
                         height: _panelRowHeight,
@@ -226,6 +269,162 @@ class _InfoCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: VerticalDivider(width: 1, color: AppColors.border),
       );
+}
+
+/// The project's life cycle: the current status, the buttons that move it on
+/// (only the jumps `ProjectStatusRules.allowedNext` lists, and only for
+/// Admin/Project manager - everyone else just reads this panel), and the
+/// audit trail of every move it has ever made.
+class _StatusPanel extends StatelessWidget {
+  const _StatusPanel({
+    required this.row,
+    required this.statusTypes,
+    required this.onChangeStatus,
+  });
+
+  final ProjectRow row;
+  final List<ProjectStatusType> statusTypes;
+
+  /// The provider is this widget's own `context.watch` below, not the
+  /// caller's - the caller sits above the `ChangeNotifierProvider` that
+  /// creates it. The target status's name and id are the id the API call
+  /// needs and the name the confirmation dialog and the snackbar say.
+  final Future<void> Function(ProjectOverviewProvider overview, String status, int statusId)
+      onChangeStatus;
+
+  static String _labelFor(String targetStatus) => switch (targetStatus) {
+        ProjectStatusRules.inProduction => 'Start production',
+        ProjectStatusRules.onHold => 'Put on hold',
+        ProjectStatusRules.delivered => 'Mark delivered',
+        ProjectStatusRules.rejected => 'Reject',
+        ProjectStatusRules.potential => 'Resume as Potential',
+        _ => targetStatus,
+      };
+
+  static IconData _iconFor(String targetStatus) => switch (targetStatus) {
+        ProjectStatusRules.inProduction => Icons.precision_manufacturing_outlined,
+        ProjectStatusRules.onHold => Icons.pause_circle_outlined,
+        ProjectStatusRules.delivered => Icons.local_shipping_outlined,
+        ProjectStatusRules.rejected => Icons.cancel_outlined,
+        ProjectStatusRules.potential => Icons.undo_outlined,
+        _ => Icons.arrow_forward,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final role = context.watch<AuthProvider>().currentRole;
+    final canChangeStatus = role == AppRoles.admin || role == AppRoles.projectManager;
+    final overview = context.watch<ProjectOverviewProvider>();
+
+    final statusIdByName = {for (final status in statusTypes) status.name: status.id};
+    final nextStatuses = ProjectStatusRules.allowedNext(
+      row.statusName,
+      hasStartedProduction: row.startDate != null,
+    );
+
+    // Not `Panel`: that widget wraps its child in an `Expanded`, which needs
+    // a bounded-height ancestor - fine for the panel rows below, each inside
+    // its own `SizedBox(height: _panelRowHeight)`, but this card sits
+    // straight in the page's `SingleChildScrollView` and sizes to its
+    // content instead, history list and all.
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Status', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(
+            canChangeStatus
+                ? 'Move this project through its life cycle'
+                : 'Only an administrator or project manager can change this',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              ProjectStatusChip(status: row.statusName),
+              const SizedBox(width: 16),
+              if (canChangeStatus && nextStatuses.isNotEmpty)
+                Expanded(
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final target in nextStatuses)
+                        if (statusIdByName[target] case final targetId?)
+                          OutlinedButton.icon(
+                            onPressed: overview.isChangingStatus
+                                ? null
+                                : () => onChangeStatus(overview, target, targetId),
+                            icon: Icon(_iconFor(target), size: 16),
+                            label: Text(_labelFor(target)),
+                          ),
+                    ],
+                  ),
+                )
+              else if (canChangeStatus)
+                Expanded(
+                  child: Text(
+                    '"${row.statusName}" is final - nothing about this project '
+                    'changes from here but its notes.',
+                    style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+                  ),
+                ),
+            ],
+          ),
+          if (overview.statusHistory.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 12),
+            Text(
+              'History',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final change in overview.statusHistory) _StatusHistoryRow(change: change),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusHistoryRow extends StatelessWidget {
+  const _StatusHistoryRow({required this.change});
+
+  final ProjectStatusChangeEntry change;
+
+  @override
+  Widget build(BuildContext context) {
+    final description = change.fromStatusName == null
+        ? 'Raised as "${change.toStatusName}"'
+        : 'Moved from "${change.fromStatusName}" to "${change.toStatusName}"';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$description by ${change.changedByName}',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${formatFullDate(change.changedAt)} '
+            '${formatTime(change.changedAt)}',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _FieldGroup extends StatelessWidget {

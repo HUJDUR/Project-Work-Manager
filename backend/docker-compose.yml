@@ -1,3 +1,12 @@
+# backend/.env holds the host-side addresses (localhost and the published
+# ports), which a host-run `dotnet run` uses. Inside the compose network the
+# api and worker reach SQL Server and RabbitMQ by service name instead - this
+# is the only thing they override.
+x-in-network: &in-network
+  DB_SERVER: "sqlserver,1433"
+  RabbitMq__HostName: rabbitmq
+  RabbitMq__Port: "5672"
+
 services:
   rabbitmq:
     # Pinned, not `:management` alone, which floats to whatever is newest.
@@ -30,17 +39,13 @@ services:
       context: ./pwm
       dockerfile: pwm.WebAPI/Dockerfile
     container_name: pwm-api
+    # Every setting comes from the one backend/.env file; `environment` below
+    # only overrides what differs inside the compose network.
+    env_file: .env
     environment:
+      <<: *in-network
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: "http://+:8080"
-      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is not set}"
-      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is not set}"
-      ConnectionStrings__PWMConnection: "Server=sqlserver,1433;Database=210050;User Id=sa;TrustServerCertificate=True;MultipleActiveResultSets=True"
-      RabbitMq__HostName: rabbitmq
-      RabbitMq__Port: 5672
-      RabbitMq__UserName: "${RabbitMq__UserName:-guest}"
-      RabbitMq__Password: "${RabbitMq__Password:-guest}"
-      RabbitMq__ReportQueueName: "${RabbitMq__ReportQueueName:-report-generation}"
     ports:
       # Same port the frontend apps default to (baseUrl/String.fromEnvironment).
       - "7094:8080"
@@ -58,14 +63,9 @@ services:
       context: ./pwm
       dockerfile: pwm.Worker/Dockerfile
     container_name: pwm-worker
+    env_file: .env
     environment:
-      DB_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is not set}"
-      ConnectionStrings__PWMConnection: "Server=sqlserver,1433;Database=210050;User Id=sa;TrustServerCertificate=True;MultipleActiveResultSets=True"
-      RabbitMq__HostName: rabbitmq
-      RabbitMq__Port: 5672
-      RabbitMq__UserName: "${RabbitMq__UserName:-guest}"
-      RabbitMq__Password: "${RabbitMq__Password:-guest}"
-      RabbitMq__ReportQueueName: "${RabbitMq__ReportQueueName:-report-generation}"
+      <<: *in-network
     depends_on:
       sqlserver:
         condition: service_healthy

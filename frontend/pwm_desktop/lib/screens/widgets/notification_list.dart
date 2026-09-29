@@ -123,7 +123,7 @@ class NotificationTile extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: 1),
                         child: Text(
-                          formatRelative(apiTimeToLocal(notification.createdAt)),
+                          formatRelative(notification.createdAt),
                           style:
                               TextStyle(fontSize: 11, color: AppColors.textMuted),
                         ),

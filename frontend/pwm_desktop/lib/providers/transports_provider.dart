@@ -1,15 +1,16 @@
-import 'package:flutter/material.dart';
-
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
+import '../utils/sarajevo_time.dart';
 import 'base_provider.dart';
 import 'company_provider.dart';
 import 'company_type_provider.dart';
+import 'package:flutter/material.dart';
 import 'project_provider.dart';
 import 'project_status_type_provider.dart';
 import 'truck_load_detail_provider.dart';
 import 'truck_load_provider.dart';
 import 'truck_load_status_type_provider.dart';
+
 
 enum TransportsStatusState { idle, loading, ready, failed }
 
@@ -23,7 +24,7 @@ enum TransportsStatusState { idle, loading, ready, failed }
 /// rather than for the whole page.
 class TransportsProvider extends ChangeNotifier {
   TransportsProvider({
-    BaseProvider<TruckLoad>? truckLoads,
+    TruckLoadProvider? truckLoads,
     BaseProvider<TruckLoadDetail>? truckLoadDetails,
     BaseProvider<TruckLoadStatusType>? statusTypes,
     BaseProvider<Company>? companies,
@@ -51,7 +52,7 @@ class TransportsProvider extends ChangeNotifier {
   /// on hold, rejected, or already delivered has no business on the cargo list.
   static const String loadableProjectStatus = 'In production';
 
-  final BaseProvider<TruckLoad> _truckLoads;
+  final TruckLoadProvider _truckLoads;
   final BaseProvider<TruckLoadDetail> _truckLoadDetails;
   final BaseProvider<TruckLoadStatusType> _statusTypes;
   final BaseProvider<Company> _companies;
@@ -227,10 +228,9 @@ class TransportsProvider extends ChangeNotifier {
         if (_search.trim().isNotEmpty) 'search': _search.trim(),
         if (_statusId != null) 'truckLoadStatusId': _statusId,
         if (_dateRange != null) ...{
-          'dateFrom': DateUtils.dateOnly(_dateRange!.start).toIso8601String(),
-          'dateTo': DateUtils.dateOnly(_dateRange!.end)
-              .add(const Duration(days: 1) - const Duration(seconds: 1))
-              .toIso8601String(),
+          'dateFrom': SarajevoTime.toApi(DateUtils.dateOnly(_dateRange!.start)),
+          'dateTo': SarajevoTime.toApi(DateUtils.dateOnly(_dateRange!.end)
+              .add(const Duration(days: 1) - const Duration(seconds: 1))),
         },
       };
 
@@ -261,10 +261,9 @@ class TransportsProvider extends ChangeNotifier {
       if (_search.trim().isNotEmpty) 'search': _search.trim(),
       if (_statusId != null) 'truckLoadStatusId': _statusId,
       if (_dateRange != null) ...{
-        'dateFrom': DateUtils.dateOnly(_dateRange!.start).toIso8601String(),
-        'dateTo': DateUtils.dateOnly(_dateRange!.end)
-            .add(const Duration(days: 1) - const Duration(seconds: 1))
-            .toIso8601String(),
+        'dateFrom': SarajevoTime.toApi(DateUtils.dateOnly(_dateRange!.start)),
+        'dateTo': SarajevoTime.toApi(DateUtils.dateOnly(_dateRange!.end)
+            .add(const Duration(days: 1) - const Duration(seconds: 1))),
       },
     });
     return _buildRows(loads);
@@ -288,9 +287,28 @@ class TransportsProvider extends ChangeNotifier {
               emptyWeight: load.emptyWeight,
               fullWeight: load.fullWeight,
               note: load.note,
+              price: load.price,
             ))
         .toList();
   }
+
+  /// Re-reads one load after its edit form - or a status change - has
+  /// written, joined the same way [rows] is, so the overview screen showing
+  /// it can refresh in place rather than falling back to the table's own page.
+  Future<TransportRow> fetchRow(int id) async {
+    final load = await _truckLoads.getById(id);
+    return _buildRows([load]).single;
+  }
+
+  /// `PATCH /TruckLoad/{id}/Status` - the only way a load's status ever
+  /// changes. [price] is the invoice amount in EUR, asked for by the popup
+  /// the "Finished" transition opens; the API refuses that jump without it.
+  Future<void> changeStatus(int id, int newStatusId, {double? price}) =>
+      _truckLoads.changeStatus(id, newStatusId, price: price);
+
+  /// The audit trail behind one load's status, newest first.
+  Future<List<TruckLoadStatusChangeEntry>> statusHistory(int id) =>
+      _truckLoads.statusHistory(id);
 
   /// What is on one truck, in the order it comes off. Fetched when a row is
   /// opened, because the table does not show cargo and a page of eight loads
@@ -317,10 +335,16 @@ class TransportsProvider extends ChangeNotifier {
   /// the same form for both. Cargo lives in its own table, so the lines are
   /// diffed against [originalLines]: what is new gets inserted, what is gone
   /// gets deleted, and the rest is put back.
+  ///
+  /// Carries no status: a load always starts "Ordered" and only ever moves
+  /// on, or has its cargo changed, through [changeStatus] - see the API's own
+  /// `TruckLoadInsertRequest` for why this request cannot express either.
+  /// [price] is only ever honoured by the API while "Delivered"; sent
+  /// unconditionally here the same way `phoneNumber` is elsewhere, so an
+  /// unrelated edit does not accidentally blank out an amount already entered.
   Future<void> saveTransport({
     int? id,
     required int transportCompanyId,
-    required int truckLoadStatusId,
     required DateTime loadDate,
     required String driverName,
     required String driverSurname,
@@ -328,19 +352,20 @@ class TransportsProvider extends ChangeNotifier {
     required double emptyWeight,
     required double fullWeight,
     String? note,
+    double? price,
     List<TransportLine> lines = const [],
     List<TransportLine> originalLines = const [],
   }) async {
     final body = {
       'transportCompanyId': transportCompanyId,
-      'truckLoadStatusId': truckLoadStatusId,
-      'loadDate': loadDate.toIso8601String(),
+      'loadDate': SarajevoTime.toApi(loadDate),
       'driverName': driverName,
       'driverSurname': driverSurname,
       'vehicleRegistration': vehicleRegistration,
       'emptyWeight': emptyWeight,
       'fullWeight': fullWeight,
       'note': note,
+      'price': price,
     };
 
     // On insert the id comes back from the API; on update it is the one we sent.

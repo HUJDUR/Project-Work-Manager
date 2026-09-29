@@ -69,12 +69,9 @@ namespace pwm.WebAPI.Controllers
         }
 
         /// <summary>
-        /// Who generated it comes from the token, never the body. With authentication
-        /// bypassed there is no token, so it falls back to the first account.
+        /// Who generated it comes from the token, never the body.
         /// </summary>
         private int Author() => _currentUser.Id
-            ?? (DevSettings.BypassAuthentication
-                ? 1
-                : throw new ForbiddenException("The token carries no user."));
+            ?? throw new ForbiddenException("The token carries no user.");
     }
 }

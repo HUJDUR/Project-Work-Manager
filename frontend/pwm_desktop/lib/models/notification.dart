@@ -1,9 +1,10 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../utils/sarajevo_time.dart';
 
 part 'notification.g.dart';
 
 /// Collides with Flutter's own `Notification`; import that one with a `hide`.
-@JsonSerializable()
+@JsonSerializable(converters: [ApiDateTimeConverter()])
 class Notification {
   const Notification({
     required this.id,

@@ -6,6 +6,9 @@ import 'package:pwm_desktop/providers/base_provider.dart';
 import 'package:pwm_desktop/utils/api_client_exception.dart';
 
 class _TestProvider extends BaseProvider<Object> {
+  @override
+  Object fromJson(dynamic data) => throw UnimplementedError();
+
   _TestProvider() : super('Test');
 }
 

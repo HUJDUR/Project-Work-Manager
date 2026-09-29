@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Configuration;
-
 namespace pwm.Common.Services.Hosting
 {
     /// <summary>
@@ -58,25 +56,21 @@ namespace pwm.Common.Services.Hosting
         }
 
         /// <summary>
-        /// appsettings.json carries the shape of the connection string but never the
-        /// password - that comes from <c>.env</c> alone, via <see cref="LoadDotEnvFile"/>,
-        /// so it is never hardcoded in source control.
+        /// Every part of the connection string comes from <c>.env</c> - nothing about the
+        /// database lives in appsettings.json. <c>DB_SERVER</c> is the one part that
+        /// differs by where the process runs: the host reaches SQL Server on its
+        /// published port, the api/worker containers on the compose network, which is
+        /// why docker-compose.yml overrides just that one.
         /// </summary>
-        public static string BuildConnectionString(IConfiguration configuration)
-        {
-            var connectionString = configuration.GetConnectionString("PWMConnection")
-                ?? throw new InvalidOperationException("Connection string 'PWMConnection' is not configured.");
+        public static string BuildConnectionString() =>
+            $"Server={Require("DB_SERVER")};Database={Require("DB_NAME")};" +
+            $"User Id={Require("DB_USER")};Password={Require("DB_PASSWORD")};" +
+            "TrustServerCertificate=True;MultipleActiveResultSets=True";
 
-            if (connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase))
-            {
-                return connectionString;
-            }
-
-            var password = Environment.GetEnvironmentVariable("DB_PASSWORD")
-                ?? throw new InvalidOperationException(
-                    "DB_PASSWORD is not set - add it to backend/.env.");
-
-            return connectionString.TrimEnd(';') + $";Password={password}";
-        }
+        /// <summary>A value <c>backend/.env</c> has to supply, failing at startup rather than on first use.</summary>
+        public static string Require(string name) =>
+            Environment.GetEnvironmentVariable(name) is { Length: > 0 } value
+                ? value
+                : throw new InvalidOperationException($"{name} is not set - add it to backend/.env.");
     }
 }
