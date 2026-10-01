@@ -6,12 +6,11 @@ import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
 import '../utils/project_status_rules.dart';
 import '../utils/sarajevo_time.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
-
 
 /// One project, new or existing. Pops `'reload'` once it has written, which is
 /// the list screen's cue to refetch.
@@ -61,7 +60,6 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
       'projectCategoryId': row?.categoryId,
       'priority': row?.priority ?? ProjectPriority.medium,
       // Whoever is signed in raised it, unless it was raised before.
-      'createdByUserId': row?.createdByUserId ?? widget.provider.signedInUserId,
       'weight': row?.weight.toString(),
       'deliveryCompanyId': row?.deliveryCompanyId,
       'deliveryDate': row?.endDate,
@@ -80,7 +78,6 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
       saving: _saving,
       errorMessage: _error,
       onSave: _save,
-      onDelete: _isNew ? null : _delete,
       child: FormBuilder(
         key: _formKey,
         initialValue: _initialValue,
@@ -178,7 +175,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                     ),
                     entries: [
                       for (final Company customer in provider.customers)
-                        DropdownMenuEntry(value: customer.id, label: customer.name),
+                        if (customer.isSelectableFor(widget.row?.customerId))
+                          DropdownMenuEntry(value: customer.id, label: customer.name),
                     ],
                   ),
                 ),
@@ -193,7 +191,8 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
                     entries: [
                       const DropdownMenuEntry(value: null, label: 'Not assigned'),
                       for (final Company company in provider.deliveryCompanies)
-                        DropdownMenuEntry(value: company.id, label: company.name),
+                        if (company.isSelectableFor(widget.row?.deliveryCompanyId))
+                          DropdownMenuEntry(value: company.id, label: company.name),
                     ],
                   ),
                 ),
@@ -233,17 +232,13 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
               ],
             ),
             const SizedBox(height: formFieldGap),
-            SearchableDropdownField<int>(
-              name: 'createdByUserId',
-              label: 'Created by',
-              enabled: !_locked,
-              validator: FormBuilderValidators.required(
-                errorText: 'Every project has an author.',
+            // Not a choice: the API records whoever is signed in as the author.
+            InputDecorator(
+              decoration: appInputDecoration('Created by'),
+              child: Text(
+                widget.row?.createdByName ?? provider.signedInUserName,
+                style: Theme.of(context).textTheme.bodyLarge,
               ),
-              entries: [
-                for (final User author in provider.authors)
-                  DropdownMenuEntry(value: author.id, label: author.fullName),
-              ],
             ),
             const SizedBox(height: formSectionGap),
             FormBuilderTextField(
@@ -291,7 +286,6 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
         notes: _trimToNull(values['notes']),
         customerId: values['customerId'] as int,
         projectCategoryId: values['projectCategoryId'] as int,
-        createdByUserId: values['createdByUserId'] as int,
         priority: values['priority'] as ProjectPriority,
         weight: double.parse(values['weight'] as String),
         creationDate: widget.row?.createdAt ?? SarajevoTime.now(),
@@ -306,37 +300,6 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
     } catch (error) {
       setState(() {
         _error = _messageFor(error, 'The project could not be saved');
-        _saving = false;
-      });
-    }
-  }
-
-  Future<void> _delete() async {
-    final row = widget.row!;
-
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Delete project',
-      message: 'Delete "${row.name}"? Only a project nothing has been booked against '
-          'can be deleted - one with work hours or transport cargo keeps its history '
-          'and is rejected instead.',
-    );
-    if (!confirmed || !mounted) return;
-
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-
-    try {
-      await widget.provider.deleteProject(row.id);
-
-      if (!mounted) return;
-      showSavedSnackBar(context, 'Project deleted');
-      Navigator.of(context).pop('reload');
-    } catch (error) {
-      setState(() {
-        _error = _messageFor(error, 'The project could not be deleted');
         _saving = false;
       });
     }

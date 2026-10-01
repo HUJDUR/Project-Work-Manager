@@ -11,7 +11,6 @@ using pwm.Services.Business;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
 using pwm.Common.Services.Time;
-using pwm.Services.Reporting;
 
 namespace pwm.Services.Implementations
 {
@@ -19,132 +18,245 @@ namespace pwm.Services.Implementations
         : BaseCRUDService<WorkLogDetail, WorkLogDetailResponse, WorkLogDetailSearchObject, WorkLogDetailInsertRequest, WorkLogDetailUpdateRequest>, IWorkLogDetailService
     {
         private readonly ICurrentUser _currentUser;
+        private readonly INotificationService _notifications;
 
         public WorkLogDetailService(
             PWMDbContext dbContext,
             IMapper mapper,
             IValidator<WorkLogDetailInsertRequest> insertValidator,
             IValidator<WorkLogDetailUpdateRequest> updateValidator,
-            ICurrentUser currentUser)
+            ICurrentUser currentUser,
+            INotificationService notifications)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
             _currentUser = currentUser;
+            _notifications = notifications;
         }
 
-        // A block has no user of its own; ownership is the shift it belongs to.
+        /// <summary>
+        /// A block of work booked by the office (a worker clocks in through
+        /// <c>WorkLogService.ClockInAsync</c> instead). The request's user and hours
+        /// are not trusted: the user is the shift's, the hours are worked out from
+        /// the two times, and the shift's total is brought up to date in the same save.
+        /// </summary>
         public override async Task<WorkLogDetailResponse> InsertAsync(WorkLogDetailInsertRequest request)
         {
-            await EnsureOwnShiftAsync(request.WorkLogId);
-            await EnsureProjectAllowsBookingAsync(request.ProjectId, request.OperationTypeId);
+            ArgumentNullException.ThrowIfNull(request);
+            await _insertValidator.ValidateAndThrowAsync(request);
 
-            return await base.InsertAsync(request);
+            var shift = await FindShiftAsync(request.WorkLogId);
+            await EnsureBookableAsync(shift.UserId, request, exceptBlockId: null);
+
+            var block = _mapper.Map<WorkLogDetail>(request);
+            block.Note = WorkBookingRules.CleanNote(request.Note);
+            block.UserId = shift.UserId;
+            block.Hours = HoursOf(request);
+            _dbContext.WorkLogDetails.Add(block);
+
+            RetotalShift(shift, await SavedHoursAsync(shift.Id, exceptBlockId: null) + block.Hours);
+            await RecordChangeAsync(block, shift.UserId, WorkHoursChangeAction.Added, before: null, after: await DescribeAsync(block));
+            await MonthlyHourSummary.SaveAndRecalculateAsync(_dbContext, [block.StartedAt]);
+
+            return _mapper.Map<WorkLogDetailResponse>(block);
         }
 
         public override async Task<WorkLogDetailResponse> UpdateAsync(int id, WorkLogDetailUpdateRequest request)
         {
-            // Both the block being changed and the shift it is being moved onto.
-            await EnsureOwnBlockAsync(id);
-            await EnsureOwnShiftAsync(request.WorkLogId);
-            await EnsureProjectAllowsBookingAsync(request.ProjectId, request.OperationTypeId);
+            ArgumentNullException.ThrowIfNull(request);
+            await _updateValidator.ValidateAndThrowAsync(request);
 
-            return await base.UpdateAsync(id, request);
-        }
+            var block = await _dbContext.WorkLogDetails.FindAsync(id)
+                ?? throw new NotFoundException($"WorkLogDetail with id {id} not found.");
+            var previousShiftId = block.WorkLogId;
+            var previousStart = block.StartedAt;
+            var before = await DescribeAsync(block);
 
-        /// <summary>
-        /// A project not actively worked (On hold, Delivered, Rejected) takes no
-        /// new hours at all; one still only being quoted (Potential) takes only
-        /// office hours - the shop floor has not been told to start yet. See
-        /// <see cref="ProjectStatusRules"/>.
-        /// </summary>
-        private async Task EnsureProjectAllowsBookingAsync(int projectId, int operationTypeId)
-        {
-            var project = await _dbContext.Projects
-                    .Include(x => x.ProjectStatus)
-                    .FirstOrDefaultAsync(x => x.Id == projectId)
-                ?? throw new NotFoundException($"Project with id {projectId} not found.");
+            var shift = await FindShiftAsync(request.WorkLogId);
+            await EnsureBookableAsync(shift.UserId, request, exceptBlockId: id);
 
-            if (!ProjectStatusRules.CanBookAnything(project.ProjectStatus.Name))
+            _mapper.Map(request, block);
+            block.Note = WorkBookingRules.CleanNote(request.Note);
+            block.UserId = shift.UserId;
+            block.Hours = HoursOf(request);
+
+            RetotalShift(shift, await SavedHoursAsync(shift.Id, exceptBlockId: id) + block.Hours);
+            if (previousShiftId != shift.Id)
             {
-                throw new ClientException(
-                    $"A \"{project.ProjectStatus.Name}\" project cannot have new hours booked against it.");
+                // Moved off another shift - that one's total drops by it.
+                RetotalShift(await FindShiftAsync(previousShiftId), await SavedHoursAsync(previousShiftId, exceptBlockId: id));
             }
 
-            if (!ProjectStatusRules.RequiresOfficeOperationOnly(project.ProjectStatus.Name))
+            var after = await DescribeAsync(block);
+            if (after != before)
             {
-                return;
+                await RecordChangeAsync(block, shift.UserId, WorkHoursChangeAction.Changed, before, after);
             }
 
-            var operationName = await _dbContext.OperationTypes
-                    .Where(x => x.Id == operationTypeId)
-                    .Select(x => x.Name)
-                    .FirstOrDefaultAsync()
-                ?? throw new NotFoundException($"OperationType with id {operationTypeId} not found.");
+            await MonthlyHourSummary.SaveAndRecalculateAsync(_dbContext, [previousStart, block.StartedAt]);
 
-            if (!ProjectStatusRules.IsOfficeOperation(operationName))
-            {
-                throw new ClientException(
-                    "A project still being quoted only takes office hours - Office work or Technical preparation.");
-            }
+            return _mapper.Map<WorkLogDetailResponse>(block);
         }
 
         /// <summary>
         /// Removes the block, and the shift with it when nothing else was booked
         /// against it - a shift with no work on it is not a record of anything.
-        /// Both go in one save.
+        /// Otherwise the shift's total drops by it. One save either way.
         /// </summary>
         public override async Task DeleteAsync(int id)
         {
-            await EnsureOwnBlockAsync(id);
-
             var block = await _dbContext.WorkLogDetails.FindAsync(id)
                 ?? throw new NotFoundException($"WorkLogDetail with id {id} not found.");
 
             var hasSiblings = await _dbContext.WorkLogDetails
                 .AnyAsync(x => x.WorkLogId == block.WorkLogId && x.Id != id);
 
+            // Recorded without the block itself - it is gone after this save, and
+            // this row is the part of its story that has to stay.
+            await RecordChangeAsync(block: null, block.UserId, WorkHoursChangeAction.Deleted,
+                before: await DescribeAsync(block), after: null);
+
             _dbContext.WorkLogDetails.Remove(block);
 
-            if (!hasSiblings)
+            var shift = await _dbContext.WorkLogs.FindAsync(block.WorkLogId);
+            if (shift is not null)
             {
-                var shift = await _dbContext.WorkLogs.FindAsync(block.WorkLogId);
-                if (shift is not null)
+                if (hasSiblings)
+                {
+                    RetotalShift(shift, await SavedHoursAsync(shift.Id, exceptBlockId: id));
+                }
+                else
                 {
                     _dbContext.WorkLogs.Remove(shift);
                 }
             }
 
-            await _dbContext.SaveChangesAsync();
+            await MonthlyHourSummary.SaveAndRecalculateAsync(_dbContext, [block.StartedAt]);
         }
 
-        private async Task EnsureOwnBlockAsync(int id)
+        /// <summary>A worker only ever sees their own blocks; the office anyone's.</summary>
+        public override async Task<WorkLogDetailResponse> GetByIdAsync(int id)
         {
-            if (!_currentUser.IsWorker)
+            var block = await base.GetByIdAsync(id);
+
+            if (_currentUser.IsWorker && block.UserId != _currentUser.Id)
             {
-                return;
+                throw new NotFoundException($"WorkLogDetail with id {id} not found.");
             }
 
-            var existing = await GetByIdAsync(id);
-
-            await EnsureOwnShiftAsync(existing.WorkLogId);
+            return block;
         }
 
-        private async Task EnsureOwnShiftAsync(int workLogId)
+        /// <summary>
+        /// The trail behind one block - who changed it, when, and from what to what -
+        /// newest first. Its deletion is not reachable here, since the block is gone;
+        /// the admins and project managers were told of it when it happened.
+        /// </summary>
+        public async Task<List<WorkHoursChangeResponse>> GetHistoryAsync(int workLogDetailId) =>
+            await _dbContext.WorkHoursChanges
+                .Where(x => x.WorkLogDetailId == workLogDetailId)
+                .OrderByDescending(x => x.ChangedAt)
+                .ThenByDescending(x => x.Id)
+                .Select(x => new WorkHoursChangeResponse
+                {
+                    Id = x.Id,
+                    Action = x.Action.ToString(),
+                    ChangedByName = (x.ChangedByUser.Name + " " + x.ChangedByUser.Surname).Trim(),
+                    ChangedAt = x.ChangedAt,
+                    Before = x.Before,
+                    After = x.After,
+                })
+                .ToListAsync();
+
+        /// <summary>
+        /// One correction, in the history and in the admins' and project managers'
+        /// notifications - staged here, committed by the caller's one save with the
+        /// change itself. Whoever made it is not told about their own change.
+        /// </summary>
+        private async Task RecordChangeAsync(
+            WorkLogDetail? block, int workerId, WorkHoursChangeAction action, string? before, string? after)
         {
-            if (!_currentUser.IsWorker)
-            {
-                return;
-            }
+            var actorId = _currentUser.Id ?? throw new ForbiddenException("The token carries no user.");
 
-            var shift = await _dbContext.WorkLogs.FindAsync(workLogId)
-                ?? throw new NotFoundException($"WorkLog with id {workLogId} not found.");
-
-            if (shift.UserId != _currentUser.Id)
+            _dbContext.WorkHoursChanges.Add(new WorkHoursChange
             {
-                throw new ForbiddenException("You can only book hours against your own shift.");
-            }
+                WorkLogDetail = block,
+                WorkerId = workerId,
+                ChangedByUserId = actorId,
+                ChangedAt = DateTime.UtcNow,
+                Action = action,
+                Before = before,
+                After = after,
+            });
+
+            var names = await _dbContext.Users
+                .Where(x => x.Id == actorId || x.Id == workerId)
+                .Select(x => new { x.Id, Name = (x.Name + " " + x.Surname).Trim() })
+                .ToDictionaryAsync(x => x.Id, x => x.Name);
+            var actor = names.GetValueOrDefault(actorId, "Someone");
+            var worker = names.GetValueOrDefault(workerId, "a worker");
+
+            var (title, message) = action switch
+            {
+                WorkHoursChangeAction.Added => ("Work hours added", $"{actor} added work hours for {worker}: {after}."),
+                WorkHoursChangeAction.Changed => ("Work hours changed", $"{actor} changed {worker}'s work hours: {before} → {after}."),
+                _ => ("Work hours deleted", $"{actor} deleted {worker}'s work hours: {before}."),
+            };
+
+            await _notifications.StageForRolesAsync(title, message, actorId, Roles.Admin, Roles.ProjectManager);
         }
 
-        public async Task<PageResult<WorkHoursEntryResponse>> GetHoursAsync(WorkHoursSearchObject search)
+        /// <summary>
+        /// A block in words, the way the history and the notifications show it:
+        /// "26-015 Staircase module · Welding · 30.09.2026 07:00-15:00 (8 h)".
+        /// Times are Sarajevo's.
+        /// </summary>
+        private async Task<string> DescribeAsync(WorkLogDetail block)
+        {
+            var project = await _dbContext.Projects
+                .Where(x => x.Id == block.ProjectId)
+                .Select(x => (x.Code + " " + x.Name).Trim())
+                .FirstOrDefaultAsync() ?? $"Project {block.ProjectId}";
+            var operation = await _dbContext.OperationTypes
+                .Where(x => x.Id == block.OperationTypeId)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync() ?? $"Operation {block.OperationTypeId}";
+
+            var start = SarajevoTime.FromUtc(block.StartedAt);
+            var end = block.FinishedAt is { } finished ? SarajevoTime.FromUtc(finished).ToString("HH:mm") : "still running";
+            var hours = block.Hours.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+            var text = $"{project} · {operation} · {start:dd.MM.yyyy HH:mm}-{end} ({hours} h)";
+            return text.Length <= WorkHoursChange.SnapshotMaxLength ? text : text[..WorkHoursChange.SnapshotMaxLength];
+        }
+
+        private async Task<WorkLog> FindShiftAsync(int workLogId) =>
+            await _dbContext.WorkLogs.FindAsync(workLogId)
+            ?? throw new NotFoundException($"WorkLog with id {workLogId} not found.");
+
+        private async Task EnsureBookableAsync(int userId, WorkLogDetailInsertRequest request, int? exceptBlockId)
+        {
+            await WorkBookingRules.EnsureProjectAllowsBookingAsync(_dbContext, request.ProjectId, request.OperationTypeId);
+            await WorkBookingRules.EnsureQualifiedAsync(_dbContext, userId, request.OperationTypeId);
+            await WorkBookingRules.EnsureNoOverlapAsync(_dbContext, userId, request.StartedAt, request.FinishedAt, exceptBlockId);
+        }
+
+        private static double HoursOf(WorkLogDetailInsertRequest request) =>
+            request.FinishedAt is { } finished ? WorkBookingRules.HoursBetween(request.StartedAt, finished) : 0;
+
+        /// <summary>The hours already stored on a shift's blocks, leaving one out.</summary>
+        private Task<double> SavedHoursAsync(int workLogId, int? exceptBlockId) => _dbContext.WorkLogDetails
+            .Where(x => x.WorkLogId == workLogId && (exceptBlockId == null || x.Id != exceptBlockId))
+            .SumAsync(x => x.Hours);
+
+        /// <summary>A shift's hours are its blocks' hours added up - kept so, never taken from a request.</summary>
+        private static void RetotalShift(WorkLog shift, double hours) => shift.Hours = Math.Round(hours, 2);
+
+        /// <summary>
+        /// The Work Hours screen: filtered, sorted and paged in the database, with
+        /// the totals of the whole filtered set alongside the page. Overtime is
+        /// read off each block's stored <see cref="WorkLogDetail.RegularHours"/>.
+        /// </summary>
+        public async Task<WorkHoursPageResponse> GetHoursAsync(WorkHoursSearchObject search)
         {
             ClampPaging(search);
 
@@ -174,12 +286,28 @@ namespace pwm.Services.Implementations
                 query = query.Where(x => x.StartedAt < toExclusive);
             }
 
-            if (search.HoursFilter == WorkHoursFilter.InProgressOnly)
+            query = search.HoursFilter switch
             {
-                query = query.Where(x => x.FinishedAt == null || x.WorkLog.ClockedOut == null);
-            }
+                WorkHoursFilter.RegularOnly => query.Where(x => x.Hours <= x.RegularHours),
+                WorkHoursFilter.OvertimeOnly => query.Where(x => x.Hours > x.RegularHours),
+                WorkHoursFilter.InProgressOnly => query.Where(x => x.FinishedAt == null || x.WorkLog.ClockedOut == null),
+                _ => query,
+            };
 
-            var rows = await query
+            var totals = await query
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Count = g.Count(),
+                    Total = g.Sum(x => x.Hours),
+                    Regular = g.Sum(x => x.RegularHours),
+                    Workers = g.Select(x => x.UserId).Distinct().Count(),
+                })
+                .FirstOrDefaultAsync();
+
+            var items = await SortHours(query, search.SortBy)
+                .Skip((search.Page!.Value - 1) * search.PageSize!.Value)
+                .Take(search.PageSize.Value)
                 .Select(x => new
                 {
                     x.Id,
@@ -194,17 +322,16 @@ namespace pwm.Services.Implementations
                     x.StartedAt,
                     x.FinishedAt,
                     x.Hours,
+                    x.RegularHours,
+                    x.Note,
                     InProgress = x.FinishedAt == null || x.WorkLog.ClockedOut == null,
                 })
                 .ToListAsync();
 
-            var regularById = await RegularHoursAsync(rows.Select(x => (x.UserId, x.StartedAt)).ToList());
-
-            var entries = rows
-                .Select(x =>
-                {
-                    var regular = regularById[x.Id];
-                    return new WorkHoursEntryResponse
+            return new WorkHoursPageResponse
+            {
+                Items = items
+                    .Select(x => new WorkHoursEntryResponse
                     {
                         Id = x.Id,
                         WorkLogId = x.WorkLogId,
@@ -217,68 +344,123 @@ namespace pwm.Services.Implementations
                         OperationName = x.OperationName,
                         StartedAt = x.StartedAt,
                         FinishedAt = x.FinishedAt,
-                        RegularHours = regular,
-                        OvertimeHours = x.Hours - regular,
+                        RegularHours = x.RegularHours,
+                        OvertimeHours = Math.Round(x.Hours - x.RegularHours, 2),
                         InProgress = x.InProgress,
-                    };
-                })
-                .Where(x => search.HoursFilter switch
+                        Note = x.Note,
+                    })
+                    .ToList(),
+                TotalCount = totals?.Count ?? 0,
+                TotalHours = Math.Round(totals?.Total ?? 0, 2),
+                RegularHours = Math.Round(totals?.Regular ?? 0, 2),
+                OvertimeHours = Math.Round((totals?.Total ?? 0) - (totals?.Regular ?? 0), 2),
+                WorkerCount = totals?.Workers ?? 0,
+            };
+        }
+
+        /// <summary>The longest period My Hours may ask for - a little over a month.</summary>
+        public const int MaxMyDaysPeriodDays = 62;
+
+        /// <summary>
+        /// The signed-in worker's days in a period, a page at a time, newest first.
+        /// The database narrows the blocks to this worker and period - at most a
+        /// month or so of one person's work - and they are grouped into Sarajevo
+        /// days here, which SQL cannot do by time zone.
+        /// </summary>
+        public async Task<MyWorkDaysResponse> GetMyDaysAsync(MyWorkDaysSearchObject search)
+        {
+            ClampPaging(search);
+
+            var userId = _currentUser.Id ?? throw new ForbiddenException("The token carries no user.");
+
+            if (search.DateFrom is not { } from || search.DateTo is not { } to || to <= from)
+            {
+                throw new ClientException("Give the period as a start and a later end.");
+            }
+
+            if ((to - from).TotalDays > MaxMyDaysPeriodDays)
+            {
+                throw new ClientException($"Pick a period of at most {MaxMyDaysPeriodDays} days.");
+            }
+
+            var blocks = await _dbContext.WorkLogDetails
+                .Where(x => x.UserId == userId && x.StartedAt >= from && x.StartedAt < to)
+                .Select(x => new WorkDayBlockResponse
                 {
-                    WorkHoursFilter.RegularOnly => x.OvertimeHours <= 0,
-                    WorkHoursFilter.OvertimeOnly => x.OvertimeHours > 0,
-                    _ => true,
+                    Id = x.Id,
+                    ProjectId = x.ProjectId,
+                    ProjectName = x.Project.Name,
+                    ProjectCode = x.Project.Code,
+                    OperationName = x.OperationType.Name,
+                    StartedAt = x.StartedAt,
+                    FinishedAt = x.FinishedAt,
+                    Hours = x.Hours,
+                    Note = x.Note,
                 })
-                .OrderByDescending(x => x.StartedAt)
-                .ThenByDescending(x => x.Id)
+                .ToListAsync();
+
+            var days = blocks
+                .GroupBy(x => DateOnly.FromDateTime(SarajevoTime.DayOf(x.StartedAt)))
+                .Select(day => new WorkDayResponse
+                {
+                    Date = day.Key,
+                    Hours = Math.Round(day.Sum(x => x.Hours), 2),
+                    ProjectCount = day.Select(x => x.ProjectId).Distinct().Count(),
+                    InProgress = day.Any(x => x.FinishedAt == null),
+                    Blocks = day.OrderBy(x => x.StartedAt).ThenBy(x => x.Id).ToList(),
+                })
+                .OrderByDescending(x => x.Date)
                 .ToList();
 
-            return new PageResult<WorkHoursEntryResponse>
+            return new MyWorkDaysResponse
             {
-                Items = entries
+                Items = days
                     .Skip((search.Page!.Value - 1) * search.PageSize!.Value)
                     .Take(search.PageSize.Value)
                     .ToList(),
-                TotalCount = search.IncludeTotalCount == true ? entries.Count : null,
+                TotalCount = days.Count,
+                TotalHours = Math.Round(blocks.Sum(x => x.Hours), 2),
+                ProjectCount = blocks.Select(x => x.ProjectId).Distinct().Count(),
+                Trend = days
+                    .OrderBy(x => x.Date)
+                    .Select(x => new WorkDayTotalResponse { Date = x.Date, Hours = x.Hours, ProjectCount = x.ProjectCount })
+                    .ToList(),
             };
         }
 
         /// <summary>
-        /// The regular part of each block, by block id. Overtime is whatever a worker
-        /// books past <see cref="ReportBuilder.RegularHoursPerDay"/> on one Sarajevo
-        /// day, in start order - so
-        /// it depends on every block of that worker's day, not only the ones the
-        /// filters matched. Those are read in one query covering the matched days.
+        /// The Work Hours columns a client may sort by - "Worker", "Project", "Date",
+        /// "RegularHours", "OvertimeHours", "TotalHours" or "Status", each optionally
+        /// followed by "desc". Newest first when none is given; ties fall back to that.
         /// </summary>
-        private async Task<Dictionary<int, double>> RegularHoursAsync(List<(int UserId, DateTime StartedAt)> matched)
+        private static IQueryable<WorkLogDetail> SortHours(IQueryable<WorkLogDetail> query, string? sortBy)
         {
-            if (matched.Count == 0)
+            var tokens = (sortBy ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length == 0)
             {
-                return [];
+                return query.OrderByDescending(x => x.StartedAt).ThenByDescending(x => x.Id);
             }
 
-            var userIds = matched.Select(x => x.UserId).Distinct().ToList();
-            var firstDay = SarajevoTime.StartOfDayUtc(SarajevoTime.DayOf(matched.Min(x => x.StartedAt)));
-            var afterLastDay = SarajevoTime.StartOfDayUtc(SarajevoTime.DayOf(matched.Max(x => x.StartedAt)).AddDays(1));
+            var descending = tokens.Skip(1).Any(t => t.Equals("desc", StringComparison.OrdinalIgnoreCase));
 
-            var dayBlocks = await _dbContext.WorkLogDetails
-                .Where(x => userIds.Contains(x.UserId) && x.StartedAt >= firstDay && x.StartedAt < afterLastDay)
-                .Select(x => new { x.Id, x.UserId, x.StartedAt, x.Hours })
-                .ToListAsync();
+            IOrderedQueryable<WorkLogDetail> By<TKey>(System.Linq.Expressions.Expression<Func<WorkLogDetail, TKey>> key) =>
+                descending ? query.OrderByDescending(key) : query.OrderBy(key);
 
-            var regularById = new Dictionary<int, double>();
-
-            foreach (var day in dayBlocks.GroupBy(x => (x.UserId, SarajevoTime.DayOf(x.StartedAt))))
+            var sorted = tokens[0].ToLowerInvariant() switch
             {
-                var used = 0.0;
+                "worker" => descending
+                    ? query.OrderByDescending(x => x.User.Name).ThenByDescending(x => x.User.Surname)
+                    : query.OrderBy(x => x.User.Name).ThenBy(x => x.User.Surname),
+                "project" => By(x => x.Project.Name),
+                "date" => By(x => x.StartedAt),
+                "regularhours" => By(x => x.RegularHours),
+                "overtimehours" => By(x => x.Hours - x.RegularHours),
+                "totalhours" => By(x => x.Hours),
+                "status" => By(x => x.FinishedAt == null || x.WorkLog.ClockedOut == null),
+                _ => throw new ClientException($"Cannot sort work hours by \"{tokens[0]}\"."),
+            };
 
-                foreach (var block in day.OrderBy(x => x.StartedAt).ThenBy(x => x.Id))
-                {
-                    regularById[block.Id] = Math.Clamp(ReportBuilder.RegularHoursPerDay - used, 0, block.Hours);
-                    used += block.Hours;
-                }
-            }
-
-            return regularById;
+            return sorted.ThenByDescending(x => x.StartedAt).ThenByDescending(x => x.Id);
         }
 
         private static string Initials(string name, string surname)
@@ -299,9 +481,14 @@ namespace pwm.Services.Implementations
                 query = query.Where(x => x.WorkLogId == search.WorkLogId.Value);
             }
 
-            if (search.UserId.HasValue)
+            // "Mine" and a worker's every read are the token's account, never an id
+            // the client sent; the office may still look at a chosen worker.
+            var userId = _currentUser.IsWorker || search.Mine == true
+                ? _currentUser.Id ?? throw new ForbiddenException("The token carries no user.")
+                : search.UserId;
+            if (userId.HasValue)
             {
-                query = query.Where(x => x.UserId == search.UserId.Value);
+                query = query.Where(x => x.UserId == userId.Value);
             }
 
             if (search.ProjectId.HasValue)

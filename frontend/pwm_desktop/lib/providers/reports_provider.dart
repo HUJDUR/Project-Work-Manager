@@ -10,7 +10,7 @@ import 'base_provider.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'generated_report_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
 import 'project_provider.dart';
 import 'report_provider.dart';
@@ -33,6 +33,7 @@ class ReportsProvider extends ChangeNotifier {
     BaseProvider<Project>? projects,
     DateTime? today,
     String? role,
+    DateTime? monthlyPeriod,
   })  : availableTypes = AppRoles.reportsFor(role ?? AuthProvider.role),
         _reports = reports ?? ReportProvider(),
         _generatedReports = generatedReports ?? GeneratedReportProvider(),
@@ -44,6 +45,12 @@ class ReportsProvider extends ChangeNotifier {
     _year = _today.year;
     _month = _today.month;
     _type = availableTypes.first;
+
+    if (monthlyPeriod != null && availableTypes.contains(ReportType.monthlyWorkHours)) {
+      _type = ReportType.monthlyWorkHours;
+      _year = monthlyPeriod.year;
+      _month = monthlyPeriod.month;
+    }
   }
 
   /// The reports this role may run — a project manager gets transports only.
@@ -117,10 +124,14 @@ class ReportsProvider extends ChangeNotifier {
   bool get generating => _generating;
 
   /// The months the Period dropdown offers, newest first.
-  List<DateTime> get periods => [
-        for (var back = 0; back < periodMonths; back++)
-          DateTime(_today.year, _today.month - back),
-      ];
+  /// A month handed over from further back than that is added at the end.
+  List<DateTime> get periods {
+    final months = [
+      for (var back = 0; back < periodMonths; back++)
+        DateTime(_today.year, _today.month - back),
+    ];
+    return months.contains(period) ? months : [...months, period];
+  }
 
   DateTime get period => DateTime(_year, _month);
 

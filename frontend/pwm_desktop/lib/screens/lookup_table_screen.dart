@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 
@@ -7,6 +7,7 @@ import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import 'widgets/details_scaffold.dart';
+import 'widgets/excel_table_header.dart';
 import 'widgets/form_fields.dart';
 import 'widgets/lookup_table_config.dart';
 
@@ -31,18 +32,33 @@ class LookupTableScreen<T> extends StatefulWidget {
 
 enum _LoadStatus { loading, ready, failed }
 
-class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
+class _LookupTableScreenState<T> extends State<LookupTableScreen<T>>
+    with ExcelTableState<T, LookupTableScreen<T>> {
   late final BaseProvider<T> _provider = widget.config.createProvider();
 
   _LoadStatus _status = _LoadStatus.loading;
   String? _error;
   List<T> _rows = [];
 
-  /// Which column the table is sorted by, and in which direction - null until
-  /// a header is pressed, so the table starts in the API's own (newest-first)
-  /// order.
-  int? _sortColumnIndex;
-  bool _sortAscending = true;
+  /// Each foreign key resolved to its name, per dropdown field - rebuilt on
+  /// every load, and read by the columns for their text, sort and filter.
+  Map<String, Map<int, String>> _ctx = {};
+
+  /// Built once, so the filters keyed by them survive a reload. The whole table
+  /// is in memory - these tables are a few dozen rows - so every column sorts
+  /// and filters Excel-style, the same as the Workers table.
+  late final List<ExcelColumn<T>> _columns = [
+    for (final column in widget.config.columns)
+      ExcelColumn<T>(
+        label: column.label,
+        flex: 1,
+        sortKey: (row) => column.valueOf(row, _ctx),
+        filterValues: (row) {
+          final value = column.valueOf(row, _ctx);
+          return [value.isEmpty ? ExcelColumn.blank : value];
+        },
+      ),
+  ];
 
   /// Every dropdown field's options, keyed by `LookupField.key` - loaded once
   /// per screen and handed to both the list (to resolve a foreign key to its
@@ -74,6 +90,9 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
 
       setState(() {
         _dropdownOptions = Map.fromEntries(options);
+        _ctx = _dropdownOptions.map(
+          (key, options) => MapEntry(key, {for (final o in options) o.id: o.label}),
+        );
         _rows = rows;
         _status = _LoadStatus.ready;
       });
@@ -88,45 +107,6 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
         _status = _LoadStatus.failed;
       });
     }
-  }
-
-  Map<String, Map<int, String>> get _ctx => _dropdownOptions.map(
-        (key, options) => MapEntry(key, {for (final o in options) o.id: o.label}),
-      );
-
-  /// [_rows] as the pressed column header asks for it - numerically where a
-  /// column is all numbers, case-insensitively otherwise, and untouched (the
-  /// API's newest-first order) until a header has been pressed at all.
-  List<T> get _sortedRows {
-    final columnIndex = _sortColumnIndex;
-    if (columnIndex == null) return _rows;
-
-    final column = widget.config.columns[columnIndex];
-    final ctx = _ctx;
-    final sorted = [..._rows];
-    sorted.sort((a, b) {
-      final result = _compareCells(column.valueOf(a, ctx), column.valueOf(b, ctx));
-      return _sortAscending ? result : -result;
-    });
-    return sorted;
-  }
-
-  void _onSort(int columnIndex) {
-    setState(() {
-      if (_sortColumnIndex == columnIndex) {
-        _sortAscending = !_sortAscending;
-      } else {
-        _sortColumnIndex = columnIndex;
-        _sortAscending = true;
-      }
-    });
-  }
-
-  static int _compareCells(String a, String b) {
-    final numA = num.tryParse(a);
-    final numB = num.tryParse(b);
-    if (numA != null && numB != null) return numA.compareTo(numB);
-    return a.toLowerCase().compareTo(b.toLowerCase());
   }
 
   Future<void> _openForm([T? row]) async {
@@ -220,13 +200,16 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
       _LoadStatus.failed => _ErrorState(message: _error!, onRetry: _load),
       _LoadStatus.ready => _Table<T>(
           config: widget.config,
-          rows: _sortedRows,
+          columns: _columns,
+          allRows: _rows,
+          rows: visibleRows(_rows),
           ctx: _ctx,
           onTap: widget.config.isReadOnly ? null : _openForm,
           onDelete: widget.config.isReadOnly ? null : _delete,
-          sortColumnIndex: _sortColumnIndex,
-          sortAscending: _sortAscending,
-          onSort: _onSort,
+          sortColumn: sortColumn,
+          sortAscending: sortAscending,
+          filters: columnFilters,
+          onHeaderResult: (column, result) => onHeaderResult(_rows, column, result),
         ),
     };
   }
@@ -235,16 +218,25 @@ class _LookupTableScreenState<T> extends State<LookupTableScreen<T>> {
 class _Table<T> extends StatelessWidget {
   const _Table({
     required this.config,
+    required this.columns,
+    required this.allRows,
     required this.rows,
     required this.ctx,
     required this.onTap,
     required this.onDelete,
-    required this.sortColumnIndex,
+    required this.sortColumn,
     required this.sortAscending,
-    required this.onSort,
+    required this.filters,
+    required this.onHeaderResult,
   });
 
   final LookupTableConfig<T> config;
+  final List<ExcelColumn<T>> columns;
+
+  /// Every row - what each header's filter checklist offers.
+  final List<T> allRows;
+
+  /// [allRows] filtered and sorted as the headers ask.
   final List<T> rows;
   final Map<String, Map<int, String>> ctx;
 
@@ -255,12 +247,12 @@ class _Table<T> extends StatelessWidget {
   /// than shown disabled, so a read-only list looks read-only at a glance.
   final ValueChanged<T>? onDelete;
 
-  /// Which column [rows] is sorted by, or null before any header is pressed.
-  /// Sorting is purely a client-side reordering of a table already read
-  /// whole, so it works the same whether or not the table is read-only.
-  final int? sortColumnIndex;
+  /// Sorting and filtering only reorder and narrow rows already in memory, so
+  /// they work the same whether or not the table is read-only.
+  final ExcelColumn<T>? sortColumn;
   final bool sortAscending;
-  final ValueChanged<int> onSort;
+  final Map<ExcelColumn<T>, Set<String>> filters;
+  final void Function(ExcelColumn<T> column, ExcelMenuResult result) onHeaderResult;
 
   @override
   Widget build(BuildContext context) {
@@ -274,29 +266,21 @@ class _Table<T> extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(
-              children: [
-                for (final (index, column) in config.columns.indexed)
-                  Expanded(
-                    child: _HeaderCell(
-                      label: column.label,
-                      sorted: sortColumnIndex == index,
-                      ascending: sortAscending,
-                      onTap: () => onSort(index),
-                    ),
-                  ),
-                if (onDelete != null) const SizedBox(width: 40),
-              ],
-            ),
+          ExcelHeaderRow<T>(
+            columns: columns,
+            allRows: allRows,
+            sortColumn: sortColumn,
+            sortAscending: sortAscending,
+            filters: filters,
+            onResult: onHeaderResult,
+            trailingWidth: onDelete == null ? 0 : 40,
           ),
           const Divider(height: 1),
           Expanded(
             child: rows.isEmpty
                 ? Center(
                     child: Text(
-                      'Nothing here yet.',
+                      allRows.isEmpty ? 'Nothing here yet.' : 'No rows match the filters.',
                       style: TextStyle(color: AppColors.textMuted),
                     ),
                   )
@@ -316,14 +300,17 @@ class _Table<T> extends StatelessWidget {
                               const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           child: Row(
                             children: [
-                              for (final column in config.columns)
+                              for (final (index, column) in config.columns.indexed) ...[
+                                if (index > 0) const SizedBox(width: 16),
                                 Expanded(
-                                  child: Text(
-                                    column.valueOf(row, ctx),
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 13.5),
-                                  ),
+                                  child: column.cell?.call(row) ??
+                                      Text(
+                                        column.valueOf(row, ctx),
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 13.5),
+                                      ),
                                 ),
+                              ],
                               if (onDelete != null)
                                 SizedBox(
                                   width: 40,
@@ -342,61 +329,6 @@ class _Table<T> extends StatelessWidget {
                   ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// One pressable column header. Every column sorts, including on a read-only
-/// table, since sorting only reorders rows already sitting in memory - it
-/// never touches the Add/edit/delete controls a read-only table lacks.
-class _HeaderCell extends StatelessWidget {
-  const _HeaderCell({
-    required this.label,
-    required this.sorted,
-    required this.ascending,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool sorted;
-  final bool ascending;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: sorted ? AppColors.accent : AppColors.textSecondary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
-              Icon(
-                sorted
-                    ? (ascending ? Icons.arrow_upward : Icons.arrow_downward)
-                    : Icons.unfold_more,
-                size: 14,
-                color: sorted ? AppColors.accent : AppColors.textMuted,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -509,7 +441,9 @@ class _LookupFormScreenState<T> extends State<_LookupFormScreen<T>> {
 
   Map<String, dynamic> get _initialValue {
     final row = widget.row;
-    return row == null ? {} : widget.config.valuesOf(row);
+    return row == null
+        ? {for (final field in _fields.where((f) => f.toggle)) field.key: true}
+        : widget.config.valuesOf(row);
   }
 
   Future<void> _save() async {
@@ -520,7 +454,9 @@ class _LookupFormScreenState<T> extends State<_LookupFormScreen<T>> {
     for (final field in _fields) {
       final value = form.value[field.key];
 
-      if (field.numeric || field.isDropdown) {
+      if (field.toggle) {
+        body[field.key] = value as bool? ?? true;
+      } else if (field.numeric || field.isDropdown) {
         body[field.key] = int.tryParse(value.toString());
       } else {
         // An optional field left blank is null, not "" - Company.vat/eori are
@@ -578,6 +514,28 @@ class _LookupFormScreenState<T> extends State<_LookupFormScreen<T>> {
   }
 
   Widget _fieldWidget(LookupField field) {
+    if (field.toggle) {
+      // The switch is a ListTile, which paints its ink on the nearest
+      // Material - the card's decoration would otherwise hide it.
+      return Material(
+        color: Colors.transparent,
+        child: FormBuilderSwitch(
+          name: field.key,
+          title: Text(field.label),
+          subtitle: field.hint == null
+              ? null
+              : Text(field.hint!, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          decoration: const InputDecoration(
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            errorBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+          ),
+        ),
+      );
+    }
+
     if (field.isDropdown) {
       final allOptions = widget.dropdownOptions[field.key] ?? const [];
       final dependsOn = field.dependsOn;

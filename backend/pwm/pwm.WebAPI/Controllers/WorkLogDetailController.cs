@@ -25,21 +25,34 @@ namespace pwm.WebAPI.Controllers
         /// <summary>The desktop's Work Hours screen - the office roles it is open to.</summary>
         [HttpGet("Hours")]
         [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
-        public Task<PageResult<WorkHoursEntryResponse>> Hours([FromQuery] WorkHoursSearchObject searchObject) =>
+        public Task<WorkHoursPageResponse> Hours([FromQuery] WorkHoursSearchObject searchObject) =>
             _workLogDetails.GetHoursAsync(searchObject);
 
+        /// <summary>
+        /// The mobile My Hours screen: the signed-in account's own days - whose
+        /// comes from the token, so every role may ask for its own.
+        /// </summary>
+        [HttpGet("MyDays")]
+        public Task<MyWorkDaysResponse> MyDays([FromQuery] MyWorkDaysSearchObject searchObject) =>
+            _workLogDetails.GetMyDaysAsync(searchObject);
+
+        /// <summary>The corrections made to one block of work - the same roles as Work Hours.</summary>
+        [HttpGet("{id}/History")]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
+        public Task<List<WorkHoursChangeResponse>> History(int id) => _workLogDetails.GetHistoryAsync(id);
+
         [HttpPost]
-        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
         public override Task<WorkLogDetailResponse> Insert([FromBody] WorkLogDetailInsertRequest request)
             => base.Insert(request);
 
         [HttpPut("{id}")]
-        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
         public override Task<WorkLogDetailResponse> Update(int id, [FromBody] WorkLogDetailUpdateRequest request)
             => base.Update(id, request);
 
         [HttpDelete("{id}")]
-        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager, Roles.ProductionWorker)]
+        [Authorization(Roles.Admin, Roles.Finances, Roles.ProjectManager)]
         public override Task<IActionResult> Delete(int id)
             => base.Delete(id);
     }

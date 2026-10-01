@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import '../models/models.dart';
@@ -84,17 +84,31 @@ class _ProjectOverviewScreenState extends State<ProjectOverviewScreen> {
     String targetStatus,
     int targetStatusId,
   ) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Change status',
-      message: 'Move "${_row.name}" from "${_row.statusName}" to "$targetStatus"?'
-          '${ProjectStatusRules.isEditLocked(targetStatus) ? ' Only its notes can be changed after that.' : ''}',
-      confirmLabel: 'Move to $targetStatus',
-      destructive: targetStatus == ProjectStatusRules.rejected,
-    );
-    if (!confirmed || !mounted) return;
+    String? reason;
 
-    final succeeded = await overview.changeStatus(targetStatusId);
+    if (targetStatus == ProjectStatusRules.rejected) {
+      // A rejection is final and has to say why - the API refuses one without.
+      reason = await askReasonDialog(
+        context,
+        title: 'Reject project',
+        message: 'Reject "${_row.name}"? This is final - only its notes can be changed '
+            'after that.',
+        confirmLabel: 'Reject',
+      );
+      if (reason == null || !mounted) return;
+    } else {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Change status',
+        message: 'Move "${_row.name}" from "${_row.statusName}" to "$targetStatus"?'
+            '${ProjectStatusRules.isEditLocked(targetStatus) ? ' Only its notes can be changed after that.' : ''}',
+        confirmLabel: 'Move to $targetStatus',
+        destructive: false,
+      );
+      if (!confirmed || !mounted) return;
+    }
+
+    final succeeded = await overview.changeStatus(targetStatusId, reason: reason);
     if (!mounted) return;
 
     if (succeeded) {
@@ -404,23 +418,38 @@ class _StatusHistoryRow extends StatelessWidget {
         ? 'Raised as "${change.toStatusName}"'
         : 'Moved from "${change.fromStatusName}" to "${change.toStatusName}"';
 
+    final reason = change.reason;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              '$description by ${change.changedByName}',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$description by ${change.changedByName}',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${formatFullDate(change.changedAt)} '
+                '${formatTime(change.changedAt)}',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+          if (reason != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Reason: $reason',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '${formatFullDate(change.changedAt)} '
-            '${formatTime(change.changedAt)}',
-            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-          ),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -11,7 +12,9 @@ using pwm.Services;
 using pwm.Services.Database;
 using pwm.Services.Database.Seed;
 using pwm.Services.Interfaces;
+using pwm.Services.Messaging;
 using pwm.WebAPI.Filters;
+using pwm.WebAPI.Hubs;
 using pwm.WebAPI.Json;
 using pwm.WebAPI.Services.AccessManager;
 using pwm.WebAPI.Services.CurrentUser;
@@ -30,8 +33,9 @@ EnvironmentConfig.LoadDotEnvFile();
 
 var builder = WebApplication.CreateBuilder(hostArgs);
 
-builder.Services.AddDbContext<PWMDbContext>(options =>
-    options.UseSqlServer(EnvironmentConfig.BuildConnectionString()));
+builder.Services.AddDbContext<PWMDbContext>((services, options) => options
+    .UseSqlServer(EnvironmentConfig.BuildConnectionString())
+    .AddInterceptors(services.GetRequiredService<NotificationPushInterceptor>()));
 
 builder.Services.AddScoped<DataSeeder>();
 
@@ -40,6 +44,15 @@ builder.Services.AddScoped<DataSeeder>();
 builder.Services.AddPwmServices(builder.Configuration);
 
 builder.Services.AddScoped<IAccessManager, AccessManager>();
+
+// Live notifications (§7.2): every saved notification is pushed to its account's
+// apps over SignalR - the ones the worker writes via NotificationPushRelay.
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, AccountIdUserIdProvider>();
+builder.Services.AddSingleton<HubNotificationPushPublisher>();
+builder.Services.AddSingleton<INotificationPushPublisher>(services =>
+    services.GetRequiredService<HubNotificationPushPublisher>());
+builder.Services.AddHostedService<NotificationPushRelay>();
 
 // Who is calling, read from the token - see ICurrentUser
 builder.Services.AddHttpContextAccessor();
@@ -83,8 +96,9 @@ if (seedRequested)
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    using var scope = app.Services.CreateScope();
-    await scope.ServiceProvider.GetRequiredService<PWMDbContext>().Database.MigrateAsync();
+    // Migrates, then fills an empty database with the test data, so `docker
+    // compose up` alone gives a usable app; existing data is left as it is.
+    await RunSeedAsync(app.Services, force: false);
 
     // The fallback policy would otherwise lock the developer out of the API docs
     app.MapOpenApi().AllowAnonymous();
@@ -102,6 +116,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>(NotificationHub.Path);
 
 app.Run();
 
@@ -141,6 +156,20 @@ static void AddJwtAuthentication(WebApplicationBuilder builder)
             // behind the account's current one.
             options.Events = new JwtBearerEvents
             {
+                // A browser-style WebSocket cannot carry an Authorization header, so
+                // the SignalR client sends the token as ?access_token= - accepted on
+                // the hub's path only, never for the REST endpoints.
+                OnMessageReceived = context =>
+                {
+                    var token = context.Request.Query["access_token"];
+                    if (!string.IsNullOrEmpty(token)
+                        && context.HttpContext.Request.Path.StartsWithSegments(NotificationHub.Path))
+                    {
+                        context.Token = token;
+                    }
+
+                    return Task.CompletedTask;
+                },
                 OnTokenValidated = async context =>
                 {
                     var principal = context.Principal;
@@ -194,7 +223,7 @@ static async Task RunSeedAsync(IServiceProvider services, bool force)
 
     if (!seeded)
     {
-        logger.LogInformation("Database already contains data. Run with --seed --force to replace it.");
+        logger.LogInformation("The database already has data, so it was not seeded. --seed --force replaces it.");
         return;
     }
 

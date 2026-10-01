@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pwm_desktop/models/models.dart';
@@ -87,7 +87,7 @@ class _FakeTruckLoadProvider extends TruckLoadProvider {
   final _FakeProvider<TruckLoad> _inner;
 
   /// Every status-change call, so a test can read back what was asked for.
-  final List<(int id, int statusId, double? price)> statusChanges = [];
+  final List<(int id, int statusId, double? price, String? reason)> statusChanges = [];
 
   List<Map<String, dynamic>> get requests => _inner.requests;
   List<Map<String, dynamic>> get inserted => _inner.inserted;
@@ -110,8 +110,8 @@ class _FakeTruckLoadProvider extends TruckLoadProvider {
   Future remove(int id) => _inner.remove(id);
 
   @override
-  Future<TruckLoad> changeStatus(int id, int newStatusId, {double? price}) async {
-    statusChanges.add((id, newStatusId, price));
+  Future<TruckLoad> changeStatus(int id, int newStatusId, {double? price, String? reason}) async {
+    statusChanges.add((id, newStatusId, price, reason));
     return _inner.getById(id);
   }
 
@@ -622,13 +622,6 @@ void main() {
       expect(_detailRows.inserted.single['projectId'], 2);
       expect(_detailRows.removed, [original.last.id]);
     });
-
-    test('deletes a load and lets the cargo cascade with it', () async {
-      await provider.deleteTransport(4);
-
-      expect(_loadRows.removed, [4]);
-      expect(_detailRows.removed, isEmpty);
-    });
   });
 
   testWidgets('transport screen renders the header, filters and table',
@@ -761,7 +754,8 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, 'Edit Transport'));
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(OutlinedButton, 'Delete'), findsOneWidget);
+    // A transport is never deleted - it ends as Finished or Rejected, keeping its history.
+    expect(find.widgetWithText(OutlinedButton, 'Delete'), findsNothing);
     expect(
       find.textContaining('only its notes can be saved from here'),
       findsOneWidget,
@@ -879,12 +873,18 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Move TR-0003 from "Ordered" to "Rejected"?'), findsOneWidget);
+    // Rejecting asks why, and will not go on without an answer.
+    expect(find.text('Reject transport'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
+    await tester.pumpAndSettle();
+    expect(find.text('Give a reason - it is kept with the status change.'), findsOneWidget);
+    expect(_loadRows.statusChanges, isEmpty);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Move to Rejected'));
+    await tester.enterText(find.byType(TextField).last, 'The carrier had no truck that day.');
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
     await tester.pumpAndSettle();
 
-    expect(_loadRows.statusChanges.single, (3, 4, null));
+    expect(_loadRows.statusChanges.single, (3, 4, null, 'The carrier had no truck that day.'));
   });
 
   testWidgets('finishing a transport asks for the invoice amount first',
@@ -919,7 +919,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Finish'));
     await tester.pumpAndSettle();
 
-    expect(_loadRows.statusChanges.single, (2, 3, 1850.5));
+    expect(_loadRows.statusChanges.single, (2, 3, 1850.5, null));
   });
 
   testWidgets(

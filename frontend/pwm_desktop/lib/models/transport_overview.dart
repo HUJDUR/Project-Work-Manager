@@ -10,6 +10,7 @@ class TruckLoadStatusChangeEntry {
     required this.changedByName,
     required this.changedAt,
     this.fromStatusName,
+    this.reason,
   });
 
   final int id;
@@ -21,6 +22,9 @@ class TruckLoadStatusChangeEntry {
   final String changedByName;
   final DateTime changedAt;
 
+  /// Why - set only on a rejection.
+  final String? reason;
+
   factory TruckLoadStatusChangeEntry.fromJson(Map<String, dynamic> json) =>
       TruckLoadStatusChangeEntry(
         id: json['id'] as int,
@@ -28,5 +32,6 @@ class TruckLoadStatusChangeEntry {
         toStatusName: json['toStatusName'] as String,
         changedByName: json['changedByName'] as String,
         changedAt: SarajevoTime.fromApi(json['changedAt'] as String),
+        reason: json['reason'] as String?,
       );
 }

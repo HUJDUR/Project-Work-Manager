@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import '../models/models.dart';
@@ -97,17 +97,28 @@ class _TransportOverviewScreenState extends State<TransportOverviewScreen> {
 
   Future<void> _changeStatus(String targetStatus, int targetStatusId) async {
     double? price;
+    String? reason;
 
     if (targetStatus == TruckLoadStatusRules.finished) {
       price = await _askInvoiceAmount();
       if (price == null) return;
+    } else if (targetStatus == TruckLoadStatusRules.rejected) {
+      // A rejection is final and has to say why - the API refuses one without.
+      reason = await askReasonDialog(
+        context,
+        title: 'Reject transport',
+        message: 'Reject ${_row.transportNo}? This is final - only its notes can be changed '
+            'after that.',
+        confirmLabel: 'Reject',
+      );
+      if (reason == null || !mounted) return;
     } else {
       final confirmed = await confirmDialog(
         context,
         title: 'Change status',
         message: 'Move ${_row.transportNo} from "${_row.statusName}" to "$targetStatus"?',
         confirmLabel: 'Move to $targetStatus',
-        destructive: targetStatus == TruckLoadStatusRules.rejected,
+        destructive: false,
       );
       if (!confirmed || !mounted) return;
     }
@@ -118,7 +129,7 @@ class _TransportOverviewScreenState extends State<TransportOverviewScreen> {
     });
 
     try {
-      await widget.provider.changeStatus(_row.id, targetStatusId, price: price);
+      await widget.provider.changeStatus(_row.id, targetStatusId, price: price, reason: reason);
       if (!mounted) return;
       showSavedSnackBar(context, 'Status changed to $targetStatus');
       await _refresh();
@@ -436,23 +447,38 @@ class _StatusHistoryRow extends StatelessWidget {
         ? 'Raised as "${change.toStatusName}"'
         : 'Moved from "${change.fromStatusName}" to "${change.toStatusName}"';
 
+    final reason = change.reason;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Text(
-              '$description by ${change.changedByName}',
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$description by ${change.changedByName}',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                '${formatFullDate(change.changedAt)} '
+                '${formatTime(change.changedAt)}',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+          if (reason != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                'Reason: $reason',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            '${formatFullDate(change.changedAt)} '
-            '${formatTime(change.changedAt)}',
-            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-          ),
         ],
       ),
     );

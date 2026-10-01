@@ -15,5 +15,8 @@ namespace pwm.Model.Requests
         public DateTime? FinishedAt { get; set; }
 
         public double Hours { get; set; }
+
+        /// <summary>Optional; blank is stored as none.</summary>
+        public string? Note { get; set; }
     }
 }

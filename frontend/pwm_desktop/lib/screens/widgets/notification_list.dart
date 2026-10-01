@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart' hide Notification;
+import 'package:material_ui/material_ui.dart' hide Notification;
 
 import '../../models/notification.dart';
 import '../../providers/received_notifications_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
+import '../../utils/notification_groups.dart';
 
 /// The body of a notification list — loading, empty, error, or the rows
 /// themselves — shared between the bell's popup and the Notifications
@@ -50,11 +51,15 @@ class NotificationsList extends StatelessWidget {
           shrinkWrap: true,
           padding: const EdgeInsets.symmetric(vertical: 4),
           children: [
-            for (final row in provider.rows)
-              NotificationTile(
-                notification: row,
-                onTap: () => provider.markRead(row),
-              ),
+            for (final (day, rows)
+                in groupNotificationsByDay(provider.rows, (row) => row.createdAt)) ...[
+              NotificationDayHeader(label: day.label),
+              for (final row in rows)
+                NotificationTile(
+                  notification: row,
+                  onTap: () => provider.markRead(row),
+                ),
+            ],
             if (showLoadMore && provider.hasMore)
               NotificationsLoadMore(provider: provider),
             if (provider.errorMessage != null && provider.rows.isNotEmpty)
@@ -68,6 +73,29 @@ class NotificationsList extends StatelessWidget {
           ],
         ),
     };
+  }
+}
+
+/// "Today", "Yesterday" or "Earlier" above the notifications that fall in it.
+class NotificationDayHeader extends StatelessWidget {
+  const NotificationDayHeader({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.6,
+          color: AppColors.textMuted,
+        ),
+      ),
+    );
   }
 }
 

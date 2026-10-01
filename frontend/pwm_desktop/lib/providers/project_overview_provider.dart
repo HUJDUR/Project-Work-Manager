@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
@@ -172,7 +172,7 @@ class ProjectOverviewProvider extends ChangeNotifier {
   /// it. The row itself (name, customer, the joined `statusName`...) is the
   /// caller's - `ProjectOverviewScreen` re-reads it through `ProjectsProvider`
   /// the same way it already does after the edit form writes.
-  Future<bool> changeStatus(int newStatusId) async {
+  Future<bool> changeStatus(int newStatusId, {String? reason}) async {
     _changingStatus = true;
     _statusChangeError = null;
     notifyListeners();
@@ -180,7 +180,7 @@ class ProjectOverviewProvider extends ChangeNotifier {
     var succeeded = false;
 
     try {
-      await _projects.changeStatus(projectId, newStatusId);
+      await _projects.changeStatus(projectId, newStatusId, reason: reason);
       _statusHistory = await _projects.statusHistory(projectId);
       succeeded = true;
     } on ApiClientException catch (error) {

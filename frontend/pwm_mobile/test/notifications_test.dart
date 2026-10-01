@@ -7,11 +7,15 @@ import 'package:pwm_mobile/screens/notifications_screen.dart';
 import 'package:pwm_mobile/utils/api_client_exception.dart';
 import 'package:pwm_mobile/utils/sarajevo_time.dart';
 
-/// Answers the way the API does — narrowed by `userId` and `isRead`, paged, and
+/// Answers the way the API does — only the signed-in account's own rows (the
+/// token's, never an id the app sends), narrowed by `isRead`, paged, and
 /// marking read server-side from the ids alone — so a test can see what the
 /// screen asked for and what it did with the answer.
 class _FakeNotifications extends NotificationProvider {
   _FakeNotifications(this.rows);
+
+  /// The account the token belongs to.
+  static const signedIn = 20;
 
   List<Notification> rows;
   final List<Map<String, dynamic>> filters = [];
@@ -36,11 +40,10 @@ class _FakeNotifications extends NotificationProvider {
   /// Only what the real service filters on, so a test cannot pass by narrowing
   /// client-side something the API would have returned whole.
   List<Notification> _matching(Map<String, dynamic> filter) {
-    final userId = filter['userId'] as int?;
     final isRead = filter['isRead'] as bool?;
 
     return rows.where((row) {
-      if (userId != null && row.userId != userId) return false;
+      if (row.userId != signedIn) return false;
       if (isRead != null && row.isRead != isRead) return false;
       return true;
     }).toList();
@@ -137,7 +140,8 @@ void main() {
       );
 
       final page = fixture.api.filters.first;
-      expect(page['userId'], 20);
+      // Whose they are is the token's to say - the app never sends an id.
+      expect(page.containsKey('userId'), isFalse);
       expect(page['page'], 1);
       expect(page['pageSize'], NotificationsProvider.pageSize);
       expect(page['includeTotalCount'], true);

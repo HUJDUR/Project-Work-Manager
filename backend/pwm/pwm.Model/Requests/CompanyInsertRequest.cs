@@ -15,5 +15,7 @@ namespace pwm.Model.Requests
         public string? EORI { get; set; }
 
         public int CompanyTypeId { get; set; }
+
+        public bool IsActive { get; set; } = true;
     }
 }

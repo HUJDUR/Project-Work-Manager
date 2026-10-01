@@ -2,6 +2,10 @@ import '../utils/sarajevo_time.dart';
 
 enum WorkHoursStatus { completed, inProgress }
 
+/// The longest note a block of work may carry - `WorkBookingRules.NoteMaxLength`
+/// on the API.
+const int workNoteMaxLength = 200;
+
 /// One booked block of work, already joined to the worker and project it
 /// belongs to and split into regular and overtime hours - by the API. The ids and the two
 /// timestamps ride along so the details form can prefill and write back.
@@ -22,6 +26,7 @@ class WorkHoursEntry {
     required this.overtimeHours,
     required this.status,
     this.finishedAt,
+    this.note,
   });
 
   /// One row of `GET /WorkLogDetail/Hours`.
@@ -45,6 +50,7 @@ class WorkHoursEntry {
       regularHours: (json['regularHours'] as num).toDouble(),
       overtimeHours: (json['overtimeHours'] as num).toDouble(),
       status: json['inProgress'] as bool ? WorkHoursStatus.inProgress : WorkHoursStatus.completed,
+      note: json['note'] as String?,
     );
   }
 
@@ -73,7 +79,42 @@ class WorkHoursEntry {
   final double overtimeHours;
   final WorkHoursStatus status;
 
+  /// What the worker wrote when clocking in, if anything.
+  final String? note;
+
   double get totalHours => regularHours + overtimeHours;
 
   bool get isOvertime => overtimeHours > 0;
+}
+
+/// One page of `GET /WorkLogDetail/Hours`, with the totals of every row the
+/// filters match - what the summary cards show.
+class WorkHoursPage {
+  const WorkHoursPage({
+    required this.items,
+    required this.totalCount,
+    required this.totalHours,
+    required this.regularHours,
+    required this.overtimeHours,
+    required this.workerCount,
+  });
+
+  factory WorkHoursPage.fromJson(Map<String, dynamic> json) => WorkHoursPage(
+        items: [
+          for (final row in json['items'] as List)
+            WorkHoursEntry.fromJson(row as Map<String, dynamic>),
+        ],
+        totalCount: json['totalCount'] as int? ?? 0,
+        totalHours: (json['totalHours'] as num).toDouble(),
+        regularHours: (json['regularHours'] as num).toDouble(),
+        overtimeHours: (json['overtimeHours'] as num).toDouble(),
+        workerCount: json['workerCount'] as int,
+      );
+
+  final List<WorkHoursEntry> items;
+  final int totalCount;
+  final double totalHours;
+  final double regularHours;
+  final double overtimeHours;
+  final int workerCount;
 }

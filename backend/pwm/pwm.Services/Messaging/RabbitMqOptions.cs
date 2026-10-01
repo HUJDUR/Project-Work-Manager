@@ -17,5 +17,9 @@ namespace pwm.Services.Messaging
 
         /// <summary>Where the API publishes a report request and the worker consumes it.</summary>
         public string ReportQueueName { get; set; } = "report-generation";
+
+        /// <summary>Where the worker queues "these accounts have new notifications"
+        /// and the API relays it to SignalR.</summary>
+        public string NotificationQueueName { get; set; } = "notification-push";
     }
 }

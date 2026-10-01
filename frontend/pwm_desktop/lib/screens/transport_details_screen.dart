@@ -6,13 +6,12 @@ import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
 import '../utils/sarajevo_time.dart';
 import '../utils/truck_load_status_rules.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
 import 'widgets/transports_table.dart' show TruckLoadStatusChip;
-
 
 /// One truck load, new or existing, with the projects on it underneath. Pops
 /// `'reload'` once it has written, which is the list screen's cue to refetch.
@@ -117,7 +116,6 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
       saving: _saving,
       errorMessage: _error,
       onSave: _save,
-      onDelete: _isNew ? null : _delete,
       child: FormBuilder(
         key: _formKey,
         initialValue: _initialValue,
@@ -142,7 +140,8 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
                     ),
                     entries: [
                       for (final Company carrier in provider.carriers)
-                        DropdownMenuEntry(value: carrier.id, label: carrier.name),
+                        if (carrier.isSelectableFor(widget.row?.carrierId))
+                          DropdownMenuEntry(value: carrier.id, label: carrier.name),
                     ],
                   ),
                 ),
@@ -425,35 +424,6 @@ class _TransportDetailsScreenState extends State<TransportDetailsScreen> {
     } catch (error) {
       setState(() {
         _error = _messageFor(error, 'The transport could not be saved');
-        _saving = false;
-      });
-    }
-  }
-
-  Future<void> _delete() async {
-    final row = widget.row!;
-
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Delete transport',
-      message: 'Delete ${row.transportNo}? What was loaded onto it goes with it.',
-    );
-    if (!confirmed || !mounted) return;
-
-    setState(() {
-      _saving = true;
-      _error = null;
-    });
-
-    try {
-      await widget.provider.deleteTransport(row.id);
-
-      if (!mounted) return;
-      showSavedSnackBar(context, 'Transport deleted');
-      Navigator.of(context).pop('reload');
-    } catch (error) {
-      setState(() {
-        _error = _messageFor(error, 'The transport could not be deleted');
         _saving = false;
       });
     }
@@ -913,7 +883,7 @@ class _CargoLineDialogState extends State<_CargoLineDialog> {
                     for (final project in widget.projects)
                       DropdownMenuEntry(
                         value: project.id,
-                        label: '${project.code} - ${project.name}',
+                        label: project.label,
                       ),
                   ],
                 ),

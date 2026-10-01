@@ -4,7 +4,7 @@ import '../utils/sarajevo_time.dart';
 import 'base_provider.dart';
 import 'company_provider.dart';
 import 'company_type_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'project_provider.dart';
 import 'project_status_type_provider.dart';
 import 'truck_load_detail_provider.dart';
@@ -303,8 +303,8 @@ class TransportsProvider extends ChangeNotifier {
   /// `PATCH /TruckLoad/{id}/Status` - the only way a load's status ever
   /// changes. [price] is the invoice amount in EUR, asked for by the popup
   /// the "Finished" transition opens; the API refuses that jump without it.
-  Future<void> changeStatus(int id, int newStatusId, {double? price}) =>
-      _truckLoads.changeStatus(id, newStatusId, price: price);
+  Future<void> changeStatus(int id, int newStatusId, {double? price, String? reason}) =>
+      _truckLoads.changeStatus(id, newStatusId, price: price, reason: reason);
 
   /// The audit trail behind one load's status, newest first.
   Future<List<TruckLoadStatusChangeEntry>> statusHistory(int id) =>
@@ -408,8 +408,4 @@ class TransportsProvider extends ChangeNotifier {
           : _truckLoadDetails.update(line.id, body);
     }));
   }
-
-  /// The cargo goes with the truck: `TruckLoadDetails` cascades from
-  /// `TruckLoads`, so the database drops the lines itself.
-  Future<void> deleteTransport(int id) => _truckLoads.remove(id);
 }

@@ -4,6 +4,7 @@ import 'sarajevo_time.dart';
 final _dayMonth = DateFormat('dd.MM.');
 final _dayMonthYear = DateFormat('dd.MM.yyyy.');
 final _timeOfDay = DateFormat('HH:mm');
+final _monthYear = DateFormat('MMMM yyyy');
 final _decimal = NumberFormat('#,##0.0');
 final _whole = NumberFormat('#,##0');
 
@@ -24,6 +25,8 @@ String formatDate(DateTime date) => _dayMonth.format(date);
 String formatFullDate(DateTime date) => _dayMonthYear.format(date);
 
 String formatTime(DateTime date) => _timeOfDay.format(date);
+
+String formatMonth(int year, int month) => _monthYear.format(DateTime(year, month));
 
 String formatRelative(DateTime date, {DateTime? now}) {
   final reference = now ?? SarajevoTime.now();

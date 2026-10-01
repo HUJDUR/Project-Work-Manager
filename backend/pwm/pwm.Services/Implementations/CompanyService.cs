@@ -49,6 +49,11 @@ namespace pwm.Services.Implementations
                 query = query.Where(x => x.CompanyTypeId == search.CompanyTypeId.Value);
             }
 
+            if (search.IsActive.HasValue)
+            {
+                query = query.Where(x => x.IsActive == search.IsActive.Value);
+            }
+
             return query;
         }
     }

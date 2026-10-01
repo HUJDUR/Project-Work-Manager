@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pwm_desktop/models/models.dart';
 import 'package:pwm_desktop/providers/dashboard_api_provider.dart';

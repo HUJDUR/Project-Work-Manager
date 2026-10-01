@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:intl/intl.dart';
 
@@ -161,6 +161,107 @@ class SearchableDropdownField<T> extends StatelessWidget {
           onChanged?.call(value);
         },
       ),
+    );
+  }
+}
+
+/// [SearchableDropdownField] for a filter bar rather than a form, for the long
+/// lists - projects, workers - so always searchable: the first entry,
+/// [allLabel], stands for no filter (null), and the field matches the filter
+/// bar's other dropdowns in height.
+class SearchableFilterDropdown<T> extends StatefulWidget {
+  const SearchableFilterDropdown({
+    super.key,
+    required this.value,
+    required this.allLabel,
+    required this.entries,
+    required this.onChanged,
+  });
+
+  final T? value;
+  final String allLabel;
+  final List<DropdownMenuEntry<T>> entries;
+  final ValueChanged<T?> onChanged;
+
+  @override
+  State<SearchableFilterDropdown<T>> createState() => _SearchableFilterDropdownState<T>();
+}
+
+class _SearchableFilterDropdownState<T> extends State<SearchableFilterDropdown<T>> {
+  /// The [SearchableFilterDropdown.allLabel] entry's value. It is not null, so
+  /// no filter (a null value) matches no entry and the field stays empty, with
+  /// "All ..." only as its placeholder - nothing to delete before typing.
+  static const Object _all = Object();
+
+  final _text = TextEditingController();
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _showValue();
+    _focus.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant SearchableFilterDropdown<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) _showValue();
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _text.dispose();
+    super.dispose();
+  }
+
+  /// The picked entry's label, or nothing for no filter.
+  void _showValue() {
+    final value = widget.value;
+    _text.text = value == null
+        ? ''
+        : widget.entries.where((entry) => entry.value == value).firstOrNull?.label ?? '';
+  }
+
+  /// The placeholder goes while the field is being typed into; leaving it
+  /// without picking anything puts back what was picked before.
+  void _onFocusChanged() {
+    if (!_focus.hasFocus) _showValue();
+    setState(() {});
+  }
+
+  void _onSelected(Object? selected) {
+    if (identical(selected, _all)) {
+      _text.clear();
+      widget.onChanged(null);
+    } else if (selected is T) {
+      widget.onChanged(selected);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownMenu<Object?>(
+      controller: _text,
+      focusNode: _focus,
+      initialSelection: widget.value,
+      expandedInsets: EdgeInsets.zero,
+      enableFilter: true,
+      menuHeight: SearchableDropdownField._menuHeight,
+      requestFocusOnTap: true,
+      hintText: _focus.hasFocus ? null : widget.allLabel,
+      inputDecorationTheme: const InputDecorationThemeData(
+        border: OutlineInputBorder(),
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      ),
+      dropdownMenuEntries: [
+        DropdownMenuEntry<Object?>(value: _all, label: widget.allLabel),
+        for (final entry in widget.entries)
+          DropdownMenuEntry<Object?>(value: entry.value, label: entry.label),
+      ],
+      onSelected: _onSelected,
     );
   }
 }

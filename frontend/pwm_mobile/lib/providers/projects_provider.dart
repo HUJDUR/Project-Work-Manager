@@ -170,7 +170,8 @@ class ProjectsProvider extends ChangeNotifier {
     if (userId == null) return ProjectWork.none;
 
     final blocks = await _workLogDetails.getAll(filter: {
-      'userId': userId,
+      // The token's own account - the API takes it from there.
+      'mine': true,
       'projectId': projectId,
     });
 

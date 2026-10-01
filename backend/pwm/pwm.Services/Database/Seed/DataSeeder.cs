@@ -92,6 +92,7 @@ namespace pwm.Services.Database.Seed
             await _db.TruckLoadDetails.ExecuteDeleteAsync();
             await _db.TruckLoads.ExecuteDeleteAsync();
             await _db.TruckLoadStatusTypes.ExecuteDeleteAsync();
+            await _db.WorkHoursChanges.ExecuteDeleteAsync();
             await _db.WorkLogDetails.ExecuteDeleteAsync();
             await _db.WorkLogs.ExecuteDeleteAsync();
             await _db.ProjectStatusChanges.ExecuteDeleteAsync();
@@ -159,11 +160,21 @@ namespace pwm.Services.Database.Seed
             }
         }
 
-        // Weekdays only, counting back from today
+        /// <summary>
+        /// Weekdays only, counting back from yesterday. Not today: its callers book
+        /// whole days (07:00 to after 15:30), which on a seed run in the morning
+        /// would be finished work in the future - and would block a real clock-in,
+        /// since nobody works two things at once. Today is left to the shop floor.
+        /// </summary>
+        private DateTime[] WorkingDaysSince(DateTime first) => WorkingDays(
+            Enumerable.Range(0, (_today - first).Days)
+                .Select(offset => first.AddDays(offset))
+                .Count(day => day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday)));
+
         private DateTime[] WorkingDays(int count)
         {
             var days = new List<DateTime>();
-            var day = _today;
+            var day = _today.AddDays(-1);
 
             while (days.Count < count)
             {
@@ -193,30 +204,21 @@ namespace pwm.Services.Database.Seed
         ];
 
         /// <summary>
-        /// Reads the four stand-in avatars from <c>Database/Pictures</c>. Searches
-        /// upward from the working directory - like <c>EnvironmentConfig.LoadDotEnvFile</c>
-        /// - since <c>dotnet run --project</c> and an IDE's own launch profile do not
-        /// agree on what that directory is. Returns empty if the folder cannot be
-        /// found, in which case seeded users simply get no picture.
+        /// Reads the four stand-in avatars from <c>Database/Pictures</c> next to the
+        /// running app - the build copies them there, in a container too. Returns
+        /// empty if they are missing, in which case seeded users get no picture.
         /// </summary>
         private static byte[][] LoadPictures()
         {
-            for (var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-                directory != null;
-                directory = directory.Parent)
+            var folder = Path.Combine(AppContext.BaseDirectory, "Database", "Pictures");
+            if (!Directory.Exists(folder))
             {
-                var candidate = Path.Combine(directory.FullName, "pwm.Services", "Database", "Pictures");
-                if (!Directory.Exists(candidate))
-                {
-                    continue;
-                }
-
-                return PictureFileNames
-                    .Select(name => File.ReadAllBytes(Path.Combine(candidate, name)))
-                    .ToArray();
+                return [];
             }
 
-            return [];
+            return PictureFileNames
+                .Select(name => File.ReadAllBytes(Path.Combine(folder, name)))
+                .ToArray();
         }
 
         // Same hashing the UserService uses, so seeded logins verify

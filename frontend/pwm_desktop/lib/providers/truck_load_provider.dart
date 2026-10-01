@@ -17,9 +17,11 @@ class TruckLoadProvider extends BaseProvider<TruckLoad> {
   /// [newStatusId] is "Finished" - see `TruckLoadStatusRules` on the API for
   /// the legal jumps; a jump it refuses comes back as an [ApiClientException]
   /// via [validateResponse].
-  Future<TruckLoad> changeStatus(int id, int newStatusId, {double? price}) async {
+  /// [reason] is required by the API for a move to "Rejected" and ignored otherwise.
+  Future<TruckLoad> changeStatus(int id, int newStatusId, {double? price, String? reason}) async {
     final uri = Uri.parse('${BaseProvider.baseUrl}$endpoint/$id/Status');
-    final body = jsonEncode({'truckLoadStatusId': newStatusId, 'price': price});
+    final body =
+        jsonEncode({'truckLoadStatusId': newStatusId, 'price': price, 'reason': reason});
 
     final response =
         await send((headers) => http.patch(uri, headers: headers, body: body));

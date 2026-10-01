@@ -42,7 +42,7 @@ namespace pwm.Services.Database.Seed
             };
 
             var carriers = _companies
-                .Where(c => c.CompanyTypeId == FindCompanyType("Transport").Id)
+                .Where(c => c.CompanyTypeId == FindCompanyType("Transport").Id && c.IsActive)
                 .ToArray();
 
             var statuses = new[] { "Ordered", "Delivered", "Finished", "Rejected" };

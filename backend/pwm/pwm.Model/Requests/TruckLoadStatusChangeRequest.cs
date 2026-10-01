@@ -9,5 +9,8 @@ namespace pwm.Model.Requests
         /// <summary>The invoice amount in EUR - required only when moving to
         /// "Finished", which is also the only transition that ever writes it.</summary>
         public decimal? Price { get; set; }
+
+        /// <summary>Why - required when moving to "Rejected", ignored otherwise.</summary>
+        public string? Reason { get; set; }
     }
 }

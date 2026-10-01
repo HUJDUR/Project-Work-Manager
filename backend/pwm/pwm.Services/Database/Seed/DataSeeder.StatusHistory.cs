@@ -81,6 +81,14 @@ namespace pwm.Services.Database.Seed
                 }
             }
 
+            // A rejection always says why - StatusChangeRules requires it of the API too.
+            var projectRejected = FindStatus(ProjectStatusRules.Rejected).Id;
+            foreach (var change in projectChanges.Where(x => x.ToStatusId == projectRejected))
+            {
+                change.Reason = _projects.First(x => x.Id == change.ProjectId).Notes
+                    ?? Pick(ProjectRejectionReasons);
+            }
+
             await AddRangeAsync(projectChanges.ToArray());
 
             var office = OfficeUsers;
@@ -129,8 +137,29 @@ namespace pwm.Services.Database.Seed
                 }
             }
 
+            var loadRejected = FindLoadStatus(TruckLoadStatusRules.Rejected).Id;
+            foreach (var change in loadChanges.Where(x => x.ToStatusId == loadRejected))
+            {
+                change.Reason = _truckLoads.First(x => x.Id == change.TruckLoadId).Note
+                    ?? Pick(TransportRejectionReasons);
+            }
+
             await AddRangeAsync(loadChanges.ToArray());
         }
+
+        private static readonly string[] ProjectRejectionReasons =
+        [
+            "The customer went with another offer.",
+            "The customer cancelled the order.",
+            "The delivery date could not be met with the current workload.",
+        ];
+
+        private static readonly string[] TransportRejectionReasons =
+        [
+            "The carrier could not provide a truck on the agreed date.",
+            "The load exceeded what the booked truck could take.",
+            "The customer's site could not receive the delivery that day.",
+        ];
 
         /// <summary>
         /// A planned moment kept after the previous move and never in the future - a

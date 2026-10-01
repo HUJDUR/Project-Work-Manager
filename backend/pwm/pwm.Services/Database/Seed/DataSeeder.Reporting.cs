@@ -5,81 +5,22 @@ using pwm.Model.Requests;
 using pwm.Services.Reporting;
 using System.Text.Json;
 using ReportKind = pwm.Model.Enums.ReportType;
+using pwm.Services.Business;
 
 namespace pwm.Services.Database.Seed
 {
     public partial class DataSeeder
     {
+        /// <summary>
+        /// The monthly payroll summary for every month the seeded work falls in -
+        /// worked out by the same <see cref="MonthlyHourSummary"/> the API keeps it
+        /// up to date with, from the blocks just stored, so the two can never differ.
+        /// </summary>
         private async Task SeedMonthlyHourReportsAsync()
         {
-            // One report per Sarajevo month covered by the seeded work logs (stored
-            // in UTC by now, hence the conversion back).
-            var months = _workLogs
-                .Select(log => SarajevoTime.FromUtc(log.ClockedIn))
-                .Select(clockedIn => new { clockedIn.Year, clockedIn.Month })
-                .Distinct()
-                .OrderBy(m => m.Year)
-                .ThenBy(m => m.Month)
-                .ToArray();
-
-            var reports = months
-                .Select(month => new MonthlyHourReport
-                {
-                    Year = month.Year,
-                    Month = month.Month,
-                    TotalHours = Math.Round(_workLogs
-                        .Where(log => InMonth(log, month.Year, month.Month))
-                        .Sum(log => log.Hours), 2),
-                })
-                .ToArray();
-
-            await AddRangeAsync(reports);
-
-            var details = new List<MonthlyHourReportDetail>();
-
-            foreach (var report in reports)
-            {
-                var perUser = _workLogs
-                    .Where(log => InMonth(log, report.Year, report.Month))
-                    .GroupBy(log => log.UserId);
-
-                foreach (var group in perUser)
-                {
-                    // Everything over eight hours on a date is overtime, so the split
-                    // is worked out per day rather than over the month's total.
-                    var regular = 0.0;
-                    var overtime = 0.0;
-
-                    foreach (var day in group.GroupBy(log => SarajevoTime.DayOf(log.ClockedIn)))
-                    {
-                        var hours = day.Sum(log => log.Hours);
-                        var regularToday = Math.Min(hours, RegularHoursPerDay);
-
-                        regular += regularToday;
-                        overtime += hours - regularToday;
-                    }
-
-                    details.Add(new MonthlyHourReportDetail
-                    {
-                        MonthlyHourReportId = report.Id,
-                        UserId = group.Key,
-                        TotalHours = Math.Round(regular + overtime, 2),
-                        RegularHours = Math.Round(regular, 2),
-                        OvertimeHours = Math.Round(overtime, 2),
-                    });
-                }
-            }
-
-            await AddRangeAsync(details.ToArray());
+            var months = _workLogDetails.Select(x => MonthlyHourSummary.MonthOf(x.StartedAt)).Distinct();
+            await MonthlyHourSummary.RecalculateAndSaveAsync(_db, months);
         }
-
-        private static bool InMonth(WorkLog log, int year, int month)
-        {
-            var clockedIn = SarajevoTime.FromUtc(log.ClockedIn);
-            return clockedIn.Year == year && clockedIn.Month == month;
-        }
-
-        private const double RegularHoursPerDay = ReportBuilder.RegularHoursPerDay;
 
         /// <summary>
         /// Who ran a report and when is not on the report row any more - it is the

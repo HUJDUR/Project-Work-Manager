@@ -16,8 +16,8 @@ abstract final class AppRoles {
   /// Navigation entries a role may not open, by the label in `MasterScreen`.
   /// An admin reaches everything, so it has no entry.
   static const Map<String, Set<String>> _blocked = {
-    workPreparation: {'Work Hours', 'Workers', 'Reports', 'Administration', 'Activities'},
-    finances: {'Workers', 'Recommendations', 'Administration', 'Activities'},
+    workPreparation: {'Work Hours', 'Workers', 'Reports', 'Monthly Reports', 'Administration', 'Activities'},
+    finances: {'Workers', 'Monthly Reports', 'Recommendations', 'Administration', 'Activities'},
     projectManager: {'Workers', 'Administration', 'Activities'},
   };
 

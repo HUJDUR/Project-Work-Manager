@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../models/models.dart';
 import '../../providers/workers_provider.dart';
 import '../../utils/app_theme.dart';
+import 'active_chip.dart';
 import 'excel_table_header.dart';
 import 'table_pager.dart';
 import 'user_avatar.dart';
@@ -206,7 +207,7 @@ class _WorkerRowTile extends StatelessWidget {
             _columnGap,
             Expanded(
               flex: _columns[4].flex,
-              child: _StatusChip(isActive: row.isActive),
+              child: ActiveChip(isActive: row.isActive),
             ),
             SizedBox(
               width: 32,
@@ -319,24 +320,6 @@ class _RoleChip extends StatelessWidget {
         AppColors.chip(_palette[role.toLowerCase()] ?? _neutral);
 
     return _Chip(label: role, background: background, foreground: foreground);
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.isActive});
-
-  final bool isActive;
-
-  @override
-  Widget build(BuildContext context) {
-    final (background, foreground) =
-        AppColors.chip(isActive ? const Color(0xFF107A4D) : _neutral);
-
-    return _Chip(
-      label: isActive ? 'Active' : 'Inactive',
-      background: background,
-      foreground: foreground,
-    );
   }
 }
 

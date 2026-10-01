@@ -17,7 +17,7 @@ namespace pwm.Services.Database.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.11")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -127,6 +127,9 @@ namespace pwm.Services.Database.Migrations
                     b.Property<string>("EORI")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -239,8 +242,17 @@ namespace pwm.Services.Database.Migrations
                     b.Property<int>("Month")
                         .HasColumnType("int");
 
+                    b.Property<double>("OvertimeHours")
+                        .HasColumnType("float");
+
+                    b.Property<double>("RegularHours")
+                        .HasColumnType("float");
+
                     b.Property<double>("TotalHours")
                         .HasColumnType("float");
+
+                    b.Property<int>("WorkerCount")
+                        .HasColumnType("int");
 
                     b.Property<int>("Year")
                         .HasColumnType("int");
@@ -260,6 +272,9 @@ namespace pwm.Services.Database.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DaysWorked")
+                        .HasColumnType("int");
 
                     b.Property<int>("MonthlyHourReportId")
                         .HasColumnType("int");
@@ -452,6 +467,10 @@ namespace pwm.Services.Database.Migrations
 
                     b.Property<int>("ProjectId")
                         .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("ToStatusId")
                         .HasColumnType("int");
@@ -650,6 +669,10 @@ namespace pwm.Services.Database.Migrations
                     b.Property<int?>("FromStatusId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<int>("ToStatusId")
                         .HasColumnType("int");
 
@@ -792,6 +815,48 @@ namespace pwm.Services.Database.Migrations
                     b.ToTable("UserTypes", (string)null);
                 });
 
+            modelBuilder.Entity("pwm.Services.Database.WorkHoursChange", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int");
+
+                    b.Property<string>("After")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Before")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ChangedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WorkLogDetailId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangedByUserId");
+
+                    b.HasIndex("WorkLogDetailId");
+
+                    b.HasIndex("WorkerId");
+
+                    b.ToTable("WorkHoursChanges", (string)null);
+                });
+
             modelBuilder.Entity("pwm.Services.Database.WorkLog", b =>
                 {
                     b.Property<int>("Id")
@@ -836,11 +901,18 @@ namespace pwm.Services.Database.Migrations
                     b.Property<double>("Hours")
                         .HasColumnType("float");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<int>("OperationTypeId")
                         .HasColumnType("int");
 
                     b.Property<int>("ProjectId")
                         .HasColumnType("int");
+
+                    b.Property<double>("RegularHours")
+                        .HasColumnType("float");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("datetime2");
@@ -1027,7 +1099,7 @@ namespace pwm.Services.Database.Migrations
                     b.HasOne("pwm.Services.Database.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("pwm.Services.Database.ProjectStatusType", "ToStatus")
@@ -1116,7 +1188,7 @@ namespace pwm.Services.Database.Migrations
                     b.HasOne("pwm.Services.Database.TruckLoad", "TruckLoad")
                         .WithMany()
                         .HasForeignKey("TruckLoadId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ChangedByUser");
@@ -1156,6 +1228,32 @@ namespace pwm.Services.Database.Migrations
                     b.Navigation("OperationType");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("pwm.Services.Database.WorkHoursChange", b =>
+                {
+                    b.HasOne("pwm.Services.Database.User", "ChangedByUser")
+                        .WithMany()
+                        .HasForeignKey("ChangedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("pwm.Services.Database.WorkLogDetail", "WorkLogDetail")
+                        .WithMany()
+                        .HasForeignKey("WorkLogDetailId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("pwm.Services.Database.User", "Worker")
+                        .WithMany()
+                        .HasForeignKey("WorkerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ChangedByUser");
+
+                    b.Navigation("WorkLogDetail");
+
+                    b.Navigation("Worker");
                 });
 
             modelBuilder.Entity("pwm.Services.Database.WorkLog", b =>

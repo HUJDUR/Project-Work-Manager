@@ -80,6 +80,18 @@ namespace pwm.Services.Database.Seed
                     EORI = "BA7234567890123",
                     CompanyTypeId = transport,
                 },
+                // A carrier the firm no longer works with, to show a deactivated company.
+                new Company
+                {
+                    Name = "Brzi Prevoz d.o.o.",
+                    CountryId = FindCity("Sarajevo").CountryId,
+                    CityId = FindCity("Sarajevo").Id,
+                    Address = "Butmirska cesta 14",
+                    VAT = "BA200345670003",
+                    EORI = "BA7345678901234",
+                    CompanyTypeId = transport,
+                    IsActive = false,
+                },
                 new Company
                 {
                     Name = "Meyer Baustelle Nord",

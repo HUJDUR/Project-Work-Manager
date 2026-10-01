@@ -1,31 +1,43 @@
-import 'work_log_detail.dart';
+import '../utils/sarajevo_time.dart';
 
-/// The block of work the signed-in worker is on right now, with the names its
-/// ids stand for already resolved.
+/// The block of work the signed-in worker is on right now, as the API describes
+/// it - project and operation already named, start time the server's own.
 ///
-/// A session is one `WorkLogDetail` — project plus operation, started and not
-/// yet finished — hanging off the `WorkLog` that is the shift it belongs to.
-/// It is "running" precisely because `FinishedAt` is still null, which is what
-/// the nullable column on both tables exists for.
+/// A session is one `WorkLogDetail` hanging off the `WorkLog` that is the shift
+/// it belongs to; it is running because its finish is still empty.
 class ActiveSession {
   const ActiveSession({
-    required this.block,
+    required this.id,
+    required this.workLogId,
     required this.projectLabel,
     required this.operationName,
+    required this.startedAt,
+    this.note,
   });
 
-  final WorkLogDetail block;
+  final int id;
+
+  final int workLogId;
 
   /// "26-015 - Staircase module".
   final String projectLabel;
 
   final String operationName;
 
-  DateTime get startedAt => block.startedAt;
+  final DateTime startedAt;
 
-  int get id => block.id;
+  /// What the worker added when clocking in, if anything.
+  final String? note;
 
-  int get workLogId => block.workLogId;
+  /// One `ClockSessionResponse` from the API.
+  factory ActiveSession.fromJson(Map<String, dynamic> json) => ActiveSession(
+        id: json['workLogDetailId'] as int,
+        workLogId: json['workLogId'] as int,
+        projectLabel: json['projectLabel'] as String,
+        operationName: json['operationName'] as String,
+        startedAt: SarajevoTime.fromApi(json['startedAt'] as String),
+        note: json['note'] as String?,
+      );
 
   /// How long it has been running as of [now]. Never negative — a phone whose
   /// clock is behind the server's would otherwise count backwards.

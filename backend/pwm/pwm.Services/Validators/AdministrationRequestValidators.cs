@@ -4,7 +4,7 @@ using pwm.Model.Requests;
 namespace pwm.Services.Validators
 {
     /// <summary>
-    /// Every request behind the desktop's Administration screen - the seven lookup
+    /// Every request behind the desktop's Administration screen - the six lookup
     /// tables it can edit, a screen `AppRoles` opens only to an administrator. The columns are all `NOT NULL`
     /// strings, which an empty string satisfies, so each one gets a `NotEmpty` rule here
     /// the way `Project.Name` and `Project.Code` do. `Company`, `OperationType` and
@@ -67,23 +67,6 @@ namespace pwm.Services.Validators
     }
 
     public class CompanyTypeUpdateRequestValidator : CompanyTypeRequestValidator<CompanyTypeUpdateRequest>
-    {
-    }
-
-    public abstract class TruckLoadStatusTypeRequestValidator<TRequest> : AbstractValidator<TRequest>
-        where TRequest : TruckLoadStatusTypeInsertRequest
-    {
-        protected TruckLoadStatusTypeRequestValidator()
-        {
-            RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
-        }
-    }
-
-    public class TruckLoadStatusTypeInsertRequestValidator : TruckLoadStatusTypeRequestValidator<TruckLoadStatusTypeInsertRequest>
-    {
-    }
-
-    public class TruckLoadStatusTypeUpdateRequestValidator : TruckLoadStatusTypeRequestValidator<TruckLoadStatusTypeUpdateRequest>
     {
     }
 

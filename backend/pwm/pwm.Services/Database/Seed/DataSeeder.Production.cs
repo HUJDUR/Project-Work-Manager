@@ -265,7 +265,8 @@ namespace pwm.Services.Database.Seed
             var workLogs = new List<WorkLog>();
             var shifts = new List<(WorkLog Log, DateTime Start, DateTime End)>();
 
-            foreach (var day in WorkingDays(20))
+            // Whole months, so Monthly Reports has a few full ones to show.
+            foreach (var day in WorkingDaysSince(new DateTime(_today.Year, _today.Month, 1).AddMonths(-2)))
             {
                 foreach (var user in workers)
                 {
@@ -299,9 +300,22 @@ namespace pwm.Services.Database.Seed
             // operations that worker did that day.
             var details = new List<WorkLogDetail>();
 
+            // Its own sequence, so adding notes left every other seeded value as it was.
+            var noteRandom = new Random(20260930);
+
             foreach (var (log, start, end) in shifts)
             {
                 var qualifiedOperations = await QualifiedOperationsAsync(log.UserId);
+                // Only projects already in production that day - falling back to the
+                // longest-running one for the first days of the seeded range.
+                var started = bookableProjects
+                    .Where(p => p.ProductionStartDate is { } began && began.Date <= start.Date)
+                    .ToArray();
+                if (started.Length == 0)
+                {
+                    started = [bookableProjects.MinBy(p => p.ProductionStartDate)!];
+                }
+
                 var blocks = _random.Next(2, 4);
                 var shiftHours = (end - start).TotalHours;
                 var blockLength = shiftHours / blocks;
@@ -316,11 +330,13 @@ namespace pwm.Services.Database.Seed
                     {
                         WorkLogId = log.Id,
                         UserId = log.UserId,
-                        ProjectId = Pick(bookableProjects).Id,
+                        ProjectId = Pick(started).Id,
                         OperationTypeId = Pick(qualifiedOperations),
                         StartedAt = cursor,
                         FinishedAt = finishedAt,
                         Hours = Math.Round((finishedAt - cursor).TotalHours, 2),
+                        // Roughly one block in eight carries a note, as on the shop floor.
+                        Note = noteRandom.Next(8) == 0 ? SeedNotes[noteRandom.Next(SeedNotes.Length)] : null,
                     });
 
                     cursor = finishedAt;
@@ -330,6 +346,18 @@ namespace pwm.Services.Database.Seed
             _workLogDetails = details.ToArray();
             await AddRangeAsync(_workLogDetails);
         }
+
+        private static readonly string[] SeedNotes =
+        [
+            "Waited for material from the warehouse.",
+            "Crane was busy, started late.",
+            "Rework on two welds after inspection.",
+            "Helped with loading the truck.",
+            "Grinder disc changed twice - worn batch.",
+            "Drawing revision B used.",
+            "Finished the remaining brackets.",
+            "Measured on site with the foreman.",
+        ];
 
         private Dictionary<int, int[]>? _qualificationCache;
 

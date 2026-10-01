@@ -5,6 +5,7 @@ import '../models/notification.dart';
 import '../providers/notifications_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
+import '../utils/notification_groups.dart';
 
 /// The Notifications tab: what the office has sent this worker.
 ///
@@ -130,15 +131,19 @@ class _BodyState extends State<_Body> {
           style: TextStyle(fontSize: 12.5, color: AppColors.textMuted),
         ),
         const SizedBox(height: 10),
-        for (final row in provider.rows)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _NotificationCard(
-              notification: row,
-              isExpanded: _expanded.contains(row.id),
-              onTap: () => _open(row),
+        for (final (day, rows)
+            in groupNotificationsByDay(provider.rows, (row) => row.createdAt)) ...[
+          _DayHeader(label: day.label),
+          for (final row in rows)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _NotificationCard(
+                notification: row,
+                isExpanded: _expanded.contains(row.id),
+                onTap: () => _open(row),
+              ),
             ),
-          ),
+        ],
         if (provider.hasMore) _LoadMore(provider: provider),
         // A failure while appending or marking leaves what is already on
         // screen and says what went wrong under it, rather than throwing the
@@ -177,6 +182,29 @@ class _BodyState extends State<_Body> {
     if (total == null) return '$shown $noun';
     if (shown >= total) return total == 1 ? one : '$total $noun';
     return '$shown of $total $noun';
+  }
+}
+
+/// "Today", "Yesterday" or "Earlier" above the cards that fall in it.
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 6, 2, 8),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          color: AppColors.textMuted,
+        ),
+      ),
+    );
   }
 }
 

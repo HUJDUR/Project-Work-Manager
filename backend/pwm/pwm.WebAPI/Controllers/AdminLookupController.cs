@@ -7,7 +7,7 @@ using pwm.WebAPI.Filters;
 namespace pwm.WebAPI.Controllers
 {
     /// <summary>
-    /// Base for the seven editable reference-data controllers behind the desktop's Administration
+    /// Base for the six editable reference-data controllers behind the desktop's Administration
     /// screen. Reading stays open to every signed-in user (<see cref="BaseReadController{TResponse, TSearch}"/>);
     /// writing is narrowed here, once, from <see cref="BaseCRUDController{TResponse, TSearch, TInsertRequest, TUpdateRequest}"/>'s
     /// wider office roles down to the one role the Administration screen is open to.

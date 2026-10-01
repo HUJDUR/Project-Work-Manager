@@ -5,9 +5,10 @@ import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
 import '../utils/sarajevo_time.dart';
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'widgets/clear_filters_button.dart';
+import 'widgets/form_fields.dart';
 import 'widgets/search_field.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/work_hours_table.dart';
@@ -84,7 +85,7 @@ class _Body extends StatelessWidget {
           const SizedBox(height: AppSpacing.gap),
           Expanded(
             child: WorkHoursTable(
-              entries: provider.entries,
+              provider: provider,
               onRowTap: (entry) =>
                   openWorkHoursDetails(context, provider, entry: entry),
             ),
@@ -138,13 +139,12 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = provider.entries;
     final metrics = <SummaryMetric>[
       SummaryMetric(
         icon: Icons.schedule_outlined,
         label: 'Total Hours',
         value: formatHours(provider.totalHours),
-        caption: '${entries.length} entries',
+        caption: '${formatCount(provider.entryCount)} entries',
       ),
       SummaryMetric(
         icon: Icons.check_circle_outline,
@@ -231,21 +231,12 @@ class _FilterBarState extends State<_FilterBar> {
         const SizedBox(width: 12),
         Expanded(
           flex: 2,
-          child: DropdownButtonFormField<int?>(
-            initialValue: provider.projectId,
-            isExpanded: true,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-            ),
-            items: [
-              const DropdownMenuItem(value: null, child: Text('All Projects')),
+          child: SearchableFilterDropdown<int>(
+            value: provider.projectId,
+            allLabel: 'All Projects',
+            entries: [
               for (final Project project in provider.projects)
-                DropdownMenuItem(
-                  value: project.id,
-                  child: Text(project.name, overflow: TextOverflow.ellipsis),
-                ),
+                DropdownMenuEntry(value: project.id, label: project.label),
             ],
             onChanged: provider.setProject,
           ),

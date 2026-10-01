@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../models/models.dart';
 import '../../providers/activities_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
-import 'excel_table_header.dart';
+import 'sort_header.dart';
 import 'table_pager.dart';
 
 /// The breathing room between two columns of a row - matches the gap the
@@ -15,106 +15,22 @@ const _columnGap = SizedBox(width: 16);
 /// its own still lines its last column up under the header.
 const _trailingWidth = 32.0;
 
-final _columns = <ExcelColumn<ActivityRow>>[
-  ExcelColumn(
-    label: 'User',
-    flex: 3,
-    sortKey: (row) => row.userName,
-    filterValues: (row) => [row.userName],
-  ),
-  ExcelColumn(
-    label: 'Activity',
-    flex: 4,
-    sortKey: (row) => row.activityTypeName,
-    filterValues: (row) => [row.activityTypeName],
-  ),
-  ExcelColumn(
-    label: 'Date',
-    flex: 3,
-    sortKey: (row) => row.date.toIso8601String(),
-    filterValues: (row) => [formatFullDate(row.date)],
-  ),
+const _columns = <SortColumn>[
+  SortColumn(label: 'User', flex: 3, sortKey: 'User'),
+  SortColumn(label: 'Activity', flex: 4, sortKey: 'Activity'),
+  SortColumn(label: 'Date', flex: 3, sortKey: 'Date'),
 ];
 
-/// The activity log with Excel's own AutoFilter, the same pattern the
-/// Workers, Projects and Transport screens already use: every header sorts on
-/// a click and carries a checklist of that column's values to filter down to -
-/// filter enough that the screen needs no dropdowns of its own. This widget
-/// reads the whole log via [ActivitiesProvider.loadAllRows] and paginates,
-/// sorts and filters it here, defaulting to newest first.
-class ActivitiesTable extends StatefulWidget {
+/// One page of the activity log as [ActivitiesProvider] holds it. The API
+/// filters, sorts and pages, so a header click and the pager both go back to it.
+class ActivitiesTable extends StatelessWidget {
   const ActivitiesTable({super.key, required this.provider});
 
   final ActivitiesProvider provider;
 
   @override
-  State<ActivitiesTable> createState() => _ActivitiesTableState();
-}
-
-enum _LoadStatus { loading, ready, failed }
-
-class _ActivitiesTableState extends State<ActivitiesTable>
-    with ExcelTableState<ActivityRow, ActivitiesTable> {
-  _LoadStatus _status = _LoadStatus.loading;
-  List<ActivityRow> _allRows = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    // Newest first by default, the same order the API sends it in - not just
-    // once a click on the header asks for it.
-    sortColumn = _columns[2];
-    sortAscending = false;
-    widget.provider.addListener(_onProviderChanged);
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant ActivitiesTable oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.provider != widget.provider) {
-      oldWidget.provider.removeListener(_onProviderChanged);
-      widget.provider.addListener(_onProviderChanged);
-      _load();
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.provider.removeListener(_onProviderChanged);
-    super.dispose();
-  }
-
-  /// A re-fetch of the provider — there is nothing on this screen to filter
-  /// it, but the listener stays wired the same way every other Excel table's
-  /// does, in case a future write ever needs to refresh it.
-  void _onProviderChanged() => _load();
-
-  Future<void> _load() async {
-    setState(() => _status = _LoadStatus.loading);
-
-    try {
-      final rows = await widget.provider.loadAllRows();
-      if (!mounted) return;
-      setState(() {
-        _allRows = rows;
-        _status = _LoadStatus.ready;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _status = _LoadStatus.failed);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final rows = visibleRows(_allRows);
-    final pageCount = (rows.length / ExcelTableState.pageSize).ceil().clamp(1, 999);
-    final currentPage = page.clamp(1, pageCount);
-    final start = (currentPage - 1) * ExcelTableState.pageSize;
-    final pageRows = start >= rows.length
-        ? const <ActivityRow>[]
-        : rows.sublist(start, (start + ExcelTableState.pageSize).clamp(0, rows.length));
+    final rows = provider.rows;
 
     return Container(
       decoration: BoxDecoration(
@@ -126,39 +42,27 @@ class _ActivitiesTableState extends State<ActivitiesTable>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ExcelHeaderRow<ActivityRow>(
+          SortHeaderRow(
             columns: _columns,
-            allRows: _allRows,
-            sortColumn: sortColumn,
-            sortAscending: sortAscending,
-            filters: columnFilters,
-            onResult: (column, result) => onHeaderResult(_allRows, column, result),
+            sortKey: provider.sortKey,
+            ascending: provider.sortAscending,
+            onSort: provider.setSort,
           ),
           const Divider(height: 1),
           Expanded(
-            child: switch (_status) {
-              _LoadStatus.loading when _allRows.isEmpty =>
-                const Center(child: CircularProgressIndicator()),
-              _LoadStatus.failed => Center(
-                  child: Text(
-                    'Could not load the activity log.',
-                    style: TextStyle(color: AppColors.textMuted),
+            child: rows.isEmpty
+                ? _NoRows()
+                : ListView.separated(
+                    itemCount: rows.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) => _ActivityRowTile(row: rows[index]),
                   ),
-                ),
-              _ => pageRows.isEmpty
-                  ? _NoRows()
-                  : ListView.separated(
-                      itemCount: pageRows.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (context, index) => _ActivityRowTile(row: pageRows[index]),
-                    ),
-            },
           ),
           const Divider(height: 1),
           TablePager(
-            page: currentPage,
-            pageCount: pageCount,
-            onPageChanged: (value) => setState(() => page = value),
+            page: provider.page,
+            pageCount: provider.pageCount,
+            onPageChanged: provider.setPage,
           ),
         ],
       ),

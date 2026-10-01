@@ -6,5 +6,10 @@ namespace pwm.Services.Interfaces
 {
     public interface IWorkLogService : IBaseCRUDService<WorkLogResponse, WorkLogSearchObject, WorkLogInsertRequest, WorkLogUpdateRequest>
     {
+        Task<ClockInOptionsResponse> GetClockInOptionsAsync();
+
+        Task<ClockSessionResponse> ClockInAsync(ClockInRequest request);
+
+        Task<ClockSessionResponse> ClockOutAsync();
     }
 }

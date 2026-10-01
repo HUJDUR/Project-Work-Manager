@@ -9,5 +9,7 @@ namespace pwm.Model.SearchObjects
         public int? CityId { get; set; }
 
         public int? CompanyTypeId { get; set; }
+
+        public bool? IsActive { get; set; }
     }
 }

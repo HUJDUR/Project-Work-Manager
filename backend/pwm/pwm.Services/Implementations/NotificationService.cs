@@ -16,28 +16,44 @@ namespace pwm.Services.Implementations
     {
         private readonly IValidator<NotificationSendRequest> _sendValidator;
         private readonly IActivityLogService _activityLogService;
+        private readonly ICurrentUser _currentUser;
 
         public NotificationService(
             PWMDbContext dbContext,
             IMapper mapper,
             IValidator<NotificationSendRequest> sendValidator,
-            IActivityLogService activityLogService)
+            IActivityLogService activityLogService,
+            ICurrentUser currentUser)
             : base(mapper, dbContext)
         {
             _sendValidator = sendValidator;
             _activityLogService = activityLogService;
+            _currentUser = currentUser;
+        }
+
+        /// <summary>Somebody else's notification is not found, whatever the role.</summary>
+        public override async Task<NotificationResponse> GetByIdAsync(int id)
+        {
+            var notification = await base.GetByIdAsync(id);
+
+            if (notification.UserId != _currentUser.Id)
+            {
+                throw new NotFoundException($"Notification with id {id} not found.");
+            }
+
+            return notification;
         }
 
         protected override IQueryable<Notification> ApplyFilters(IQueryable<Notification> query, NotificationSearchObject? search)
         {
+            // A notification is personal: every role reads only its own, and which
+            // account that is comes from the token - search.UserId is not looked at.
+            var userId = _currentUser.Id ?? throw new ForbiddenException("The token carries no user.");
+            query = query.Where(x => x.UserId == userId);
+
             if (search == null)
             {
                 return query;
-            }
-
-            if (search.UserId.HasValue)
-            {
-                query = query.Where(x => x.UserId == search.UserId.Value);
             }
 
             if (search.IsRead.HasValue)
@@ -147,6 +163,25 @@ namespace pwm.Services.Implementations
             }
 
             return new NotificationMarkReadResponse { MarkedCount = unread.Count };
+        }
+
+        public async Task StageForRolesAsync(string title, string message, int? exceptUserId, params string[] roles)
+        {
+            var recipientIds = await _dbContext.Users
+                .Where(x => x.IsActive && roles.Contains(x.UserType.Type) && x.Id != exceptUserId)
+                .Select(x => x.Id)
+                .ToListAsync();
+
+            var sentAt = DateTime.UtcNow;
+
+            _dbContext.Notifications.AddRange(recipientIds.Select(userId => new Notification
+            {
+                UserId = userId,
+                Title = title,
+                Message = message,
+                IsRead = false,
+                CreatedAt = sentAt,
+            }));
         }
 
         /// <summary>

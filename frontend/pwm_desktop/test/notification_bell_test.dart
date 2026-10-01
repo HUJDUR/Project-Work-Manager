@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Notification;
+import 'package:material_ui/material_ui.dart' hide Notification;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pwm_desktop/models/notification.dart';
 import 'package:pwm_desktop/models/page_result.dart';

@@ -30,5 +30,9 @@ namespace pwm.Services.Database
         /// <summary>Everything past eight hours on a day.</summary>
         [Required]
         public double OvertimeHours { get; set; }
+
+        /// <summary>The Sarajevo days this worker booked anything on.</summary>
+        [Required]
+        public int DaysWorked { get; set; }
     }
 }
