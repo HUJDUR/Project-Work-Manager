@@ -17,5 +17,8 @@ namespace pwm.Model.Responses
         public string ChangedByName { get; set; } = string.Empty;
 
         public DateTime ChangedAt { get; set; }
+
+        /// <summary>Set only on a rejection.</summary>
+        public string? Reason { get; set; }
     }
 }

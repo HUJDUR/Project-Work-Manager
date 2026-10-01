@@ -3,4 +3,5 @@
   <Project Path="pwm.Model/pwm.Model.csproj" />
   <Project Path="pwm.Services/pwm.Services.csproj" />
   <Project Path="pwm.WebAPI/pwm.WebAPI.csproj" />
+  <Project Path="pwm.Worker/pwm.Worker.csproj" />
 </Solution>

@@ -21,21 +21,11 @@ void main() {
 
   runApp(
     MultiProvider(
-      // One instance per API resource, created on first use. The dashboard does
-      // its own joining, so it still builds its provider locally.
+      // Only app-wide state lives here; every screen builds the API providers it
+      // needs itself.
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeController()),
-        ChangeNotifierProvider(create: (_) => WorkLogDetailProvider()),
-        ChangeNotifierProvider(create: (_) => ProjectProvider()),
-        ChangeNotifierProvider(create: (_) => OperationTypeProvider()),
-        ChangeNotifierProvider(create: (_) => ProjectStatusTypeProvider()),
-        ChangeNotifierProvider(create: (_) => ProjectCategoryProvider()),
-        ChangeNotifierProvider(create: (_) => CompanyProvider()),
-        ChangeNotifierProvider(create: (_) => UserOperationProvider()),
-        ChangeNotifierProvider(create: (_) => WorkLogProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: PwmMobileApp(),
     ),

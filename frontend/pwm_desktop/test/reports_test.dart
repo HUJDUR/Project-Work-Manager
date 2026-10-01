@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pwm_desktop/models/models.dart';
 import 'package:pwm_desktop/providers/base_provider.dart';
@@ -218,7 +218,7 @@ final _reportRuns = [
 late _FakeReportProvider _reports;
 late _FakeProvider<GeneratedReport> _generatedRows;
 
-ReportsProvider _fakeReports() {
+ReportsProvider _fakeReports({String role = AppRoles.admin, DateTime? monthlyPeriod}) {
   _reports = _FakeReportProvider();
   _generatedRows = _FakeProvider(_generated);
 
@@ -230,11 +230,44 @@ ReportsProvider _fakeReports() {
     users: _FakeProvider(_users),
     projects: _FakeProvider(_projects),
     today: _today,
-    role: AppRoles.admin,
+    role: role,
+    monthlyPeriod: monthlyPeriod,
   );
 }
 
 void main() {
+  group('opened from Monthly Reports', () {
+    test('fills the form with that month, and leaves generating to the user', () async {
+      final provider = _fakeReports(monthlyPeriod: DateTime(2026, 7));
+      await provider.load();
+
+      expect(provider.type, ReportType.monthlyWorkHours);
+      expect(provider.period, DateTime(2026, 7));
+      expect(_reports.calls, isEmpty);
+      expect(provider.pdf, isNull);
+
+      await provider.generate();
+      expect(_reports.calls.first, containsPair('month', 7));
+    });
+
+    test('a month older than the Period dropdown is still offered', () async {
+      final provider = _fakeReports(monthlyPeriod: DateTime(2023, 1));
+      await provider.load();
+
+      expect(provider.periods.last, DateTime(2023, 1));
+    });
+
+    test('a project manager gets the transports form', () async {
+      final provider = _fakeReports(
+        role: AppRoles.projectManager,
+        monthlyPeriod: DateTime(2026, 7),
+      );
+      await provider.load();
+
+      expect(provider.type, ReportType.transportLoads);
+    });
+  });
+
   group('ReportsProvider', () {
     late ReportsProvider provider;
 

@@ -1,15 +1,17 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/notification_hub.dart';
 import '../providers/received_notifications_provider.dart';
 import '../screens/account_settings_screen.dart';
 import '../screens/activities_screen.dart';
 import '../screens/administration_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/monthly_reports_screen.dart';
 import '../screens/notifications_screen.dart';
 import '../screens/projects_screen.dart';
 import '../screens/recommendations_screen.dart';
@@ -21,6 +23,7 @@ import '../screens/work_hours_screen.dart';
 import '../screens/workers_screen.dart';
 import '../utils/app_roles.dart';
 import '../utils/app_theme.dart';
+import 'master_navigation.dart';
 import 'window_chrome.dart';
 
 class AppDestination {
@@ -51,6 +54,10 @@ class _MasterScreenState extends State<MasterScreen> {
 
   int _selectedIndex = 0;
 
+  /// Set when Monthly Reports sends the office to the PDF of one month; the
+  /// Reports screen opens with its form set to it. Any sidebar click clears it.
+  DateTime? _reportPeriod;
+
   /// The bell's own store, owned here rather than by the bell: leaving it
   /// with `MasterScreen` is what lets switching screens call
   /// [ReceivedNotificationsProvider.refreshUnread] on it — see
@@ -59,25 +66,19 @@ class _MasterScreenState extends State<MasterScreen> {
       widget.notificationsProviderFactory?.call() ??
           ReceivedNotificationsProvider(unreadOnly: true, pageSize: 5);
 
-  /// Polls for new notifications on its own, rather than only when
-  /// [_selectTab] happens to run — someone parked on one screen (the
-  /// dashboard, say) would otherwise never see the bell update. A manual
-  /// refresh button is explicitly not good enough on its own; this is what
-  /// makes the bell's refresh genuinely automatic rather than navigation-
-  /// triggered.
-  static const _pollInterval = Duration(seconds: 30);
-  Timer? _pollTimer;
-
+  /// The signed-in shell owns the live connection: new notifications reach the
+  /// bell (and any open Notifications screen) the moment they are written, on
+  /// whatever screen the office is parked on - see [NotificationHub].
   @override
   void initState() {
     super.initState();
     _bellNotifications.load();
-    _pollTimer = Timer.periodic(_pollInterval, (_) => _bellNotifications.refreshUnread());
+    NotificationHub.connect();
   }
 
   @override
   void dispose() {
-    _pollTimer?.cancel();
+    NotificationHub.disconnect();
     _bellNotifications.dispose();
     super.dispose();
   }
@@ -120,6 +121,11 @@ class _MasterScreenState extends State<MasterScreen> {
       builder: _reports,
     ),
     AppDestination(
+      label: 'Monthly Reports',
+      icon: Icons.calendar_month_outlined,
+      builder: _monthlyReports,
+    ),
+    AppDestination(
       label: 'Recommendations',
       icon: Icons.star_outline,
       builder: _recommendations,
@@ -147,6 +153,7 @@ class _MasterScreenState extends State<MasterScreen> {
   static Widget _workers(BuildContext context) => WorkersScreen();
   static Widget _transport(BuildContext context) => TransportScreen();
   static Widget _reports(BuildContext context) => ReportsScreen();
+  static Widget _monthlyReports(BuildContext context) => MonthlyReportsScreen();
   static Widget _recommendations(BuildContext context) =>
       RecommendationsScreen();
   static Widget _notifications(BuildContext context) => NotificationsScreen();
@@ -157,7 +164,10 @@ class _MasterScreenState extends State<MasterScreen> {
   /// way — see [ReceivedNotificationsProvider.refreshUnread] for why that is
   /// a lighter touch than a plain reload.
   void _selectTab(int index) {
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _selectedIndex = index;
+      _reportPeriod = null;
+    });
     _bellNotifications.refreshUnread();
   }
 
@@ -170,11 +180,28 @@ class _MasterScreenState extends State<MasterScreen> {
     if (index >= 0) _selectTab(index);
   }
 
+  void _openMonthlyReport(DateTime period) {
+    final index = _destinations.indexWhere((d) => d.label == 'Reports');
+    if (index < 0) return;
+
+    setState(() {
+      _selectedIndex = index;
+      _reportPeriod = period;
+    });
+    _bellNotifications.refreshUnread();
+  }
+
   @override
   Widget build(BuildContext context) {
     final destination = _destinations[_selectedIndex];
+    final reportPeriod = _reportPeriod;
+    final WidgetBuilder builder = destination.label == 'Reports' && reportPeriod != null
+        ? (_) => ReportsScreen(monthlyPeriod: reportPeriod)
+        : destination.builder;
 
-    return Scaffold(
+    return MasterNavigation(
+      openMonthlyReport: _openMonthlyReport,
+      child: Scaffold(
       body: Column(
         children: [
           _TopBar(
@@ -202,10 +229,10 @@ class _MasterScreenState extends State<MasterScreen> {
                   // sidebar stay put. The key rebuilds it — and so reloads the
                   // screen — whenever the destination changes.
                   child: Navigator(
-                    key: ValueKey(destination.label),
+                    key: ValueKey('${destination.label}$reportPeriod'),
                     onGenerateRoute: (settings) => MaterialPageRoute(
                       settings: settings,
-                      builder: destination.builder,
+                      builder: builder,
                     ),
                   ),
                 ),
@@ -213,6 +240,7 @@ class _MasterScreenState extends State<MasterScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

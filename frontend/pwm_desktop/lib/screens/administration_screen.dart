@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../models/models.dart';
 import '../providers/providers.dart';
 import '../utils/app_theme.dart';
 import 'lookup_table_screen.dart';
+import 'widgets/active_chip.dart';
 import 'widgets/lookup_table_config.dart';
 
 /// The Administration screen: eleven reference tables, open only to
@@ -216,10 +217,12 @@ LookupTableConfig<ProjectStatusType> _projectStatusTypes() =>
 LookupTableConfig<TruckLoadStatusType> _truckLoadStatusTypes() =>
     simpleNameTable<TruckLoadStatusType>(
       title: 'Truck Load Status Types',
-      description: 'What a transport load can be.',
+      description: 'What a transport load can be - its life cycle matches these by name.',
       createProvider: () => TruckLoadStatusTypeProvider(),
       idOf: (row) => row.id,
       nameOf: (row) => row.name,
+      readOnlyReason: "These statuses are wired into the app's code. "
+          "Changing anything would break the application.",
     );
 
 LookupTableConfig<ReportTypeLookup> _reportTypes() => LookupTableConfig<ReportTypeLookup>(
@@ -312,6 +315,11 @@ LookupTableConfig<Company> _companies() => LookupTableConfig<Company>(
         ),
         LookupColumn('City', (row, ctx) => ctx['cityId']?[row.cityId] ?? 'Unknown'),
         LookupColumn('Address', (row, ctx) => row.address),
+        LookupColumn(
+          'Status',
+          (row, ctx) => ActiveChip.labelFor(row.isActive),
+          cell: (row) => ActiveChip(isActive: row.isActive),
+        ),
       ],
       fields: [
         const LookupField(key: 'name', label: 'Name'),
@@ -346,6 +354,14 @@ LookupTableConfig<Company> _companies() => LookupTableConfig<Company>(
         const LookupField(key: 'address', label: 'Address'),
         const LookupField(key: 'vat', label: 'VAT', required: false),
         const LookupField(key: 'eori', label: 'EORI', required: false),
+        const LookupField(
+          key: 'isActive',
+          label: 'Active',
+          toggle: true,
+          hint: 'Deactivate rather than delete a company the firm no longer works '
+              'with - it stays on its projects and transports, but is not offered '
+              'for new ones.',
+        ),
       ],
       valuesOf: (row) => {
         'name': row.name,
@@ -355,5 +371,6 @@ LookupTableConfig<Company> _companies() => LookupTableConfig<Company>(
         'address': row.address,
         'vat': row.vat,
         'eori': row.eori,
+        'isActive': row.isActive,
       },
     );

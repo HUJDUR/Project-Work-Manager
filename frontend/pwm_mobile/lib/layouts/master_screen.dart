@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/notification_hub.dart';
 import '../providers/notifications_provider.dart';
 import '../screens/clock_in_screen.dart';
 import '../screens/dashboard_screen.dart';
@@ -65,15 +66,20 @@ class _MasterScreenState extends State<MasterScreen> {
   late final _notifications =
       widget.notificationsProviderFactory?.call() ?? NotificationsProvider();
 
+  /// The signed-in shell owns the live connection: a notification reaches the
+  /// badge and the Notifications tab the moment it is written - see
+  /// [NotificationHub].
   @override
   void initState() {
     super.initState();
     _notifications.addListener(_onNotificationsChanged);
     _notifications.load();
+    NotificationHub.connect();
   }
 
   @override
   void dispose() {
+    NotificationHub.disconnect();
     _notifications.removeListener(_onNotificationsChanged);
     _notifications.dispose();
     super.dispose();

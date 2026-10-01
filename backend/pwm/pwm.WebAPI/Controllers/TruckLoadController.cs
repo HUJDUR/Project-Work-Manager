@@ -25,7 +25,14 @@ namespace pwm.WebAPI.Controllers
         [HttpPatch("{id}/Status")]
         [Authorization(Roles.Admin, Roles.ProjectManager)]
         public Task<TruckLoadResponse> ChangeStatus(int id, [FromBody] TruckLoadStatusChangeRequest request) =>
-            _truckLoads.ChangeStatusAsync(id, request.TruckLoadStatusId, request.Price);
+            _truckLoads.ChangeStatusAsync(id, request.TruckLoadStatusId, request.Price, request.Reason);
+
+        /// <summary>
+        /// Not routed: a transport ends in a status ("Finished" or "Rejected"),
+        /// never in a DELETE - that would take its history with it.
+        /// </summary>
+        [NonAction]
+        public override Task<IActionResult> Delete(int id) => base.Delete(id);
 
         /// <summary>The audit trail behind a transport's status - every signed-in
         /// user may read it, the same as the load itself.</summary>

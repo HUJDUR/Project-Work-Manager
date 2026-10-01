@@ -7,7 +7,8 @@ namespace pwm.Services
 {
     /// <summary>
     /// A <see cref="BaseReadService{TEntity, TResponse, TSearch}"/> for a reference table
-    /// the API never writes (UserType, ProjectStatusType, ActivityLogType, ReportType) -
+    /// the API never writes (UserType, ProjectStatusType, TruckLoadStatusType, ActivityLogType,
+    /// ReportType) -
     /// application code matches their rows by name, so they only change through a seed
     /// or migration. Lists are served from <see cref="LookupCache{TEntity, TResponse, TSearch}"/>.
     /// </summary>

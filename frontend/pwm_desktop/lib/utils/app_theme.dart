@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One theme's colours. The light one is the palette taken from the desktop
 /// mockups — a light neutral canvas, white cards with hairline borders and a

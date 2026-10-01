@@ -36,7 +36,8 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 .metadata
-*.g.dart
+# *.g.dart (json_serializable output) is committed, so a fresh clone builds
+# without running build_runner first.
 *.freezed.dart
 *.mocks.dart
 coverage/

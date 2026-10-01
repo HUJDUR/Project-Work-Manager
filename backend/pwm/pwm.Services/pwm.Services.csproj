@@ -7,15 +7,21 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="Mapster" Version="10.0.12" />
-    <PackageReference Include="Mapster.DependencyInjection" Version="10.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+    <PackageReference Include="Mapster" Version="10.0.13" />
+    <PackageReference Include="Mapster.DependencyInjection" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.12" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12" />
-    <PackageReference Include="QuestPDF" Version="2026.8.0" />
+    <PackageReference Include="QuestPDF" Version="2026.9.1" />
     <PackageReference Include="RabbitMQ.Client" Version="7.2.2" />
-    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.3" />
+    <PackageReference Include="System.Linq.Dynamic.Core" Version="1.7.4" />
+  </ItemGroup>
+
+  <!-- The seeded users' avatars, shipped next to the app so the seeder finds them
+       in a container as well as on the host. -->
+  <ItemGroup>
+    <None Include="Database\Pictures\*.jpg" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <PropertyGroup>

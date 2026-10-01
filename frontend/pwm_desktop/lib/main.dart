@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
@@ -46,31 +46,11 @@ void main() async {
 
   runApp(
     MultiProvider(
-      // One instance per API resource, created on first use. Screens that do their
-      // own joining (dashboard, work hours) still build their provider locally.
+      // Only app-wide state lives here; every screen builds the API providers it
+      // needs itself.
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeController()),
-        ChangeNotifierProvider(create: (_) => ActivityLogProvider()),
-        ChangeNotifierProvider(create: (_) => ActivityLogTypeProvider()),
-        ChangeNotifierProvider(create: (_) => CityProvider()),
-        ChangeNotifierProvider(create: (_) => CompanyProvider()),
-        ChangeNotifierProvider(create: (_) => CompanyTypeProvider()),
-        ChangeNotifierProvider(create: (_) => CountryProvider()),
-        ChangeNotifierProvider(create: (_) => MonthlyHourReportProvider()),
-        ChangeNotifierProvider(create: (_) => MonthlyHourReportDetailProvider()),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        ChangeNotifierProvider(create: (_) => OperationTypeProvider()),
-        ChangeNotifierProvider(create: (_) => ProjectProvider()),
-        ChangeNotifierProvider(create: (_) => ProjectCategoryProvider()),
-        ChangeNotifierProvider(create: (_) => ProjectStatusTypeProvider()),
-        ChangeNotifierProvider(create: (_) => TruckLoadProvider()),
-        ChangeNotifierProvider(create: (_) => TruckLoadDetailProvider()),
-        ChangeNotifierProvider(create: (_) => UserProvider()),
-        ChangeNotifierProvider(create: (_) => UserOperationProvider()),
-        ChangeNotifierProvider(create: (_) => UserTypeProvider()),
-        ChangeNotifierProvider(create: (_) => WorkLogProvider()),
-        ChangeNotifierProvider(create: (_) => WorkLogDetailProvider()),
       ],
       child: PwmDesktopApp(),
     ),
@@ -116,6 +96,12 @@ class PwmDesktopApp extends StatelessWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: mode,
+      // fl_chart, printing and window_manager still build on the Material
+      // library bundled with Flutter rather than `material_ui`; the bridge hands
+      // them this app's theme and localizations. It is deprecated only because
+      // it goes away once those packages migrate.
+      // ignore: deprecated_member_use
+      builder: (context, child) => MaterialUiCompatibilityBridge(child: child!),
       home: LoginScreen(),
     );
   }

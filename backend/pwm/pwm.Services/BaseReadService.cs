@@ -48,7 +48,7 @@ namespace pwm.Services
 
             if (!string.IsNullOrWhiteSpace(search.SortBy))
             {
-                query = query.OrderBy(SafeSortBy(search.SortBy));
+                query = ApplySorting(query, search.SortBy);
             }
 
             query = query
@@ -63,6 +63,13 @@ namespace pwm.Services
                 TotalCount = totalCount
             };
         }
+
+        /// <summary>
+        /// Orders by <see cref="BaseSearchObject.SortBy"/>'s entity properties. A service
+        /// whose list sorts by something else - a related row's name - adds those keys.
+        /// </summary>
+        protected virtual IQueryable<TEntity> ApplySorting(IQueryable<TEntity> query, string sortBy) =>
+            query.OrderBy(SafeSortBy(sortBy));
 
         /// <summary>
         /// Dynamic LINQ's <c>OrderBy(string)</c> takes an expression, not just a property

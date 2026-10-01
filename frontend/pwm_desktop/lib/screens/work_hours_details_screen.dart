@@ -5,7 +5,7 @@ import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
 import '../utils/sarajevo_time.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'widgets/details_scaffold.dart';
@@ -35,6 +35,9 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
   bool _saving = false;
   String? _error;
 
+  /// The corrections behind an existing entry; null for a new one.
+  Future<List<WorkHoursChange>>? _history;
+
   bool get _isNew => widget.entry == null;
 
   @override
@@ -42,6 +45,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
     super.initState();
 
     final entry = widget.entry;
+    if (entry != null) _history = widget.provider.history(entry);
     final start = entry?.startedAt ?? _defaultStart();
 
     _initialValue = {
@@ -53,6 +57,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
       'finishedAt': TimeOfDay.fromDateTime(
         entry?.finishedAt ?? start.add(const Duration(hours: 8)),
       ),
+      'note': entry?.note,
     };
   }
 
@@ -108,7 +113,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
                       for (final Project project in provider.projects)
                         DropdownMenuEntry(
                           value: project.id,
-                          label: '${project.code} - ${project.name}',
+                          label: project.label,
                         ),
                     ],
                   ),
@@ -165,6 +170,21 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: formSectionGap),
+            FormBuilderTextField(
+              name: 'note',
+              maxLines: 2,
+              maxLength: workNoteMaxLength,
+              decoration: appInputDecoration('Note', hintText: 'Optional'),
+              validator: FormBuilderValidators.maxLength(
+                workNoteMaxLength,
+                errorText: 'Keep the note to $workNoteMaxLength characters or fewer.',
+              ),
+            ),
+            if (_history case final history?) ...[
+              const SizedBox(height: formSectionGap),
+              _ChangeHistory(history: history),
+            ],
           ],
         ),
       ),
@@ -198,6 +218,7 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
         operationTypeId: values['operationTypeId'] as int,
         startedAt: startedAt,
         finishedAt: finishedAt,
+        note: values['note'] as String?,
       );
 
       if (!mounted) return;
@@ -246,6 +267,105 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
 
   String _messageFor(Object error, String fallback) =>
       error is ApiClientException ? error.message : '$fallback: $error';
+}
+
+/// Who corrected these hours and when - the trail the office leaves behind it.
+/// A worker's own clock-in and clock-out are not corrections and are not listed.
+class _ChangeHistory extends StatelessWidget {
+  const _ChangeHistory({required this.history});
+
+  final Future<List<WorkHoursChange>> history;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('History', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        const SizedBox(height: 6),
+        FutureBuilder<List<WorkHoursChange>>(
+          future: history,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return _HistoryNote(
+                snapshot.error is ApiClientException
+                    ? (snapshot.error as ApiClientException).message
+                    : 'The history could not be loaded.',
+              );
+            }
+
+            final changes = snapshot.data ?? const <WorkHoursChange>[];
+            if (changes.isEmpty) {
+              return _HistoryNote('No corrections - these hours are as they were booked.');
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [for (final change in changes) _ChangeRow(change: change)],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ChangeRow extends StatelessWidget {
+  const _ChangeRow({required this.change});
+
+  final WorkHoursChange change;
+
+  @override
+  Widget build(BuildContext context) {
+    final before = change.before;
+    final after = change.after;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${change.action} by ${change.changedByName}',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
+                ),
+              ),
+              Text(
+                '${formatFullDate(change.changedAt)} ${formatTime(change.changedAt)}',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+          if (before != null) _HistoryNote('Before: $before'),
+          if (after != null) _HistoryNote(before == null ? after : 'After: $after'),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryNote extends StatelessWidget {
+  const _HistoryNote(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(text, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+    );
+  }
 }
 
 /// FormBuilder has no clock picker, so this wraps the Material one as a field.

@@ -9,6 +9,7 @@ using pwm.Model.SearchObjects;
 using pwm.Services.Business;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
+using pwm.Common.Services.Time;
 
 namespace pwm.Services.Implementations
 {
@@ -16,17 +17,29 @@ namespace pwm.Services.Implementations
         : BaseCRUDService<TruckLoad, TruckLoadResponse, TruckLoadSearchObject, TruckLoadInsertRequest, TruckLoadUpdateRequest>, ITruckLoadService
     {
         private readonly ICurrentUser _currentUser;
+        private readonly INotificationService _notifications;
 
         public TruckLoadService(
             PWMDbContext dbContext,
             IMapper mapper,
             IValidator<TruckLoadInsertRequest> insertValidator,
             IValidator<TruckLoadUpdateRequest> updateValidator,
-            ICurrentUser currentUser)
+            ICurrentUser currentUser,
+            INotificationService notifications)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
             _currentUser = currentUser;
+            _notifications = notifications;
         }
+
+        /// <summary>
+        /// A transport is never deleted: it ends as "Finished" or "Rejected", and its
+        /// cargo and status history stay. <c>TruckLoadController</c> does not route a
+        /// DELETE at all; this is the same rule for any other caller.
+        /// </summary>
+        public override Task DeleteAsync(int id) =>
+            throw new ClientException(
+                $"A transport is never deleted - change its status to \"{TruckLoadStatusRules.Rejected}\" instead.");
 
         /// <summary>Every transport starts life "Ordered", never whatever the
         /// caller sent - the request cannot even express a status any more (see
@@ -41,6 +54,8 @@ namespace pwm.Services.Implementations
                     .FirstOrDefaultAsync(x => x.Name == TruckLoadStatusRules.Ordered)
                 ?? throw new InvalidOperationException(
                     $"The \"{TruckLoadStatusRules.Ordered}\" truck load status is missing - reseed the lookup tables.");
+
+            await CompanyRules.EnsureSelectableAsync(_dbContext, request.TransportCompanyId, null, "carrier");
 
             var entity = _mapper.Map<TruckLoad>(request);
             entity.TruckLoadStatusId = orderedStatus.Id;
@@ -83,6 +98,8 @@ namespace pwm.Services.Implementations
 
             if (TruckLoadStatusRules.CanEditGeneralFields(status))
             {
+                await CompanyRules.EnsureSelectableAsync(
+                    _dbContext, request.TransportCompanyId, entity.TransportCompanyId, "carrier");
                 _mapper.Map(request, entity);
                 // Never settable while still Ordered - nothing to invoice yet.
                 entity.Price = null;
@@ -112,7 +129,7 @@ namespace pwm.Services.Implementations
         /// amount before "Finished" (which is also the only place <c>Price</c> is
         /// ever set for good), and writes the move to the status history.
         /// </summary>
-        public async Task<TruckLoadResponse> ChangeStatusAsync(int id, int newStatusId, decimal? price)
+        public async Task<TruckLoadResponse> ChangeStatusAsync(int id, int newStatusId, decimal? price, string? reason)
         {
             var entity = await _dbContext.TruckLoads
                     .Include(x => x.TruckLoadStatus)
@@ -149,6 +166,11 @@ namespace pwm.Services.Implementations
                 entity.Price = price;
             }
 
+            var storedReason = StatusChangeRules.ReasonFor(
+                newStatus.Name == TruckLoadStatusRules.Rejected, reason, "transport");
+
+            var changedBy = CurrentUserIdOrThrow();
+            var fromStatusName = entity.TruckLoadStatus.Name;
             var fromStatusId = entity.TruckLoadStatusId;
             entity.TruckLoadStatusId = newStatus.Id;
 
@@ -157,13 +179,42 @@ namespace pwm.Services.Implementations
                 TruckLoadId = id,
                 FromStatusId = fromStatusId,
                 ToStatusId = newStatus.Id,
-                ChangedByUserId = CurrentUserIdOrThrow(),
+                ChangedByUserId = changedBy,
                 ChangedAt = DateTime.UtcNow,
+                Reason = storedReason,
             });
 
+            await NotifyStatusChangeAsync(entity, fromStatusName, newStatus.Name, storedReason, changedBy);
+
+            // One save: the move, its history row and the notifications about it.
             await _dbContext.SaveChangesAsync();
 
             return _mapper.Map<TruckLoadResponse>(entity);
+        }
+
+        /// <summary>Admins and project managers hear about every move, a rejection with its reason.</summary>
+        private async Task NotifyStatusChangeAsync(
+            TruckLoad load, string from, string to, string? reason, int changedByUserId)
+        {
+            var actor = await _dbContext.Users
+                .Where(x => x.Id == changedByUserId)
+                .Select(x => (x.Name + " " + x.Surname).Trim())
+                .FirstOrDefaultAsync() ?? "Someone";
+
+            // The same number the desktop shows for a transport.
+            var number = $"TR-{load.Id:D4}";
+            var loaded = SarajevoTime.FromUtc(load.LoadDate).ToString("dd.MM.yyyy");
+
+            var rejected = to == TruckLoadStatusRules.Rejected;
+            var message = $"{actor} moved {number} ({load.VehicleRegistration}, loaded {loaded}) " +
+                $"from \"{from}\" to \"{to}\"."
+                + (rejected ? $" Reason: {reason}" : string.Empty);
+
+            await _notifications.StageForRolesAsync(
+                rejected ? "Transport rejected" : "Transport status changed",
+                message,
+                changedByUserId,
+                Roles.Admin, Roles.ProjectManager);
         }
 
         /// <summary>Newest first - the story of how a transport got to where it is.</summary>
@@ -180,6 +231,7 @@ namespace pwm.Services.Implementations
                     ChangedByUserId = x.ChangedByUserId,
                     ChangedByName = x.ChangedByUser.Name + " " + x.ChangedByUser.Surname,
                     ChangedAt = x.ChangedAt,
+                    Reason = x.Reason,
                 })
                 .ToListAsync();
         }

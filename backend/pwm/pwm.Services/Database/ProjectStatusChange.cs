@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using pwm.Services.Business;
 
 namespace pwm.Services.Database
 {
@@ -41,5 +42,9 @@ namespace pwm.Services.Database
 
         [Required]
         public DateTime ChangedAt { get; set; } = DateTime.UtcNow;
+
+        /// <summary>Why the project was rejected - required for that move, null for every other.</summary>
+        [MaxLength(StatusChangeRules.ReasonMaxLength)]
+        public string? Reason { get; set; }
     }
 }

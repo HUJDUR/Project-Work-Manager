@@ -1,17 +1,44 @@
 # pwm_desktop
 
-A new Flutter project.
+The office side of Project Work Manager, a Flutter app for Windows. It covers
+the dashboard, projects, work hours, workers, transport, monthly reports, PDF
+reports, resource estimates, notifications, activities and administration.
+Admins, project managers, finances and work preparation sign in here. Each role
+sees only its own screens (`lib/utils/app_roles.dart`). Production workers use
+`pwm_mobile` instead.
 
-## Getting Started
+## Run
 
-This project is a starting point for a Flutter application.
+The backend has to be running first; see the root `README.md`.
 
-A few resources to get you started if this is your first Flutter project:
+```
+flutter pub get
+flutter run -d windows
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+The generated `*.g.dart` JSON code is committed. After changing a model,
+regenerate it with `dart run build_runner build --delete-conflicting-outputs`.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The API address defaults to `http://localhost:7094`. Override it with:
+
+```
+flutter run -d windows --dart-define=API_BASE_URL=http://localhost:7094
+```
+
+Sign in as `desktop` / `test`. The other seeded accounts are listed in the root
+`README.md`.
+
+## Test
+
+```
+flutter test
+```
+
+## Release build
+
+```
+flutter clean
+flutter build windows --release
+```
+
+The build is written to `build/windows/x64/runner/Release/`.

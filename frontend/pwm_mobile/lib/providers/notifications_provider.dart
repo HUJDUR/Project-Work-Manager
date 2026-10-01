@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/notification.dart';
 import '../utils/api_client_exception.dart';
 import 'auth_provider.dart';
+import 'notification_hub.dart';
 import 'notification_provider.dart';
 
 enum NotificationsStatus { idle, loading, ready, failed }
@@ -41,8 +44,19 @@ class NotificationsProvider extends ChangeNotifier {
   NotificationsProvider({
     NotificationProvider? notifications,
     int? userId,
+    Stream<void>? changes,
   })  : _notifications = notifications ?? NotificationProvider(),
-        _userId = userId ?? AuthProvider.user?.id;
+        _userId = userId ?? AuthProvider.user?.id {
+    _changes = (changes ?? NotificationHub.changes).listen((_) => refreshLive());
+  }
+
+  late final StreamSubscription<void> _changes;
+
+  @override
+  void dispose() {
+    _changes.cancel();
+    super.dispose();
+  }
 
   /// A page a thumb can scroll through, the same as the Projects tab.
   static const int pageSize = 8;
@@ -116,6 +130,31 @@ class NotificationsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A push from the API ([NotificationHub]): something new arrived. The newest
+  /// page and the unread count are asked for again and folded in above what is
+  /// already on screen - no loading state, and pages already loaded stay.
+  Future<void> refreshLive() async {
+    if (_userId == null || _status != NotificationsStatus.ready) return;
+
+    try {
+      final results = await Future.wait([_fetchPage(1), _countUnread()]);
+      final fresh = results[0] as List<Notification>;
+      final freshIds = fresh.map((row) => row.id).toSet();
+
+      _rows = [...fresh, ..._rows.where((row) => !freshIds.contains(row.id))]
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _unreadCount = results[1] as int;
+      _errorMessage = null;
+    } on ApiClientException catch (error) {
+      _errorMessage = error.message;
+    } catch (_) {
+      // A missed live refresh is caught up by the next one, or the next load.
+      return;
+    }
+
+    notifyListeners();
+  }
+
   /// The next page, appended. Quietly does nothing when there is no more or a
   /// page is already on its way, so a second tap cannot double up the list.
   Future<void> loadMore() async {
@@ -127,9 +166,11 @@ class NotificationsProvider extends ChangeNotifier {
 
     try {
       final next = await _fetchPage(_page + 1);
+      // Rows pushed in live since shift the pages; never show one twice.
+      final shown = _rows.map((row) => row.id).toSet();
 
       _page += 1;
-      _rows = [..._rows, ...next];
+      _rows = [..._rows, ...next.where((row) => !shown.contains(row.id))];
     } on ApiClientException catch (error) {
       _errorMessage = error.message;
     } catch (error) {
@@ -200,7 +241,6 @@ class NotificationsProvider extends ChangeNotifier {
 
   Future<List<Notification>> _fetchPage(int page) async {
     final result = await _notifications.get(filter: {
-      'userId': _userId,
       if (_filter == NotificationsFilter.unread) 'isRead': false,
       'page': page,
       'pageSize': pageSize,
@@ -219,7 +259,6 @@ class NotificationsProvider extends ChangeNotifier {
   /// with is thrown away.
   Future<int> _countUnread() async {
     final result = await _notifications.get(filter: {
-      'userId': _userId,
       'isRead': false,
       'page': 1,
       'pageSize': 1,

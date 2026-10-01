@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' hide Notification;
+import 'package:material_ui/material_ui.dart' hide Notification;
 
 import '../../providers/received_notifications_provider.dart';
 import '../../utils/app_theme.dart';

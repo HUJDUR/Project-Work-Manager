@@ -16,9 +16,10 @@ class ProjectProvider extends BaseProvider<Project> {
   /// changes. See `ProjectStatusRules` on the API for the legal jumps; a
   /// jump it refuses comes back as an [ApiClientException] via
   /// [validateResponse].
-  Future<Project> changeStatus(int id, int newStatusId) async {
+  /// [reason] is required by the API for a move to "Rejected" and ignored otherwise.
+  Future<Project> changeStatus(int id, int newStatusId, {String? reason}) async {
     final uri = Uri.parse('${BaseProvider.baseUrl}$endpoint/$id/Status');
-    final body = jsonEncode({'projectStatusId': newStatusId});
+    final body = jsonEncode({'projectStatusId': newStatusId, 'reason': reason});
 
     final response =
         await send((headers) => http.patch(uri, headers: headers, body: body));

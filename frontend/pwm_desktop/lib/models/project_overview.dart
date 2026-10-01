@@ -63,6 +63,7 @@ class ProjectStatusChangeEntry {
     required this.changedByName,
     required this.changedAt,
     this.fromStatusName,
+    this.reason,
   });
 
   final int id;
@@ -74,6 +75,9 @@ class ProjectStatusChangeEntry {
   final String changedByName;
   final DateTime changedAt;
 
+  /// Why - set only on a rejection.
+  final String? reason;
+
   factory ProjectStatusChangeEntry.fromJson(Map<String, dynamic> json) =>
       ProjectStatusChangeEntry(
         id: json['id'] as int,
@@ -81,5 +85,6 @@ class ProjectStatusChangeEntry {
         toStatusName: json['toStatusName'] as String,
         changedByName: json['changedByName'] as String,
         changedAt: SarajevoTime.fromApi(json['changedAt'] as String),
+        reason: json['reason'] as String?,
       );
 }

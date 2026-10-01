@@ -34,7 +34,5 @@ namespace pwm.Model.Requests
 
         public DateTime CreationDate { get; set; }
 
-        /// <summary>Who raised the project.</summary>
-        public int CreatedByUserId { get; set; }
     }
 }

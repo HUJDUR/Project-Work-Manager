@@ -9,5 +9,11 @@ namespace pwm.Model.Responses
         public int Month { get; set; }
 
         public double TotalHours { get; set; }
+
+        public double RegularHours { get; set; }
+
+        public double OvertimeHours { get; set; }
+
+        public int WorkerCount { get; set; }
     }
 }

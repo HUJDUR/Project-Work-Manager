@@ -11,7 +11,7 @@ export 'company_type_provider.dart';
 export 'country_provider.dart';
 export 'generated_report_provider.dart';
 export 'monthly_hour_report_provider.dart';
-export 'monthly_hour_report_detail_provider.dart';
+export 'notification_hub.dart';
 export 'notification_provider.dart';
 export 'notifications_provider.dart';
 export 'operation_type_provider.dart';

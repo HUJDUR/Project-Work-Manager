@@ -66,7 +66,8 @@ class DashboardProvider extends ChangeNotifier {
       final weekStart = today.subtract(Duration(days: now.weekday - 1));
 
       final blocks = await _workLogDetails.getAll(filter: {
-        'userId': userId,
+        // The token's own account - the API takes it from there.
+        'mine': true,
         'dateFrom': weekStart,
       });
 

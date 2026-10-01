@@ -27,6 +27,7 @@ namespace pwm.Services.Database
         public DbSet<ProjectStatusChange> ProjectStatusChanges { get; set; }
         public DbSet<WorkLog> WorkLogs { get; set; }
         public DbSet<WorkLogDetail> WorkLogDetails { get; set; }
+        public DbSet<WorkHoursChange> WorkHoursChanges { get; set; }
         public DbSet<TruckLoad> TruckLoads { get; set; }
         public DbSet<TruckLoadDetail> TruckLoadDetails { get; set; }
         public DbSet<TruckLoadStatusChange> TruckLoadStatusChanges { get; set; }
@@ -69,6 +70,7 @@ namespace pwm.Services.Database
 
             modelBuilder.Entity<WorkLog>().ToTable("WorkLogs");
             modelBuilder.Entity<WorkLogDetail>().ToTable("WorkLogDetails");
+            modelBuilder.Entity<WorkHoursChange>().ToTable("WorkHoursChanges");
 
             modelBuilder.Entity<TruckLoad>().ToTable("TruckLoads");
             modelBuilder.Entity<TruckLoadDetail>().ToTable("TruckLoadDetails");
@@ -227,15 +229,14 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Cascade, not Restrict: every project writes at least one of these
-            // (its own creation), so Restrict here would make a project
-            // permanently undeletable - its status history is not independently
-            // meaningful once the project itself is gone.
+            // Restrict: a project is never deleted (it ends as Delivered or
+            // Rejected), so its status history - the audit trail - can never be
+            // taken away with it either.
             modelBuilder.Entity<ProjectStatusChange>()
                 .HasOne(x => x.Project)
                 .WithMany()
                 .HasForeignKey(x => x.ProjectId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<ProjectStatusChange>()
                 .HasOne(x => x.FromStatus)
@@ -296,6 +297,29 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // SetNull, not Cascade: deleting a block of work must not take its own
+            // history with it - the "Deleted" row is exactly what has to remain.
+            modelBuilder.Entity<WorkHoursChange>()
+                .HasOne(x => x.WorkLogDetail)
+                .WithMany()
+                .HasForeignKey(x => x.WorkLogDetailId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Restrict, as for every other audit trail: history is not personal
+            // data that should vanish with an account.
+            modelBuilder.Entity<WorkHoursChange>()
+                .HasOne(x => x.Worker)
+                .WithMany()
+                .HasForeignKey(x => x.WorkerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<WorkHoursChange>()
+                .HasOne(x => x.ChangedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.ChangedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<GeneratedReport>()
                 .HasOne(x => x.ReportType)
                 .WithMany()
@@ -326,15 +350,13 @@ namespace pwm.Services.Database
                 .HasForeignKey(x => x.ProjectId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Cascade, not Restrict: every load writes at least one of these
-            // (its own creation), so Restrict here would make a load
-            // permanently undeletable - its status history is not independently
-            // meaningful once the load itself is gone.
+            // Restrict, as for projects: a transport is never deleted, so its
+            // status history cannot be taken away with it.
             modelBuilder.Entity<TruckLoadStatusChange>()
                 .HasOne(x => x.TruckLoad)
                 .WithMany()
                 .HasForeignKey(x => x.TruckLoadId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<TruckLoadStatusChange>()
                 .HasOne(x => x.FromStatus)

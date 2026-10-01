@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pwm_desktop/models/models.dart';
 import 'package:pwm_desktop/providers/base_provider.dart';
+import 'package:pwm_desktop/providers/work_hours_api_provider.dart';
 import 'package:pwm_desktop/providers/work_hours_provider.dart';
+import 'package:pwm_desktop/screens/work_hours_details_screen.dart';
 import 'package:pwm_desktop/screens/work_hours_screen.dart';
 
 class _FakeProvider<T> extends BaseProvider<T> {
@@ -43,6 +45,34 @@ class _FakeProvider<T> extends BaseProvider<T> {
 
   @override
   Future remove(int id) async => removed.add(id);
+}
+
+/// `GET /WorkLogDetail/Hours`: pages the rows it holds and totals all of them,
+/// as the API totals the whole filtered set rather than the page.
+class _FakeHoursApi extends WorkHoursApiProvider {
+  _FakeHoursApi(this.rows);
+
+  final List<WorkHoursEntry> rows;
+  final List<Map<String, dynamic>> filters = [];
+
+  Map<String, dynamic> get lastFilter => filters.last;
+
+  @override
+  Future<WorkHoursPage> page(Map<String, dynamic> filter) async {
+    filters.add(Map<String, dynamic>.from(filter));
+
+    final page = filter['page'] as int;
+    final pageSize = filter['pageSize'] as int;
+
+    return WorkHoursPage(
+      items: rows.skip((page - 1) * pageSize).take(pageSize).toList(),
+      totalCount: rows.length,
+      totalHours: rows.fold(0, (sum, row) => sum + row.totalHours),
+      regularHours: rows.fold(0, (sum, row) => sum + row.regularHours),
+      overtimeHours: rows.fold(0, (sum, row) => sum + row.overtimeHours),
+      workerCount: rows.map((row) => row.userId).toSet().length,
+    );
+  }
 }
 
 final _today = DateUtils.dateOnly(DateTime.now());
@@ -88,13 +118,27 @@ WorkHoursEntry _entry({
   );
 }
 
-late _FakeProvider<WorkHoursEntry> _hourRows;
+late _FakeHoursApi _hourRows;
 late _FakeProvider<WorkLog> _shiftRows;
 late _FakeProvider<WorkLogDetail> _bookingRows;
 late _FakeProvider<User> _userRows;
 
+/// Corrections per block, as `GET /WorkLogDetail/{id}/History` would answer.
+final _histories = <int, List<WorkHoursChange>>{
+  101: [
+    WorkHoursChange(
+      action: 'Changed',
+      changedByName: 'Kenan Fajic',
+      changedAt: DateTime(2026, 9, 30, 10, 15),
+      before: 'MU-2 Railing MU-2 · Welding · 30.09.2026 12:00-15:00 (3 h)',
+      after: 'MU-2 Railing MU-2 · Welding · 30.09.2026 12:00-16:00 (4 h)',
+    ),
+  ],
+};
+
 WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
-      hours: _hourRows = _FakeProvider([
+      history: (id) async => _histories[id] ?? const [],
+      hours: _hourRows = _FakeHoursApi([
         _entry(
             id: 101,
             workLogId: 10,
@@ -209,13 +253,35 @@ void main() {
       expect(provider.entries.map((entry) => entry.id), [101, 100, 102, 103]);
     });
 
-    test('asks for everything while no filter is set', () {
+    test('asks for the first page, newest first, while no filter is set', () {
       final query = _hourRows.lastFilter;
 
-      expect(query.keys.toSet(), {'page', 'pageSize', 'includeTotalCount'});
+      expect(query, {
+        'page': 1,
+        'pageSize': WorkHoursProvider.pageSize,
+        'includeTotalCount': true,
+        'sortBy': 'Date desc',
+      });
     });
 
-    test('totals the rows it holds', () {
+    test('a header click sorts on the API, and again flips the direction', () async {
+      await provider.setSort('TotalHours');
+      expect(_hourRows.lastFilter['sortBy'], 'TotalHours');
+
+      await provider.setSort('TotalHours');
+      expect(_hourRows.lastFilter['sortBy'], 'TotalHours desc');
+    });
+
+    test('a filter goes back to the first page', () async {
+      await provider.setPage(2);
+      expect(_hourRows.lastFilter['page'], 2);
+
+      await provider.setProject(1);
+      expect(_hourRows.lastFilter['page'], 1);
+      expect(provider.page, 1);
+    });
+
+    test('shows the totals the API sends, not only the page', () {
       expect(provider.totalHours, 18);
       expect(provider.regularHours, 17);
       expect(provider.overtimeHours, 1);
@@ -257,7 +323,7 @@ void main() {
       await provider.clearFilters();
 
       expect(provider.hasFilters, isFalse);
-      expect(_hourRows.lastFilter.keys.toSet(), {'page', 'pageSize', 'includeTotalCount'});
+      expect(_hourRows.lastFilter.keys.toSet(), {'page', 'pageSize', 'includeTotalCount', 'sortBy'});
     });
 
     test('asks the API for active production workers only, and sorts them', () {
@@ -400,5 +466,98 @@ void main() {
     await tester.tap(find.text('MU-2 - Railing MU-2').last);
     await tester.pumpAndSettle();
     expect(tester.widget<TextField>(projectField).controller?.text, 'MU-2 - Railing MU-2');
+  });
+
+  testWidgets('the project filter can be searched by code and filters on the API',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: WorkHoursScreen(providerFactory: _fakeWorkHours)),
+    ));
+    await tester.pumpAndSettle();
+
+    // The project filter is the filter bar's one searchable dropdown.
+    final field = find.descendant(
+        of: find.byType(DropdownMenu<Object?>), matching: find.byType(TextField));
+    expect(field, findsOneWidget);
+    TextField read() => tester.widget<TextField>(field);
+    expect(read().decoration?.hintText, 'All Projects');
+
+    // Nothing to delete before typing: the box is empty, "All Projects" only
+    // its placeholder - which goes while the field is being typed into.
+    expect(read().controller!.text, isEmpty);
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    expect(read().decoration?.hintText, isNull);
+
+    await tester.enterText(field, 'MU-2');
+    await tester.pumpAndSettle();
+
+    expect(find.text('MU-2 - Railing MU-2'), findsWidgets);
+    expect(find.text('MU-1 - Hall roof MU-1'), findsNothing);
+    await tester.tap(find.text('MU-2 - Railing MU-2').last);
+    await tester.pumpAndSettle();
+
+    expect(_hourRows.lastFilter['projectId'], 2);
+    expect(read().controller!.text, 'MU-2 - Railing MU-2');
+
+    // Back to every project: the box empties again rather than reading "All Projects".
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    await tester.enterText(field, '');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All Projects').last);
+    await tester.pumpAndSettle();
+
+    expect(_hourRows.lastFilter.containsKey('projectId'), isFalse);
+    expect(read().controller!.text, isEmpty);
+  });
+
+  group("an entry's history", () {
+    Future<void> open(WidgetTester tester, int entryId) async {
+      tester.view.physicalSize = const Size(1600, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final provider = _fakeWorkHours();
+      await provider.load();
+      final entry = provider.entries.firstWhere((entry) => entry.id == entryId);
+
+      await tester.pumpWidget(MaterialApp(
+        home: WorkHoursDetailsScreen(provider: provider, entry: entry),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('lists who corrected it, when, and from what to what', (tester) async {
+      await open(tester, 101);
+
+      expect(find.text('History'), findsOneWidget);
+      expect(find.text('Changed by Kenan Fajic'), findsOneWidget);
+      expect(find.text('Before: MU-2 Railing MU-2 · Welding · 30.09.2026 12:00-15:00 (3 h)'), findsOneWidget);
+      expect(find.text('After: MU-2 Railing MU-2 · Welding · 30.09.2026 12:00-16:00 (4 h)'), findsOneWidget);
+    });
+
+    testWidgets('says so when the hours are as they were booked', (tester) async {
+      await open(tester, 100);
+
+      expect(find.text('No corrections - these hours are as they were booked.'), findsOneWidget);
+    });
+
+    testWidgets('a new entry has no history to show', (tester) async {
+      tester.view.physicalSize = const Size(1600, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final provider = _fakeWorkHours();
+      await provider.load();
+      await tester.pumpWidget(MaterialApp(home: WorkHoursDetailsScreen(provider: provider)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('History'), findsNothing);
+    });
   });
 }

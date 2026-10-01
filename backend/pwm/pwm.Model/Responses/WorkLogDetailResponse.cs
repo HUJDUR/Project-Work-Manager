@@ -17,5 +17,7 @@ namespace pwm.Model.Responses
         public DateTime? FinishedAt { get; set; }
 
         public double Hours { get; set; }
+
+        public string? Note { get; set; }
     }
 }

@@ -39,5 +39,11 @@ namespace pwm.Services.Database
         [ForeignKey(nameof(CompanyTypeId))]
         [Required]
         public CompanyType CompanyType { get; set; } = null!;
+
+        /// <summary>
+        /// A deactivated company keeps its projects and transports but cannot be
+        /// picked for new ones - see <c>CompanyRules</c>.
+        /// </summary>
+        public bool IsActive { get; set; } = true;
     }
 }

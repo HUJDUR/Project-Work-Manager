@@ -1,3 +1,5 @@
+import 'package:material_ui/material_ui.dart';
+
 import '../../providers/base_provider.dart';
 
 /// One choice in a foreign-key dropdown - a row from another lookup table,
@@ -28,10 +30,18 @@ class LookupField {
     this.showOnlyOnInsert = false,
     this.loadOptions,
     this.dependsOn,
+    this.toggle = false,
+    this.hint,
   });
 
   final String key;
   final String label;
+
+  /// An on/off switch rather than a text field - on for a new row.
+  final bool toggle;
+
+  /// A line under the field saying what it does.
+  final String? hint;
 
   /// Whether the field is a plain number rather than free text.
   final bool numeric;
@@ -61,10 +71,15 @@ class LookupField {
 /// dropdown field loaded, keyed by [LookupField.key], so a column can resolve
 /// a foreign key to the name the form would show for it.
 class LookupColumn<T> {
-  const LookupColumn(this.label, this.valueOf);
+  const LookupColumn(this.label, this.valueOf, {this.cell});
 
   final String label;
+
+  /// The cell's text - also what the column sorts and filters by.
   final String Function(T row, Map<String, Map<int, String>> ctx) valueOf;
+
+  /// Draws the cell instead of [valueOf]'s plain text - e.g. a status chip.
+  final Widget Function(T row)? cell;
 }
 
 /// Everything the generic `LookupTableScreen` needs to manage one table -

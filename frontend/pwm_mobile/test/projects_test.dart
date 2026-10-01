@@ -452,7 +452,9 @@ void main() {
 
       // `getAll` adds its own paging keys, so the narrowing is what matters.
       final sent = fixture.blocks.filters.single as Map;
-      expect(sent['userId'], 20);
+      // The token's account, not an id the app sends.
+      expect(sent['mine'], isTrue);
+      expect(sent.containsKey('userId'), isFalse);
       expect(sent['projectId'], 3);
     });
 

@@ -20,13 +20,12 @@ namespace pwm.Services.Implementations
     {
         /// <summary>
         /// Below this many past delivered projects the fit is not worth showing - two
-        /// points draw a line through anything. Matches <c>ReportService.RegularHoursPerDay</c>
-        /// in spirit: a number both the estimate and its explanation agree on.
+        /// points draw a line through anything.
         /// </summary>
         public const int MinSampleSize = 3;
 
         /// <summary>A worker's day, the same number the reports and work-hours screens use.</summary>
-        public const double HoursPerWorkerPerDay = 8;
+        public const double HoursPerWorkerPerDay = OvertimeRules.RegularHoursPerDay;
 
         private readonly PWMDbContext _dbContext;
 

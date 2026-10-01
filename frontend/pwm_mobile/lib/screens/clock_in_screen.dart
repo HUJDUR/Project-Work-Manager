@@ -1,6 +1,5 @@
 import '../models/active_session.dart';
-import '../models/operation_type.dart';
-import '../models/project.dart';
+import '../models/clock_in_option.dart';
 import '../providers/clock_in_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
@@ -202,6 +201,13 @@ class _ActiveSessionCardState extends State<_ActiveSessionCard> {
             value: formatElapsed(elapsed),
             emphasised: true,
           ),
+          if (session.note case final note?)
+            _DetailRow(
+              icon: Icons.notes_outlined,
+              label: 'Note',
+              value: note,
+              maxLines: 3,
+            ),
           const SizedBox(height: 16),
           SizedBox(
             height: 50,
@@ -312,18 +318,21 @@ class _DetailRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.emphasised = false,
+    this.maxLines = 1,
   });
 
   final IconData icon;
   final String label;
   final String value;
   final bool emphasised;
+  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 18, color: AppColors.textMuted),
           const SizedBox(width: 10),
@@ -336,7 +345,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              maxLines: 1,
+              maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: emphasised ? 15 : 13.5,
@@ -366,9 +375,18 @@ class _NewSessionCard extends StatefulWidget {
 }
 
 class _NewSessionCardState extends State<_NewSessionCard> {
+  late final _note = TextEditingController(text: widget.provider.note);
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
   Future<void> _clockIn() async {
     try {
       await widget.provider.clockIn();
+      _note.clear();
 
       if (!mounted) return;
       showSavedSnackBar(context, 'Clocked in.');
@@ -402,13 +420,11 @@ class _NewSessionCardState extends State<_NewSessionCard> {
                   color: AppColors.textSecondary),
               onChanged: provider.hasActiveSession ? null : provider.selectProject,
               items: [
-                for (final Project project in provider.projectOptions)
+                for (final ClockInOption project in provider.projectOptions)
                   DropdownMenuItem(
                     value: project.id,
                     child: Text(
-                      project.code.isEmpty
-                          ? project.name
-                          : '${project.code} - ${project.name}',
+                      project.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -429,7 +445,7 @@ class _NewSessionCardState extends State<_NewSessionCard> {
               onChanged:
                   provider.hasActiveSession ? null : provider.selectOperation,
               items: [
-                for (final OperationType operation in provider.operationOptions)
+                for (final ClockInOption operation in provider.operationOptions)
                   DropdownMenuItem(
                     value: operation.id,
                     child: Text(
@@ -439,6 +455,25 @@ class _NewSessionCardState extends State<_NewSessionCard> {
                     ),
                   ),
               ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _PickerRow(
+            icon: Icons.notes_outlined,
+            label: 'Note',
+            child: TextField(
+              key: const ValueKey('clock-in-note'),
+              controller: _note,
+              enabled: !provider.hasActiveSession,
+              minLines: 1,
+              maxLines: 3,
+              maxLength: ClockInProvider.noteMaxLength,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText: 'Optional',
+                isDense: true,
+              ),
+              onChanged: provider.setNote,
             ),
           ),
           const SizedBox(height: 18),

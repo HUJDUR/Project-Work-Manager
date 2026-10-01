@@ -51,6 +51,9 @@ class Project {
   @JsonKey(includeFromJson: false, includeToJson: false)
   ProjectPriority get priorityLevel => ProjectPriority.fromValue(priority);
 
+  /// "26-028 - Silo", so a picker can be searched by code as well as by name.
+  String get label => code.trim().isEmpty ? name : '$code - $name';
+
   factory Project.fromJson(Map<String, dynamic> json) => _$ProjectFromJson(json);
 
   Map<String, dynamic> toJson() => _$ProjectToJson(this);

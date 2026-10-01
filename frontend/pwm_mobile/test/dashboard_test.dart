@@ -142,7 +142,9 @@ void main() {
     final blocks = _FakeProvider(_blocks());
     await _fakeDashboard(blocks).load();
 
-    expect(blocks.lastFilter['userId'], 7);
+    // The token's account, not an id the app sends.
+    expect(blocks.lastFilter['mine'], isTrue);
+    expect(blocks.lastFilter.containsKey('userId'), isFalse);
     expect(blocks.lastFilter['dateFrom'], _monday);
   });
 

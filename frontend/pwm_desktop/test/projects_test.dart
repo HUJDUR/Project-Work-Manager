@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pwm_desktop/models/models.dart';
@@ -366,7 +366,6 @@ void main() {
         description: 'A welded frame.',
         customerId: 2,
         projectCategoryId: 1,
-        createdByUserId: 2,
         priority: ProjectPriority.high,
         weight: 1250.5,
         creationDate: DateTime(2026, 8, 29),
@@ -380,7 +379,8 @@ void main() {
       expect(body['weight'], 1250.5);
       // The enum goes over the wire as the int the column stores.
       expect(body['priority'], ProjectPriority.high.value);
-      expect(body['createdByUserId'], 2);
+      // Who raised it is the API's to say, from the token.
+      expect(body.containsKey('createdByUserId'), isFalse);
       // The API decides the status (always "Potential") and the production
       // start date (only ever set by a later status change) - this request
       // cannot express either.
@@ -402,7 +402,6 @@ void main() {
         code: 'WM-7',
         customerId: 1,
         projectCategoryId: 2,
-        createdByUserId: 1,
         priority: ProjectPriority.low,
         weight: 900,
         creationDate: DateTime(2026, 8, 20),
@@ -417,12 +416,6 @@ void main() {
       expect(body['deliveryCompanyId'], 3);
       expect(body['deliveryDate'], '2026-09-14T22:00:00.000Z');
       expect(_projectRows.inserted, isEmpty);
-    });
-
-    test('deletes a project by id', () async {
-      await provider.deleteProject(4);
-
-      expect(_projectRows.removed, [4]);
     });
   });
 
@@ -536,8 +529,8 @@ void main() {
 
     // The title is the project by the name the shop uses for it.
     expect(find.text('MU-1 - Hall roof MU-1'), findsOneWidget);
-    // The title is the project, and an existing project can be deleted.
-    expect(find.widgetWithText(OutlinedButton, 'Delete'), findsOneWidget);
+    // A project is never deleted - it ends as Delivered or Rejected, keeping its history.
+    expect(find.widgetWithText(OutlinedButton, 'Delete'), findsNothing);
 
     final nameField = tester.widget<TextField>(find.byWidgetPredicate(
       (widget) => widget is TextField && widget.decoration?.labelText == 'Project name',

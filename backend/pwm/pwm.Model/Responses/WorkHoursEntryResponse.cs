@@ -35,5 +35,7 @@ namespace pwm.Model.Responses
 
         /// <summary>The block or its shift is still open.</summary>
         public bool InProgress { get; set; }
+
+        public string? Note { get; set; }
     }
 }

@@ -1,8 +1,12 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' as legacy;
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:pwm_desktop/main.dart';
+import 'package:pwm_desktop/providers/auth_provider.dart';
+import 'package:pwm_desktop/screens/login_screen.dart';
 import 'package:pwm_desktop/utils/app_theme.dart';
 
 Color _colourOf(WidgetTester tester, String text) =>
@@ -114,5 +118,22 @@ void main() {
       reason: 'These widgets read the global palette but would not rebuild when '
           'it changes:\n${offenders.join('\n')}',
     );
+  });
+
+  testWidgets(
+      "widgets still on Flutter's bundled Material (charts, the PDF preview) see the app theme",
+      (tester) async {
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeController()),
+      ],
+      child: PwmDesktopApp(),
+    ));
+    await tester.pumpAndSettle();
+
+    final context = tester.element(find.byType(LoginScreen));
+    expect(legacy.Theme.of(context).brightness, Brightness.dark);
+    expect(legacy.Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary);
   });
 }

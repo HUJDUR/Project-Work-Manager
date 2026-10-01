@@ -20,6 +20,7 @@ namespace pwm.Services.Implementations
         private readonly ICryptoService _cryptoService;
         private readonly IMemoryCache _cache;
         private readonly IActivityLogService _activityLogService;
+        private readonly ICurrentUser _currentUser;
 
         public UserService(
             PWMDbContext dbContext,
@@ -29,10 +30,12 @@ namespace pwm.Services.Implementations
             IValidator<UserProfileUpdateRequest> profileValidator,
             ICryptoService cryptoService,
             IMemoryCache cache,
-            IActivityLogService activityLogService)
+            IActivityLogService activityLogService,
+            ICurrentUser currentUser)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
             _activityLogService = activityLogService;
+            _currentUser = currentUser;
             _profileValidator = profileValidator;
             _cryptoService = cryptoService;
             _cache = cache;
@@ -227,8 +230,27 @@ namespace pwm.Services.Implementations
                 IsActive = x.IsActive,
             });
 
+        /// <summary>A production worker reads only their own account; the office anyone's.</summary>
+        public override async Task<UserResponse> GetByIdAsync(int id)
+        {
+            if (_currentUser.IsWorker && id != _currentUser.Id)
+            {
+                throw new NotFoundException($"User with id {id} not found.");
+            }
+
+            return await base.GetByIdAsync(id);
+        }
+
         protected override IQueryable<User> ApplyFilters(IQueryable<User> query, UserSearchObject? search)
         {
+            // The shop floor has no business with the staff list - e-mails, phone
+            // numbers - so a worker's list is only ever their own account.
+            if (_currentUser.IsWorker)
+            {
+                var me = _currentUser.Id ?? throw new ForbiddenException("The token carries no user.");
+                query = query.Where(x => x.Id == me);
+            }
+
             if (search == null)
             {
                 return query;

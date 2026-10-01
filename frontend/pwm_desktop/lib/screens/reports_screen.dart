@@ -7,25 +7,31 @@ import '../utils/formatters.dart';
 import '../utils/sarajevo_time.dart';
 import 'dart:io';
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'widgets/form_fields.dart';
 
 
 
 /// Generates the two PDFs and lists what has been run before, laid out as in
 /// `docs/mockups/desktop/Reports.png`.
 class ReportsScreen extends StatelessWidget {
-  const ReportsScreen({super.key, this.providerFactory});
+  const ReportsScreen({super.key, this.providerFactory, this.monthlyPeriod});
 
   /// Lets a test swap in a provider backed by fake data.
   final ReportsProvider Function()? providerFactory;
 
+  /// Opens with the Monthly Work Hours form set to this month - how the
+  /// Monthly Reports screen hands a month over.
+  final DateTime? monthlyPeriod;
+
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => (providerFactory?.call() ?? ReportsProvider())..load(),
+      create: (_) =>
+          (providerFactory?.call() ?? ReportsProvider(monthlyPeriod: monthlyPeriod))..load(),
       child: Consumer<ReportsProvider>(
         builder: (context, provider, _) {
           return switch (provider.status) {
@@ -291,17 +297,12 @@ class _ParameterBar extends StatelessWidget {
           Expanded(
             child: _Labelled(
               label: 'Worker',
-              child: DropdownButtonFormField<int?>(
-                initialValue: provider.userId,
-                isExpanded: true,
-                decoration: _fieldDecoration,
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('All workers')),
+              child: SearchableFilterDropdown<int>(
+                value: provider.userId,
+                allLabel: 'All workers',
+                entries: [
                   for (final User worker in provider.workers)
-                    DropdownMenuItem(
-                      value: worker.id,
-                      child: Text(worker.fullName, overflow: TextOverflow.ellipsis),
-                    ),
+                    DropdownMenuEntry(value: worker.id, label: worker.fullName),
                 ],
                 onChanged: provider.setWorker,
               ),
@@ -312,17 +313,12 @@ class _ParameterBar extends StatelessWidget {
         Expanded(
           child: _Labelled(
             label: 'Project',
-            child: DropdownButtonFormField<int?>(
-              initialValue: provider.projectId,
-              isExpanded: true,
-              decoration: _fieldDecoration,
-              items: [
-                const DropdownMenuItem(value: null, child: Text('All projects')),
+            child: SearchableFilterDropdown<int>(
+              value: provider.projectId,
+              allLabel: 'All projects',
+              entries: [
                 for (final Project project in provider.projects)
-                  DropdownMenuItem(
-                    value: project.id,
-                    child: Text(project.name, overflow: TextOverflow.ellipsis),
-                  ),
+                  DropdownMenuEntry(value: project.id, label: project.label),
               ],
               onChanged: provider.setProject,
             ),

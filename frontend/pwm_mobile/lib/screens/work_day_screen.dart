@@ -62,8 +62,8 @@ class _WorkDayScreenState extends State<WorkDayScreen> {
             ),
             Text(
               '${formatClockHours(widget.day.hours)} · '
-              '${widget.day.blocks.length} '
-              '${widget.day.blocks.length == 1 ? 'entry' : 'entries'}',
+              '${widget.day.entries.length} '
+              '${widget.day.entries.length == 1 ? 'entry' : 'entries'}',
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w400,
@@ -188,6 +188,22 @@ class _EntryCard extends StatelessWidget {
               ],
             ],
           ),
+          if (entry.note case final note?) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.notes_outlined, size: 15, color: AppColors.textMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    note,
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

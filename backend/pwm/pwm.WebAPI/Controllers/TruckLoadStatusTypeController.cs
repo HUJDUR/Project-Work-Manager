@@ -1,4 +1,3 @@
-using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
 using pwm.Services.Interfaces;
@@ -6,13 +5,15 @@ using pwm.Services.Interfaces;
 namespace pwm.WebAPI.Controllers
 {
     /// <summary>
-    /// Reference data behind the desktop's Administration screen. The status life
-    /// cycle in <c>TruckLoadStatusRules</c> matches rows by <c>Name</c> ("Ordered",
-    /// "Delivered", "Finished", "Rejected"), as do the desktop's colour chips, so
-    /// renaming one of those four breaks transport creation and status changes.
+    /// Reference data behind the desktop's Administration screen - read-only, like
+    /// <c>ProjectStatusTypeController</c>. The transport life cycle in
+    /// <c>TruckLoadStatusRules</c> matches these rows by <c>Name</c> ("Ordered",
+    /// "Delivered", "Finished", "Rejected"): renaming one would break creating a
+    /// transport and moving it on, and adding one would do nothing, since no rule
+    /// names it.
     /// </summary>
     public class TruckLoadStatusTypeController
-        : AdminLookupController<TruckLoadStatusTypeResponse, TruckLoadStatusTypeSearchObject, TruckLoadStatusTypeInsertRequest, TruckLoadStatusTypeUpdateRequest>
+        : BaseReadController<TruckLoadStatusTypeResponse, TruckLoadStatusTypeSearchObject>
     {
         public TruckLoadStatusTypeController(ITruckLoadStatusTypeService service) : base(service)
         {

@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../models/work_day.dart';
 import '../providers/my_hours_provider.dart';
+import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
+import '../utils/dialogs.dart';
 import '../utils/formatters.dart';
 import 'widgets/trend_card.dart';
 import 'work_day_screen.dart';
@@ -97,6 +99,7 @@ class _Body extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 12),
               child: _DayRow(day: day, provider: provider),
             ),
+          if (provider.hasMore) _LoadMoreButton(provider: provider),
         ],
       _ => [
           const Padding(
@@ -105,6 +108,48 @@ class _Body extends StatelessWidget {
           ),
         ],
     };
+  }
+}
+
+/// The next page of days, under the ones already showing.
+class _LoadMoreButton extends StatelessWidget {
+  const _LoadMoreButton({required this.provider});
+
+  final MyHoursProvider provider;
+
+  Future<void> _loadMore(BuildContext context) async {
+    try {
+      await provider.loadMore();
+    } on ApiClientException catch (error) {
+      if (context.mounted) showErrorSnackBar(context, error.message);
+    } catch (_) {
+      if (context.mounted) showErrorSnackBar(context, 'The server could not be reached.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        height: 46,
+        child: OutlinedButton(
+          onPressed: provider.isLoadingMore ? null : () => _loadMore(context),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.accent,
+            side: BorderSide(color: AppColors.accent),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: provider.isLoadingMore
+              ? SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                )
+              : const Text('Load more days'),
+        ),
+      ),
+    );
   }
 }
 

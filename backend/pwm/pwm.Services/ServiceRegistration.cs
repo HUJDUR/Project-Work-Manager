@@ -33,7 +33,12 @@ namespace pwm.Services
             var rabbitMqOptions = new RabbitMqOptions();
             configuration.GetSection("RabbitMq").Bind(rabbitMqOptions);
             services.AddSingleton(rabbitMqOptions);
+            services.AddSingleton<RabbitMqPublisher>();
             services.AddSingleton<IReportQueuePublisher, RabbitMqReportPublisher>();
+
+            // Attached to the DbContext by each host (see its Program.cs), which also
+            // supplies the INotificationPushPublisher it pushes through.
+            services.AddScoped<Database.NotificationPushInterceptor>();
 
             // Fallback validator for every request type without a dedicated one
             services.AddTransient(typeof(IValidator<>), typeof(DefaultValidator<>));
@@ -44,20 +49,26 @@ namespace pwm.Services
             services.AddTransient<IValidator<TruckLoadInsertRequest>, TruckLoadInsertRequestValidator>();
             services.AddTransient<IValidator<TruckLoadUpdateRequest>, TruckLoadUpdateRequestValidator>();
             services.AddTransient<IValidator<NotificationSendRequest>, NotificationSendRequestValidator>();
+            services.AddTransient<IValidator<WorkLogInsertRequest>, WorkLogInsertRequestValidator>();
+            services.AddTransient<IValidator<WorkLogUpdateRequest>, WorkLogUpdateRequestValidator>();
+            services.AddTransient<IValidator<WorkLogDetailInsertRequest>, WorkLogDetailInsertRequestValidator>();
+            services.AddTransient<IValidator<WorkLogDetailUpdateRequest>, WorkLogDetailUpdateRequestValidator>();
+            services.AddTransient<IValidator<TruckLoadDetailInsertRequest>, TruckLoadDetailInsertRequestValidator>();
+            services.AddTransient<IValidator<TruckLoadDetailUpdateRequest>, TruckLoadDetailUpdateRequestValidator>();
+            services.AddTransient<IValidator<UserOperationInsertRequest>, UserOperationInsertRequestValidator>();
+            services.AddTransient<IValidator<UserOperationUpdateRequest>, UserOperationUpdateRequestValidator>();
             services.AddTransient<IValidator<UserInsertRequest>, UserInsertRequestValidator>();
             services.AddTransient<IValidator<UserUpdateRequest>, UserUpdateRequestValidator>();
             services.AddTransient<IValidator<UserProfileUpdateRequest>,
                 UserProfileUpdateRequestValidator>();
 
-            // The seven editable lookup tables behind the desktop's Administration screen
+            // The six editable lookup tables behind the desktop's Administration screen
             services.AddTransient<IValidator<CountryInsertRequest>, CountryInsertRequestValidator>();
             services.AddTransient<IValidator<CountryUpdateRequest>, CountryUpdateRequestValidator>();
             services.AddTransient<IValidator<CityInsertRequest>, CityInsertRequestValidator>();
             services.AddTransient<IValidator<CityUpdateRequest>, CityUpdateRequestValidator>();
             services.AddTransient<IValidator<CompanyTypeInsertRequest>, CompanyTypeInsertRequestValidator>();
             services.AddTransient<IValidator<CompanyTypeUpdateRequest>, CompanyTypeUpdateRequestValidator>();
-            services.AddTransient<IValidator<TruckLoadStatusTypeInsertRequest>, TruckLoadStatusTypeInsertRequestValidator>();
-            services.AddTransient<IValidator<TruckLoadStatusTypeUpdateRequest>, TruckLoadStatusTypeUpdateRequestValidator>();
             services.AddTransient<IValidator<OperationTypeInsertRequest>, OperationTypeInsertRequestValidator>();
             services.AddTransient<IValidator<OperationTypeUpdateRequest>, OperationTypeUpdateRequestValidator>();
             services.AddTransient<IValidator<ProjectCategoryInsertRequest>, ProjectCategoryInsertRequestValidator>();
@@ -89,7 +100,6 @@ namespace pwm.Services
             services.AddScoped<ITruckLoadService, TruckLoadService>();
             services.AddScoped<ITruckLoadDetailService, TruckLoadDetailService>();
             services.AddScoped<IMonthlyHourReportService, MonthlyHourReportService>();
-            services.AddScoped<IMonthlyHourReportDetailService, MonthlyHourReportDetailService>();
             services.AddScoped<IRecommendationService, RecommendationService>();
             services.AddScoped<IDashboardService, DashboardService>();
 

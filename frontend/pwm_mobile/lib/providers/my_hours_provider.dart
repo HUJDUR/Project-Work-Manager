@@ -1,11 +1,7 @@
 import '../models/models.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/sarajevo_time.dart';
-import 'auth_provider.dart';
-import 'base_provider.dart';
-import 'operation_type_provider.dart';
 import 'package:flutter/material.dart';
-import 'project_provider.dart';
 import 'work_log_detail_provider.dart';
 
 
@@ -28,44 +24,35 @@ enum HoursPeriod {
 /// A half-open range: `from` inclusive, `to` exclusive.
 typedef DateRange = ({DateTime from, DateTime to});
 
-/// My Work Hours: the signed-in worker's own bookings, grouped into days.
-///
-/// The list costs **one request**. `WorkLogDetail` carries its own `UserId`, so
-/// the blocks come back already narrowed, and `dateFrom`/`dateTo` keep them to
-/// the chosen period. Everything the list shows — the day rows, both totals and
-/// both sparklines — is derived from that one answer.
-///
-/// Project and operation *names* are not: the list never shows them, so they
-/// are fetched only when a day is opened, the same way the desktop's
-/// `TransportsProvider.linesOf` leaves a load's cargo until its row is tapped.
+/// My Work Hours: the signed-in worker's own bookings, grouped into days and
+/// paged - `GET /WorkLogDetail/MyDays` answers one page of days, newest first,
+/// each with its blocks already named, plus the whole period's totals and each
+/// worked day's figures, so the metric cards and trend lines always cover the
+/// period however few pages are loaded. [loadMore] appends the next page.
 class MyHoursProvider extends ChangeNotifier {
   MyHoursProvider({
-    BaseProvider<WorkLogDetail>? workLogDetails,
-    BaseProvider<Project>? projects,
-    BaseProvider<OperationType>? operationTypes,
-    int? userId,
+    WorkLogDetailProvider? workLogDetails,
     DateTime Function()? clock,
   })  : _workLogDetails = workLogDetails ?? WorkLogDetailProvider(),
-        _projects = projects ?? ProjectProvider(),
-        _operationTypes = operationTypes ?? OperationTypeProvider(),
-        _userId = userId ?? AuthProvider.user?.id,
         _clock = clock ?? SarajevoTime.now;
 
-  final BaseProvider<WorkLogDetail> _workLogDetails;
-  final BaseProvider<Project> _projects;
-  final BaseProvider<OperationType> _operationTypes;
-  final int? _userId;
+  /// Days per page - about two working weeks.
+  static const int pageSize = 10;
+
+  final WorkLogDetailProvider _workLogDetails;
   final DateTime Function() _clock;
 
   MyHoursStatus _status = MyHoursStatus.idle;
   HoursPeriod _period = HoursPeriod.thisWeek;
   List<WorkDay> _days = const [];
+  WorkDaysPage? _summary;
+  int _page = 1;
+  bool _isLoadingMore = false;
   String? _errorMessage;
 
-  /// Resolved once each and kept: a worker books against the same handful of
-  /// projects all week, so opening a second day usually costs nothing.
-  final Map<int, Project> _projectCache = {};
-  Map<int, String>? _operationNames;
+  /// Bumped per request, so a slow answer for the period just left cannot
+  /// overwrite the one now showing.
+  int _request = 0;
 
   MyHoursStatus get status => _status;
   HoursPeriod get period => _period;
@@ -74,18 +61,19 @@ class MyHoursProvider extends ChangeNotifier {
   bool get isLoading => _status == MyHoursStatus.loading;
   bool get isEmpty => _status == MyHoursStatus.ready && _days.isEmpty;
 
-  double get totalHours =>
-      _days.fold<double>(0, (sum, day) => sum + day.hours);
+  /// Whether the period has days beyond those loaded so far.
+  bool get hasMore => _days.length < (_summary?.totalCount ?? 0);
+  bool get isLoadingMore => _isLoadingMore;
+
+  double get totalHours => _summary?.totalHours ?? 0;
 
   /// Distinct across the whole period, not the sum of each day's count.
-  int get projectCount =>
-      _days.expand((day) => day.projectIds).toSet().length;
+  int get projectCount => _summary?.projectCount ?? 0;
 
   /// Hours per day across the period, oldest first and including the days with
-  /// nothing on them — a sparkline with the gaps left out would draw a week of
+  /// nothing on them - a sparkline with the gaps left out would draw a week of
   /// two shifts as a straight line.
-  List<double> get hoursTrend =>
-      _seriesByDay((day) => day?.hours ?? 0);
+  List<double> get hoursTrend => _seriesByDay((day) => day?.hours ?? 0);
 
   List<double> get projectsTrend =>
       _seriesByDay((day) => (day?.projectCount ?? 0).toDouble());
@@ -99,40 +87,27 @@ class MyHoursProvider extends ChangeNotifier {
     await load();
   }
 
+  /// The first page of the period, replacing whatever was loaded.
   Future<void> load() async {
-    final userId = _userId;
-
-    if (userId == null) {
-      _errorMessage = 'No account is signed in.';
-      _status = MyHoursStatus.failed;
-      notifyListeners();
-      return;
-    }
-
+    final request = ++_request;
     _status = MyHoursStatus.loading;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final window = range;
+      final page = await _fetch(1);
+      if (request != _request) return;
 
-      final blocks = await _workLogDetails.getAll(filter: {
-        'userId': userId,
-        'dateFrom': window.from,
-        'dateTo': window.to,
-      });
-
-      // The window is applied here as well as in the request, so an API that
-      // ignores the dates cannot put another month's work in this one's totals.
-      _days = _group(blocks.where((block) =>
-          !block.startedAt.isBefore(window.from) &&
-          block.startedAt.isBefore(window.to)));
-
+      _summary = page;
+      _days = page.days;
+      _page = 1;
       _status = MyHoursStatus.ready;
     } on ApiClientException catch (error) {
+      if (request != _request) return;
       _errorMessage = error.message;
       _status = MyHoursStatus.failed;
     } catch (error) {
+      if (request != _request) return;
       _errorMessage = 'Something went wrong while loading your hours: $error';
       _status = MyHoursStatus.failed;
     }
@@ -140,80 +115,50 @@ class MyHoursProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The blocks of one day with their project and operation names filled in.
-  /// Throws [ApiClientException] the way every other call does, so the day
-  /// screen can show the API's own wording.
-  Future<List<WorkEntry>> entriesFor(WorkDay day) async {
-    final results = await Future.wait([
-      _operationNamesOnce(),
-      _cacheProjects(day.projectIds),
-    ]);
-    final operations = results[0] as Map<int, String>;
+  /// The next page of days, added under the ones already showing. Throws
+  /// [ApiClientException] with the API's own wording if it fails, leaving the
+  /// loaded days as they are.
+  Future<void> loadMore() async {
+    if (!hasMore || _isLoadingMore || _status != MyHoursStatus.ready) return;
 
-    return day.blocks.map((block) {
-      final project = _projectCache[block.projectId];
+    final request = _request;
+    _isLoadingMore = true;
+    notifyListeners();
 
-      return WorkEntry(
-        projectName: project?.name ?? 'Unknown project',
-        projectCode: project?.code ?? '',
-        operationName: operations[block.operationTypeId] ?? 'Unknown operation',
-        startedAt: block.startedAt,
-        hours: block.hours,
-        finishedAt: block.finishedAt,
-      );
-    }).toList();
-  }
+    try {
+      final page = await _fetch(_page + 1);
+      if (request != _request) return;
 
-  /// Operations are a small fixed lookup, so the whole table is read once.
-  Future<Map<int, String>> _operationNamesOnce() async {
-    final cached = _operationNames;
-    if (cached != null) return cached;
-
-    final rows = await _operationTypes.getAll();
-    return _operationNames = {for (final row in rows) row.id: row.name};
-  }
-
-  /// Projects are **not** a lookup table — they grow — so this asks for the few
-  /// the day actually names rather than reading the lot. There is no "by ids"
-  /// filter on `ProjectSearchObject`, which is why it is one call each; adding
-  /// one would collapse this to a single request.
-  Future<void> _cacheProjects(Set<int> ids) async {
-    final missing = ids.where((id) => !_projectCache.containsKey(id)).toList();
-    if (missing.isEmpty) return;
-
-    final fetched = await Future.wait(missing.map(_projects.getById));
-
-    for (final project in fetched) {
-      _projectCache[project.id] = project;
+      _summary = page;
+      _days = [..._days, ...page.days];
+      _page++;
+    } finally {
+      if (request == _request) {
+        _isLoadingMore = false;
+        notifyListeners();
+      }
     }
   }
 
-  List<WorkDay> _group(Iterable<WorkLogDetail> blocks) {
-    final byDate = <DateTime, List<WorkLogDetail>>{};
-
-    for (final block in blocks) {
-      final date = _dateOf(block.startedAt);
-      (byDate[date] ??= []).add(block);
-    }
-
-    final days = byDate.entries
-        .map((entry) => WorkDay(
-              date: entry.key,
-              blocks: entry.value
-                ..sort((a, b) => a.startedAt.compareTo(b.startedAt)),
-            ))
-        .toList()
-      // Newest day first: the one a worker wants is the one just finished.
-      ..sort((a, b) => b.date.compareTo(a.date));
-
-    return days;
+  Future<WorkDaysPage> _fetch(int page) {
+    final window = range;
+    return _workLogDetails.myDays(
+      from: window.from,
+      to: window.to,
+      page: page,
+      pageSize: pageSize,
+    );
   }
+
+  /// A day's blocks, already named by the API.
+  Future<List<WorkEntry>> entriesFor(WorkDay day) async => day.entries;
 
   /// One value per calendar day of the period, oldest first.
-  List<double> _seriesByDay(double Function(WorkDay?) valueOf) {
-    if (_days.isEmpty) return const [];
+  List<double> _seriesByDay(double Function(WorkDayTotal?) valueOf) {
+    final trend = _summary?.trend ?? const <WorkDayTotal>[];
+    if (trend.isEmpty) return const [];
 
-    final byDate = {for (final day in _days) day.date: day};
+    final byDate = {for (final day in trend) _dateOf(day.date): day};
     final window = range;
     final series = <double>[];
 

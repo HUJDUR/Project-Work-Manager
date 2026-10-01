@@ -42,6 +42,12 @@ namespace pwm.Services.Implementations
                 return query;
             }
 
+            if (!string.IsNullOrWhiteSpace(search.Search))
+            {
+                var needle = search.Search.Trim();
+                query = query.Where(x => EF.Functions.Like(x.User.Name + " " + x.User.Surname, $"%{needle}%"));
+            }
+
             if (search.UserId.HasValue)
             {
                 query = query.Where(x => x.UserId == search.UserId.Value);
@@ -68,6 +74,31 @@ namespace pwm.Services.Implementations
             }
 
             return query;
+        }
+
+        /// <summary>
+        /// Besides the entity's own columns, "User" (by name) and "Activity" (by type
+        /// name), each optionally followed by "desc" - ties newest first.
+        /// </summary>
+        protected override IQueryable<ActivityLog> ApplySorting(IQueryable<ActivityLog> query, string sortBy)
+        {
+            var tokens = sortBy.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var descending = tokens.Skip(1).Any(t => t.Equals("desc", StringComparison.OrdinalIgnoreCase));
+
+            IOrderedQueryable<ActivityLog>? sorted = tokens[0].ToLowerInvariant() switch
+            {
+                "user" => descending
+                    ? query.OrderByDescending(x => x.User.Name).ThenByDescending(x => x.User.Surname)
+                    : query.OrderBy(x => x.User.Name).ThenBy(x => x.User.Surname),
+                "activity" => descending
+                    ? query.OrderByDescending(x => x.ActivityLogType.Name)
+                    : query.OrderBy(x => x.ActivityLogType.Name),
+                _ => null,
+            };
+
+            return sorted is null
+                ? base.ApplySorting(query, sortBy)
+                : sorted.ThenByDescending(x => x.Date).ThenByDescending(x => x.Id);
         }
     }
 }

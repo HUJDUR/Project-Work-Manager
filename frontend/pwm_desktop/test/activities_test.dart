@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pwm_desktop/models/models.dart';
 import 'package:pwm_desktop/providers/activities_provider.dart';
@@ -23,12 +23,20 @@ class _FakeProvider<T> extends BaseProvider<T> {
     final query = Map<String, dynamic>.from((filter as Map?) ?? const {});
     requests.add(query);
 
+    // The one sort these tests lean on: `Date`, which the API orders by.
+    final sorted = [...rows];
+    final sortBy = query['sortBy'] as String?;
+    if (sortBy != null && sortBy.startsWith('Date')) {
+      sorted.sort((a, b) => (a as dynamic).date.compareTo((b as dynamic).date) as int);
+      if (sortBy.endsWith('desc')) sorted.setAll(0, sorted.reversed.toList());
+    }
+
     final page = query['page'] as int? ?? 1;
     final pageSize = query['pageSize'] as int? ?? rows.length;
     final start = (page - 1) * pageSize;
-    final items = start >= rows.length
+    final items = start >= sorted.length
         ? <T>[]
-        : rows.sublist(start, (start + pageSize).clamp(0, rows.length));
+        : sorted.sublist(start, (start + pageSize).clamp(0, sorted.length));
 
     return PageResult<T>()
       ..items = items
@@ -55,9 +63,8 @@ const _types = [
   ActivityLogType(id: 2, name: 'Generated report - Monthly Work Hours'),
 ];
 
-/// Oldest first — the opposite of the order the table should default to
-/// showing them in, so a test that reads them back newest-first proves the
-/// table is doing its own sorting rather than just echoing the fetch.
+/// Oldest first — the opposite of the order the screen asks the API for, so a
+/// test that reads them back newest-first proves it asked for that order.
 final _logs = [
   ActivityLog(id: 1, userId: 1, activityLogTypeId: 1, date: DateTime.utc(2026, 9, 20, 8, 5)),
   ActivityLog(
@@ -73,7 +80,7 @@ final _logs = [
 late _FakeProvider<ActivityLog> _logRows;
 
 ActivitiesProvider _fakeActivities() {
-  _logRows = _FakeProvider(_logs);
+  _logRows = _FakeProvider([..._logs]);
 
   return ActivitiesProvider(
     activityLogs: _logRows,
@@ -91,13 +98,47 @@ void main() {
       await provider.load();
     });
 
-    test('resolves the user and activity type on every row, newest first', () async {
-      final rows = await provider.loadAllRows();
+    test('asks the API for the first page, newest first, and names every row', () {
+      expect(_logRows.requests.last, {
+        'page': 1,
+        'pageSize': ActivitiesProvider.pageSize,
+        'includeTotalCount': true,
+        'sortBy': 'Date desc',
+      });
+      expect(provider.rows.map((row) => row.userName),
+          ['Nadir Hujdur', 'Amar Begic', 'Nadir Hujdur']);
+      expect(provider.rows[1].activityTypeName, 'Generated report - Monthly Work Hours');
+      expect(provider.rows[0].userInitials, 'NH');
+    });
 
-      expect(_logRows.requests.last['sortBy'], 'Date desc');
-      expect(rows.map((row) => row.userName), ['Nadir Hujdur', 'Amar Begic', 'Nadir Hujdur']);
-      expect(rows[1].activityTypeName, 'Generated report - Monthly Work Hours');
-      expect(rows[0].userInitials, 'NH');
+    test('sends the search, activity and whole days to the API', () async {
+      await provider.setSearch(' nadir ');
+      await provider.setActivityType(1);
+      await provider.setDateRange(
+          DateTimeRange(start: DateTime(2026, 9, 20, 15), end: DateTime(2026, 9, 22)));
+
+      final query = _logRows.requests.last;
+      expect(query['search'], 'nadir');
+      expect(query['activityLogTypeId'], 1);
+      expect(query['dateFrom'], DateTime(2026, 9, 20));
+      expect(query['dateTo'], DateTime(2026, 9, 22, 23, 59, 59, 999));
+      expect(provider.hasFilters, isTrue);
+
+      await provider.clearFilters();
+      expect(_logRows.requests.last.keys.toSet(),
+          {'page', 'pageSize', 'includeTotalCount', 'sortBy'});
+    });
+
+    test('a header click sorts on the API, and a filter goes back to page one', () async {
+      await provider.setSort('User');
+      expect(_logRows.requests.last['sortBy'], 'User');
+      await provider.setSort('User');
+      expect(_logRows.requests.last['sortBy'], 'User desc');
+
+      await provider.setPage(2);
+      expect(_logRows.requests.last['page'], 2);
+      await provider.setActivityType(2);
+      expect(_logRows.requests.last['page'], 1);
     });
 
     test('a log against an unknown user or type falls back rather than throwing',
@@ -106,15 +147,15 @@ void main() {
         ActivityLog(id: 4, userId: 999, activityLogTypeId: 999, date: DateTime.utc(2026, 9, 23)),
       );
 
-      final rows = await provider.loadAllRows();
-      final orphan = rows.last;
+      await provider.setPage(1);
+      final orphan = provider.rows.first;
 
       expect(orphan.userName, 'Unknown user');
       expect(orphan.activityTypeName, 'Unknown activity');
     });
   });
 
-  testWidgets('activities screen renders the log with no filters, newest first',
+  testWidgets('activities screen renders the filters and the log, newest first',
       (tester) async {
     tester.view.physicalSize = const Size(1600, 1200);
     tester.view.devicePixelRatio = 1;
@@ -129,29 +170,16 @@ void main() {
     expect(find.text('User'), findsOneWidget);
     expect(find.text('Activity'), findsOneWidget);
     expect(find.text('Date'), findsOneWidget);
+    expect(find.text('All Activity'), findsOneWidget);
+    expect(find.text('Select date range'), findsOneWidget);
 
-    // No dropdowns and no "clear filters" - the column headers are the only
-    // filter this screen offers.
-    expect(find.text('All Users'), findsNothing);
-    expect(find.text('All Activity'), findsNothing);
-    expect(find.text('Clear filters'), findsNothing);
-
-    // Log 3 (22 Sep) sits above log 1 (20 Sep) despite the fixtures listing
-    // log 1 first - the table's own default sort, not fetch order.
-    final rows = tester
-        .widgetList<Text>(find.text('Nadir Hujdur'))
-        .map((text) => text.data)
-        .toList();
-    expect(rows, hasLength(2));
+    expect(find.text('Nadir Hujdur'), findsNWidgets(2));
 
     final newest = find.text('22.09.2026.');
     final oldest = find.text('20.09.2026.');
     expect(newest, findsOneWidget);
     expect(oldest, findsOneWidget);
-    expect(
-      tester.getTopLeft(newest).dy,
-      lessThan(tester.getTopLeft(oldest).dy),
-    );
+    expect(tester.getTopLeft(newest).dy, lessThan(tester.getTopLeft(oldest).dy));
   });
 
   group('AppRoles', () {

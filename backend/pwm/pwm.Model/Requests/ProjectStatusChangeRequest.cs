@@ -5,5 +5,8 @@ namespace pwm.Model.Requests
     public class ProjectStatusChangeRequest
     {
         public int ProjectStatusId { get; set; }
+
+        /// <summary>Why - required when moving to "Rejected", ignored otherwise.</summary>
+        public string? Reason { get; set; }
     }
 }

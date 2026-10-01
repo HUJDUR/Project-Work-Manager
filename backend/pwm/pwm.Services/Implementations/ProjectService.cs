@@ -8,19 +8,27 @@ using pwm.Model.SearchObjects;
 using pwm.Services.Business;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
+using pwm.Model.Access;
 
 namespace pwm.Services.Implementations
 {
     public class ProjectService
         : BaseCRUDService<Project, ProjectResponse, ProjectSearchObject, ProjectInsertRequest, ProjectUpdateRequest>, IProjectService
     {
+        private readonly INotificationService _notifications;
+        private readonly ICurrentUser _currentUser;
+
         public ProjectService(
             PWMDbContext dbContext,
             IMapper mapper,
             IValidator<ProjectInsertRequest> insertValidator,
-            IValidator<ProjectUpdateRequest> updateValidator)
+            IValidator<ProjectUpdateRequest> updateValidator,
+            INotificationService notifications,
+            ICurrentUser currentUser)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
+            _notifications = notifications;
+            _currentUser = currentUser;
         }
 
         /// <summary>
@@ -38,7 +46,13 @@ namespace pwm.Services.Implementations
                 ?? throw new InvalidOperationException(
                     $"The \"{ProjectStatusRules.Potential}\" project status is missing - reseed the lookup tables.");
 
+            await CompanyRules.EnsureSelectableAsync(_dbContext, request.CustomerId, null, "customer");
+            await CompanyRules.EnsureSelectableAsync(_dbContext, request.DeliveryCompanyId, null, "delivery company");
+
             var entity = _mapper.Map<Project>(request);
+            // Whoever is signed in raised it - never an id the client sends.
+            entity.CreatedByUserId = _currentUser.Id
+                ?? throw new ForbiddenException("The token carries no user.");
             entity.ProjectStatusId = potentialStatus.Id;
             entity.ProductionStartDate = null;
 
@@ -84,6 +98,9 @@ namespace pwm.Services.Implementations
             }
             else
             {
+                await CompanyRules.EnsureSelectableAsync(_dbContext, request.CustomerId, entity.CustomerId, "customer");
+                await CompanyRules.EnsureSelectableAsync(
+                    _dbContext, request.DeliveryCompanyId, entity.DeliveryCompanyId, "delivery company");
                 _mapper.Map(request, entity);
             }
 
@@ -98,7 +115,7 @@ namespace pwm.Services.Implementations
         /// <c>ProductionStartDate</c> the moment a project first reaches "In
         /// production", and writes the move to the status history.
         /// </summary>
-        public async Task<ProjectResponse> ChangeStatusAsync(int id, int newStatusId, int changedByUserId)
+        public async Task<ProjectResponse> ChangeStatusAsync(int id, int newStatusId, string? reason, int changedByUserId)
         {
             var entity = await _dbContext.Projects
                     .Include(x => x.ProjectStatus)
@@ -117,6 +134,10 @@ namespace pwm.Services.Implementations
                     $"A project cannot move from \"{entity.ProjectStatus.Name}\" to \"{newStatus.Name}\".");
             }
 
+            var storedReason = StatusChangeRules.ReasonFor(
+                newStatus.Name == ProjectStatusRules.Rejected, reason, "project");
+
+            var fromStatusName = entity.ProjectStatus.Name;
             var fromStatusId = entity.ProjectStatusId;
             entity.ProjectStatusId = newStatus.Id;
 
@@ -132,39 +153,44 @@ namespace pwm.Services.Implementations
                 ToStatusId = newStatus.Id,
                 ChangedByUserId = changedByUserId,
                 ChangedAt = DateTime.UtcNow,
+                Reason = storedReason,
             });
 
+            await NotifyStatusChangeAsync(entity, fromStatusName, newStatus.Name, storedReason, changedByUserId);
+
+            // One save: the move, its history row and the notifications about it.
             await _dbContext.SaveChangesAsync();
 
             return _mapper.Map<ProjectResponse>(entity);
         }
 
         /// <summary>
-        /// Only a project nothing was ever booked against. Hours and transport cargo
-        /// are history the shop has to keep, so a project carrying either is refused
-        /// with the reason - and pointed at rejecting it - rather than failing on the
-        /// foreign key with a generic conflict.
+        /// A project is never deleted: it ends as "Delivered" or "Rejected", and its
+        /// hours, cargo and status history stay. <c>ProjectController</c> does not
+        /// route a DELETE at all; this is the same rule for any other caller.
         /// </summary>
-        public override async Task DeleteAsync(int id)
+        public override Task DeleteAsync(int id) =>
+            throw new ClientException(
+                $"A project is never deleted - change its status to \"{ProjectStatusRules.Rejected}\" instead.");
+
+        /// <summary>Admins and project managers hear about every move, a rejection with its reason.</summary>
+        private async Task NotifyStatusChangeAsync(
+            Project project, string from, string to, string? reason, int changedByUserId)
         {
-            var hasHours = await _dbContext.WorkLogDetails.AnyAsync(x => x.ProjectId == id);
-            var hasCargo = await _dbContext.TruckLoadDetails.AnyAsync(x => x.ProjectId == id);
+            var actor = await _dbContext.Users
+                .Where(x => x.Id == changedByUserId)
+                .Select(x => (x.Name + " " + x.Surname).Trim())
+                .FirstOrDefaultAsync() ?? "Someone";
 
-            if (hasHours || hasCargo)
-            {
-                var booked = (hasHours, hasCargo) switch
-                {
-                    (true, true) => "work hours and transport cargo",
-                    (true, false) => "work hours",
-                    _ => "transport cargo",
-                };
+            var rejected = to == ProjectStatusRules.Rejected;
+            var message = $"{actor} moved {project.Code} {project.Name} from \"{from}\" to \"{to}\"."
+                + (rejected ? $" Reason: {reason}" : string.Empty);
 
-                throw new ClientException(
-                    $"This project has {booked} booked against it, so it cannot be deleted. " +
-                    $"Change its status to \"{ProjectStatusRules.Rejected}\" instead.");
-            }
-
-            await base.DeleteAsync(id);
+            await _notifications.StageForRolesAsync(
+                rejected ? "Project rejected" : "Project status changed",
+                message,
+                changedByUserId,
+                Roles.Admin, Roles.ProjectManager);
         }
 
         /// <summary>Newest first - the story of how a project got to where it is.</summary>
@@ -181,6 +207,7 @@ namespace pwm.Services.Implementations
                     ChangedByUserId = x.ChangedByUserId,
                     ChangedByName = x.ChangedByUser.Name + " " + x.ChangedByUser.Surname,
                     ChangedAt = x.ChangedAt,
+                    Reason = x.Reason,
                 })
                 .ToListAsync();
         }

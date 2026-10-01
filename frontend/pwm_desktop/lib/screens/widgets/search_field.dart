@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The search box every list screen opens its filter bar with: a magnifier,
 /// and — once there is something typed — an "x" to clear it in one tap

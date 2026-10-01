@@ -7,12 +7,11 @@ import 'city_provider.dart';
 import 'company_provider.dart';
 import 'company_type_provider.dart';
 import 'country_provider.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'project_category_provider.dart';
 import 'project_provider.dart';
 import 'project_status_type_provider.dart';
 import 'user_provider.dart';
-
 
 enum ProjectsStatusState { idle, loading, ready, failed }
 
@@ -77,7 +76,6 @@ class ProjectsProvider extends ChangeNotifier {
   List<ProjectStatusType> _statusList = const [];
   List<Company> _customerList = const [];
   List<Company> _deliveryCompanyList = const [];
-  List<User> _authorList = const [];
   Map<int, Company> _companyById = const {};
   Map<int, User> _userById = const {};
   Map<int, String> _locationByCompanyId = const {};
@@ -107,11 +105,9 @@ class ProjectsProvider extends ChangeNotifier {
   /// goods rather than receiving them.
   List<Company> get deliveryCompanies => _deliveryCompanyList;
 
-  /// Office accounts, which is who raises a project.
-  List<User> get authors => _authorList;
-
-  /// The signed-in user, so a new project defaults to its author.
-  int? get signedInUserId => AuthProvider.user?.id;
+  /// Who a new project will be recorded as raised by: the signed-in account,
+  /// which the API takes from the token - the request cannot name anyone.
+  String get signedInUserName => AuthProvider.user?.fullName ?? '';
 
   /// What a new project's code box opens with: the next number in this year's
   /// run. Refreshed with the counters, so it follows a project being saved.
@@ -224,10 +220,6 @@ class ProjectsProvider extends ChangeNotifier {
               transportTypeId == null || company.companyTypeId != transportTypeId)
           .toList()
         ..sort((a, b) => a.name.compareTo(b.name));
-
-      // A project is raised by someone with an account that still works.
-      _authorList = users.where((user) => user.isActive).toList()
-        ..sort((a, b) => a.fullName.compareTo(b.fullName));
 
       await Future.wait([_loadCounters(), _fetchPage()]);
 
@@ -429,7 +421,6 @@ class ProjectsProvider extends ChangeNotifier {
     required String code,
     required int customerId,
     required int projectCategoryId,
-    required int createdByUserId,
     required ProjectPriority priority,
     required double weight,
     required DateTime creationDate,
@@ -446,7 +437,6 @@ class ProjectsProvider extends ChangeNotifier {
       'priority': priority.value,
       'customerId': customerId,
       'projectCategoryId': projectCategoryId,
-      'createdByUserId': createdByUserId,
       'weight': weight,
       // Creation date is NOT NULL in the schema, so the client always sends it.
       'creationDate': SarajevoTime.toApi(creationDate),
@@ -460,8 +450,6 @@ class ProjectsProvider extends ChangeNotifier {
       await _projects.update(id, body);
     }
   }
-
-  Future<void> deleteProject(int id) => _projects.remove(id);
 
   /// Re-reads one project after its edit form has written, joined the same
   /// way [rows] is - so the overview screen showing it can refresh in place

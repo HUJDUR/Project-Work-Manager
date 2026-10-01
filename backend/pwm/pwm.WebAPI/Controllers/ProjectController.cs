@@ -32,8 +32,15 @@ namespace pwm.WebAPI.Controllers
             var userId = _currentUser.Id
                 ?? throw new ForbiddenException("The token carries no user.");
 
-            return await _projects.ChangeStatusAsync(id, request.ProjectStatusId, userId);
+            return await _projects.ChangeStatusAsync(id, request.ProjectStatusId, request.Reason, userId);
         }
+
+        /// <summary>
+        /// Not routed: a project ends in a status ("Delivered" or "Rejected"),
+        /// never in a DELETE - that would take its history with it.
+        /// </summary>
+        [NonAction]
+        public override Task<IActionResult> Delete(int id) => base.Delete(id);
 
         /// <summary>The audit trail behind a project's status - every signed-in
         /// user may read it, the same as the project itself.</summary>

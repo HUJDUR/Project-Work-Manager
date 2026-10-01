@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:pwm_desktop/models/models.dart';
@@ -20,12 +20,16 @@ class _FakeProjectStatusProvider extends ProjectProvider {
   /// Every status id `changeStatus` was asked to move to.
   final List<int> requestedStatusIds = [];
 
+  /// The reason sent with each of those moves.
+  final List<String?> requestedReasons = [];
+
   @override
   Future<List<ProjectStatusChangeEntry>> statusHistory(int id) async => history;
 
   @override
-  Future<Project> changeStatus(int id, int newStatusId) async {
+  Future<Project> changeStatus(int id, int newStatusId, {String? reason}) async {
     requestedStatusIds.add(newStatusId);
+    requestedReasons.add(reason);
     return _project;
   }
 }
@@ -450,6 +454,69 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_statusProvider.requestedStatusIds, [2]);
+    expect(_statusProvider.requestedReasons, [null]);
+  });
+
+  testWidgets('rejecting a project asks why, and refuses to go on without a reason',
+      (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final projects = _fakeProjects();
+    await projects.load();
+
+    await tester.pumpWidget(_wrapped(ProjectOverviewScreen(
+      provider: projects,
+      row: projects.rows.single,
+      overviewProviderFactory: (_) => _fakeOverview(),
+    )));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    // No reason, no rejection - the message sits under the field.
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
+    await tester.pumpAndSettle();
+    expect(find.text('Give a reason - it is kept with the status change.'), findsOneWidget);
+    expect(_statusProvider.requestedStatusIds, isEmpty);
+
+    await tester.enterText(find.byType(TextField).last, '  The customer cancelled the order.  ');
+    await tester.tap(find.widgetWithText(FilledButton, 'Reject'));
+    await tester.pumpAndSettle();
+
+    expect(_statusProvider.requestedStatusIds, [4]);
+    expect(_statusProvider.requestedReasons, ['The customer cancelled the order.']);
+  });
+
+  testWidgets('the history shows why a project was rejected', (tester) async {
+    tester.view.physicalSize = const Size(1600, 1400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final projects = _fakeProjects();
+    await projects.load();
+
+    await tester.pumpWidget(_wrapped(ProjectOverviewScreen(
+      provider: projects,
+      row: projects.rows.single,
+      overviewProviderFactory: (_) => _fakeOverview(
+        statusHistory: [
+          ProjectStatusChangeEntry(
+            id: 2,
+            fromStatusName: 'In production',
+            toStatusName: 'Rejected',
+            changedByName: 'Kenan Fajic',
+            changedAt: DateTime(2026, 9, 2, 10),
+            reason: 'The customer cancelled the order.',
+          ),
+        ],
+      ),
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Reason: The customer cancelled the order.'), findsOneWidget);
   });
 
   testWidgets('a production worker sees the status but no action buttons',

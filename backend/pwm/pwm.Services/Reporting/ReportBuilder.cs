@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using pwm.Model.Requests;
 using pwm.Services.Database;
 using pwm.Common.Services.Time;
+using pwm.Services.Business;
 
 namespace pwm.Services.Reporting
 {
@@ -13,13 +14,6 @@ namespace pwm.Services.Reporting
     /// </summary>
     public class ReportBuilder
     {
-        /// <summary>
-        /// A worker's day is regular up to this many hours; everything over eight
-        /// hours on a date is overtime. The rule lives here, on the server, because
-        /// the monthly report and the desktop have to agree about it.
-        /// </summary>
-        public const double RegularHoursPerDay = 8;
-
         private readonly PWMDbContext _dbContext;
 
         public ReportBuilder(PWMDbContext dbContext)
@@ -132,26 +126,14 @@ namespace pwm.Services.Reporting
             return TransportLoadsDocument.Render(firstDay, lastDay, project, rows);
         }
 
-        /// <summary>
-        /// Walks each worker's Sarajevo day in start order, handing out the first eight hours as
-        /// regular and everything after as overtime. A block that straddles the boundary
-        /// is split across both.
-        /// </summary>
+        /// <summary>Each block with its regular and overtime part - see <see cref="OvertimeRules"/>.</summary>
         private static IEnumerable<(WorkLogDetail Block, double Regular, double Overtime)>
-            SplitRegularAndOvertime(IEnumerable<WorkLogDetail> blocks)
+            SplitRegularAndOvertime(IReadOnlyCollection<WorkLogDetail> blocks)
         {
-            var usedPerWorkerDay = new Dictionary<(int UserId, DateTime Day), double>();
+            var regularById = OvertimeRules.RegularHours(
+                blocks.Select(x => (x.Id, x.WorkLog.UserId, x.StartedAt, x.Hours)));
 
-            foreach (var block in blocks.OrderBy(x => x.StartedAt))
-            {
-                var key = (block.WorkLog.UserId, SarajevoTime.DayOf(block.StartedAt));
-                var used = usedPerWorkerDay.GetValueOrDefault(key);
-
-                var regular = Math.Clamp(RegularHoursPerDay - used, 0, block.Hours);
-                usedPerWorkerDay[key] = used + block.Hours;
-
-                yield return (block, regular, block.Hours - regular);
-            }
+            return blocks.Select(x => (x, regularById[x.Id], x.Hours - regularById[x.Id]));
         }
 
         private static double Round(double value) => Math.Round(value, 2);

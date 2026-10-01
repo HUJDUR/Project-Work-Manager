@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using pwm.Services.Business;
 
 namespace pwm.Services.Database
 {
@@ -41,5 +42,17 @@ namespace pwm.Services.Database
 
         [Required]
         public double Hours { get; set; }
+
+        /// <summary>
+        /// The part of <see cref="Hours"/> that is regular time (see <c>OvertimeRules</c>);
+        /// the rest is overtime. Kept by <c>MonthlyHourSummary</c> on every write, so the
+        /// Work Hours screen can filter, sort and total by it in the database.
+        /// </summary>
+        [Required]
+        public double RegularHours { get; set; }
+
+        /// <summary>Optional - what the worker wanted to add when clocking in.</summary>
+        [MaxLength(WorkBookingRules.NoteMaxLength)]
+        public string? Note { get; set; }
     }
 }

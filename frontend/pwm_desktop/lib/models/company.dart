@@ -13,6 +13,7 @@ class Company {
     required this.companyTypeId,
     this.vat,
     this.eori,
+    this.isActive = true,
   });
 
   final int id;
@@ -23,6 +24,15 @@ class Company {
   final int companyTypeId;
   final String? vat;
   final String? eori;
+
+  /// A deactivated company keeps its projects and transports but is not
+  /// offered for new ones.
+  @JsonKey(defaultValue: true)
+  final bool isActive;
+
+  /// Whether a picker offers it: active ones, plus the one a record already
+  /// points at, so editing that record does not lose its company.
+  bool isSelectableFor(int? currentId) => isActive || id == currentId;
 
   factory Company.fromJson(Map<String, dynamic> json) => _$CompanyFromJson(json);
 
