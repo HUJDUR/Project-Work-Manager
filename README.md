@@ -34,7 +34,7 @@ Production worker koristi samo mobilnu aplikaciju; ostale uloge mogu obje.
 
 ## Pokretanje
 
-1. Raspakovati `backend/.env-tajne.zip` u isti folder (šifra **`fit`**), tako da
+1. Raspakovati `backend/.env-tajne.zip` u isti folder, tako da
    nastane `backend/.env`.
 2. Pokrenuti backend (potreban Docker Desktop):
 
