@@ -4,10 +4,13 @@
          profile overlays, which is why a debug run works and a release one does not. -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
+    <!-- The API is served over plain HTTP (http://10.0.2.2:7094 on the emulator),
+         which Android blocks in a release build unless cleartext is allowed. -->
     <application
         android:label="pwm_mobile"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
