@@ -28,6 +28,9 @@ namespace pwm.Model.Requests
 
         public int ProjectCategoryId { get; set; }
 
+        /// <summary>When work is planned to start; may not come after <see cref="DeliveryDate"/>.</summary>
+        public DateTime? PlannedStartDate { get; set; }
+
         public DateTime? DeliveryDate { get; set; }
 
         public int? DeliveryCompanyId { get; set; }

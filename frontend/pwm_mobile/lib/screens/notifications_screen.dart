@@ -6,6 +6,7 @@ import '../providers/notifications_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/notification_groups.dart';
+import '../utils/notification_types.dart';
 
 /// The Notifications tab: what the office has sent this worker.
 ///
@@ -17,8 +18,8 @@ import '../utils/notification_groups.dart';
 /// right, which is **read against unread**. That is said three ways rather than
 /// one, because it is the only thing on the screen worth saying: a count and a
 /// filter at the top, a tint and an accent rule on the card, and the weight of
-/// its title. Everything else — sender, type, priority — is either not in the
-/// table or not the shop floor's business.
+/// its title. Above the title sits the notification's type; everything else —
+/// sender, priority — is either not in the table or not the shop floor's business.
 ///
 /// The office sends these from the desktop's Send Notification screen. Nothing
 /// here writes one: the only write this screen makes is marking its own read.
@@ -448,6 +449,10 @@ class _NotificationCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (notification.notificationTypeName.isNotEmpty) ...[
+                      NotificationTypeLabel(name: notification.notificationTypeName),
+                      const SizedBox(height: 4),
+                    ],
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

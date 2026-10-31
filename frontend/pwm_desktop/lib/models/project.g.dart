@@ -21,6 +21,10 @@ Project _$ProjectFromJson(Map<String, dynamic> json) => Project(
     json['creationDate'] as String,
   ),
   projectStatusId: (json['projectStatusId'] as num).toInt(),
+  plannedStartDate: _$JsonConverterFromJson<String, DateTime>(
+    json['plannedStartDate'],
+    const ApiDateTimeConverter().fromJson,
+  ),
   deliveryDate: _$JsonConverterFromJson<String, DateTime>(
     json['deliveryDate'],
     const ApiDateTimeConverter().fromJson,
@@ -45,6 +49,10 @@ Map<String, dynamic> _$ProjectToJson(Project instance) => <String, dynamic>{
   'projectCategoryId': instance.projectCategoryId,
   'creationDate': const ApiDateTimeConverter().toJson(instance.creationDate),
   'projectStatusId': instance.projectStatusId,
+  'plannedStartDate': _$JsonConverterToJson<String, DateTime>(
+    instance.plannedStartDate,
+    const ApiDateTimeConverter().toJson,
+  ),
   'deliveryDate': _$JsonConverterToJson<String, DateTime>(
     instance.deliveryDate,
     const ApiDateTimeConverter().toJson,

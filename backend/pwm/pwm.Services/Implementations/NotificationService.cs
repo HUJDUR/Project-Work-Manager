@@ -6,6 +6,7 @@ using pwm.Model.Exceptions;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
+using pwm.Services.Business;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
 
@@ -34,15 +35,29 @@ namespace pwm.Services.Implementations
         /// <summary>Somebody else's notification is not found, whatever the role.</summary>
         public override async Task<NotificationResponse> GetByIdAsync(int id)
         {
-            var notification = await base.GetByIdAsync(id);
+            var notification = await ProjectForList(_dbContext.Notifications.Where(x => x.Id == id))
+                .FirstOrDefaultAsync();
 
-            if (notification.UserId != _currentUser.Id)
+            if (notification is null || notification.UserId != _currentUser.Id)
             {
                 throw new NotFoundException($"Notification with id {id} not found.");
             }
 
             return notification;
         }
+
+        protected override IQueryable<NotificationResponse> ProjectForList(IQueryable<Notification> query) =>
+            query.Select(x => new NotificationResponse
+            {
+                Id = x.Id,
+                UserId = x.UserId,
+                NotificationTypeId = x.NotificationTypeId,
+                NotificationTypeName = x.NotificationType.Name,
+                Title = x.Title,
+                Message = x.Message,
+                IsRead = x.IsRead,
+                CreatedAt = x.CreatedAt,
+            });
 
         protected override IQueryable<Notification> ApplyFilters(IQueryable<Notification> query, NotificationSearchObject? search)
         {
@@ -78,6 +93,7 @@ namespace pwm.Services.Implementations
         {
             ArgumentNullException.ThrowIfNull(request);
             await _sendValidator.ValidateAndThrowAsync(request);
+            await NotificationTypeRules.EnsureSendableAsync(_dbContext, request.NotificationTypeId);
 
             var wanted = request.UserIds?.Distinct().ToList() ?? [];
 
@@ -102,6 +118,7 @@ namespace pwm.Services.Implementations
             var notifications = recipients.Select(userId => new Notification
             {
                 UserId = userId,
+                NotificationTypeId = request.NotificationTypeId,
                 Title = request.Title.Trim(),
                 Message = request.Message.Trim(),
                 IsRead = false,
@@ -165,8 +182,11 @@ namespace pwm.Services.Implementations
             return new NotificationMarkReadResponse { MarkedCount = unread.Count };
         }
 
-        public async Task StageForRolesAsync(string title, string message, int? exceptUserId, params string[] roles)
+        public async Task StageForRolesAsync(
+            string typeName, string title, string message, int? exceptUserId, params string[] roles)
         {
+            var typeId = await NotificationTypeRules.IdOfAsync(_dbContext, typeName);
+
             var recipientIds = await _dbContext.Users
                 .Where(x => x.IsActive && roles.Contains(x.UserType.Type) && x.Id != exceptUserId)
                 .Select(x => x.Id)
@@ -177,6 +197,7 @@ namespace pwm.Services.Implementations
             _dbContext.Notifications.AddRange(recipientIds.Select(userId => new Notification
             {
                 UserId = userId,
+                NotificationTypeId = typeId,
                 Title = title,
                 Message = message,
                 IsRead = false,
@@ -202,12 +223,14 @@ namespace pwm.Services.Implementations
                 return;
             }
 
+            var typeId = await NotificationTypeRules.IdOfAsync(_dbContext, NotificationTypeRules.PasswordReset);
             var sentAt = DateTime.UtcNow;
             var message = $"{requesterName} ({requesterEmail}) asked for their password to be reset.";
 
             var notifications = adminIds.Select(adminId => new Notification
             {
                 UserId = adminId,
+                NotificationTypeId = typeId,
                 Title = "Password reset requested",
                 Message = message,
                 IsRead = false,

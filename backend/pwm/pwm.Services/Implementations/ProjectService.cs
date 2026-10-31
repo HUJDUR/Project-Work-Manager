@@ -48,6 +48,7 @@ namespace pwm.Services.Implementations
 
             await CompanyRules.EnsureSelectableAsync(_dbContext, request.CustomerId, null, "customer");
             await CompanyRules.EnsureSelectableAsync(_dbContext, request.DeliveryCompanyId, null, "delivery company");
+            await EnsureCompanyTypesAsync(request, current: null);
 
             var entity = _mapper.Map<Project>(request);
             // Whoever is signed in raised it - never an id the client sends.
@@ -101,12 +102,26 @@ namespace pwm.Services.Implementations
                 await CompanyRules.EnsureSelectableAsync(_dbContext, request.CustomerId, entity.CustomerId, "customer");
                 await CompanyRules.EnsureSelectableAsync(
                     _dbContext, request.DeliveryCompanyId, entity.DeliveryCompanyId, "delivery company");
+                await EnsureCompanyTypesAsync(request, entity);
                 _mapper.Map(request, entity);
             }
 
             await _dbContext.SaveChangesAsync();
 
             return _mapper.Map<ProjectResponse>(entity);
+        }
+
+        /// <summary>
+        /// The customer is a customer company; the goods are delivered to anyone but
+        /// a transport company, which hauls them rather than receives them.
+        /// </summary>
+        private async Task EnsureCompanyTypesAsync(ProjectInsertRequest request, Project? current)
+        {
+            await CompanyRules.EnsureTypeAsync(
+                _dbContext, request.CustomerId, current?.CustomerId, CompanyRules.CustomerType, mustBe: true, "customer");
+            await CompanyRules.EnsureTypeAsync(
+                _dbContext, request.DeliveryCompanyId, current?.DeliveryCompanyId,
+                CompanyRules.TransportType, mustBe: false, "delivery company");
         }
 
         /// <summary>
@@ -187,6 +202,7 @@ namespace pwm.Services.Implementations
                 + (rejected ? $" Reason: {reason}" : string.Empty);
 
             await _notifications.StageForRolesAsync(
+                NotificationTypeRules.ProjectStatus,
                 rejected ? "Project rejected" : "Project status changed",
                 message,
                 changedByUserId,

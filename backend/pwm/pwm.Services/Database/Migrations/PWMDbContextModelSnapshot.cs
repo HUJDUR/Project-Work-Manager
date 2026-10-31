@@ -320,6 +320,9 @@ namespace pwm.Services.Database.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<int>("NotificationTypeId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -330,9 +333,35 @@ namespace pwm.Services.Database.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("NotificationTypeId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("pwm.Services.Database.NotificationType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("NotificationTypes", (string)null);
                 });
 
             modelBuilder.Entity("pwm.Services.Database.OperationType", b =>
@@ -396,6 +425,9 @@ namespace pwm.Services.Database.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("PlannedStartDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("Priority")
                         .HasColumnType("int");
@@ -760,12 +792,20 @@ namespace pwm.Services.Database.Migrations
                     b.Property<int>("UserTypeId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
                         .IsUnique();
 
                     b.HasIndex("UserTypeId");
+
+                    b.HasIndex("Username")
+                        .IsUnique();
 
                     b.ToTable("Users", (string)null);
                 });
@@ -1032,11 +1072,19 @@ namespace pwm.Services.Database.Migrations
 
             modelBuilder.Entity("pwm.Services.Database.Notification", b =>
                 {
+                    b.HasOne("pwm.Services.Database.NotificationType", "NotificationType")
+                        .WithMany()
+                        .HasForeignKey("NotificationTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("pwm.Services.Database.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("NotificationType");
 
                     b.Navigation("User");
                 });

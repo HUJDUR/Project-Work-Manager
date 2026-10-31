@@ -20,6 +20,7 @@ class Project {
     required this.projectCategoryId,
     required this.creationDate,
     required this.projectStatusId,
+    this.plannedStartDate,
     this.deliveryDate,
     this.deliveryCompanyId,
     this.productionStartDate,
@@ -44,6 +45,7 @@ class Project {
   final int projectCategoryId;
   final DateTime creationDate;
   final int projectStatusId;
+  final DateTime? plannedStartDate;
   final DateTime? deliveryDate;
   final int? deliveryCompanyId;
   final DateTime? productionStartDate;

@@ -11,6 +11,8 @@ namespace pwm.Services.Validators
     {
         public NotificationSendRequestValidator()
         {
+            RuleFor(x => x.NotificationTypeId).GreaterThan(0).WithMessage("Pick a notification type.");
+
             RuleFor(x => x.Title)
                 .NotEmpty().WithMessage("A notification needs a title.")
                 .MaximumLength(200);

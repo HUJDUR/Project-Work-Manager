@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using ReportKind = pwm.Model.Enums.ReportType;
+using pwm.Common.Services.Time;
 using pwm.Model.Access;
 using pwm.Model.Enums;
 using pwm.Model.Exceptions;
@@ -36,6 +37,8 @@ namespace pwm.Services.Implementations
             {
                 throw new ClientException("Month has to be between 1 and 12.");
             }
+
+            await EnsureReportableMonthAsync(request.Year, request.Month);
 
             var reportId = await QueueAsync(ReportKind.MonthlyWorkHours, request, generatedById);
 
@@ -99,6 +102,30 @@ namespace pwm.Services.Implementations
             };
 
             return (report.Content, fileName);
+        }
+
+        /// <summary>
+        /// Checked here, before anything is queued, so a period the worker could
+        /// never build is a message to fix the input rather than a failed report:
+        /// from the year the first hours were booked in up to the current month.
+        /// </summary>
+        private async Task EnsureReportableMonthAsync(int year, int month)
+        {
+            var today = SarajevoTime.Today;
+            var firstBooked = await _dbContext.WorkLogDetails.MinAsync(x => (DateTime?)x.StartedAt);
+            var firstYear = firstBooked is { } first ? SarajevoTime.FromUtc(first).Year : today.Year;
+
+            if (year < firstYear || year > today.Year)
+            {
+                throw new ClientException(firstYear == today.Year
+                    ? $"Pick a month of {today.Year} - work hours have only been booked this year."
+                    : $"Pick a year from {firstYear} to {today.Year} - the years work hours have been booked in.");
+            }
+
+            if (year == today.Year && month > today.Month)
+            {
+                throw new ClientException("That month has not started yet - pick this month or an earlier one.");
+            }
         }
 
         /// <summary>

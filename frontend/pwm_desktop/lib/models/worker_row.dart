@@ -8,6 +8,7 @@ class WorkerRow {
     required this.surname,
     required this.initials,
     required this.email,
+    required this.username,
     required this.roleId,
     required this.roleName,
     required this.isActive,
@@ -21,6 +22,7 @@ class WorkerRow {
   final String surname;
   final String initials;
   final String email;
+  final String username;
   final int roleId;
 
   /// Administrator, Manager or Worker.

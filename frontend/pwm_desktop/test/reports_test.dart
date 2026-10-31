@@ -167,6 +167,8 @@ final _generated = [
     reportTypeId: 1,
     parameters: '{"Year":2026,"Month":6,"UserId":2,"ProjectId":null}',
     status: 'Completed',
+    generatedByName: 'Nadir Hujdur',
+    generatedAt: DateTime(2026, 7, 1, 9, 30),
   ),
   GeneratedReport(
     id: 8,
@@ -174,44 +176,16 @@ final _generated = [
     parameters:
         '{"ProjectId":1,"DateFrom":"2026-05-31T22:00:00Z","DateTo":"2026-06-30T21:59:59Z"}',
     status: 'Completed',
+    generatedByName: 'Nadir Hujdur',
+    generatedAt: DateTime(2026, 6, 30, 16),
   ),
   GeneratedReport(
     id: 7,
     reportTypeId: 2,
     parameters: '{"ProjectId":null,"DateFrom":null,"DateTo":null}',
     status: 'Completed',
-  ),
-];
-
-/// Who ran each report and when. `GeneratedReports` holds neither any more —
-/// the activity log entry pointing back at the report is the record of the run.
-final _reportLogTypes = [
-  ActivityLogType(id: 20, name: 'Generated report - Monthly Work Hours'),
-  ActivityLogType(id: 21, name: 'Generated report - Transport & Loads'),
-  ActivityLogType(id: 1, name: 'Log In'),
-];
-
-final _reportRuns = [
-  ActivityLog(
-    id: 500,
-    userId: 1,
-    activityLogTypeId: 20,
-    generatedReportId: 9,
-    date: DateTime(2026, 7, 1, 9, 30),
-  ),
-  ActivityLog(
-    id: 501,
-    userId: 1,
-    activityLogTypeId: 21,
-    generatedReportId: 8,
-    date: DateTime(2026, 6, 30, 16, 0),
-  ),
-  ActivityLog(
-    id: 502,
-    userId: 2,
-    activityLogTypeId: 21,
-    generatedReportId: 7,
-    date: DateTime(2026, 6, 20, 11, 0),
+    generatedByName: 'Emir Kovacevic',
+    generatedAt: DateTime(2026, 6, 20, 11),
   ),
 ];
 
@@ -225,8 +199,6 @@ ReportsProvider _fakeReports({String role = AppRoles.admin, DateTime? monthlyPer
   return ReportsProvider(
     reports: _reports,
     generatedReports: _generatedRows,
-    activityLogs: _FakeProvider(_reportRuns),
-    activityLogTypes: _FakeProvider(_reportLogTypes),
     users: _FakeProvider(_users),
     projects: _FakeProvider(_projects),
     today: _today,

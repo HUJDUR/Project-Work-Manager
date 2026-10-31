@@ -180,6 +180,7 @@ namespace pwm.Services.Database.Seed
                 var isPotential = status == "Potential";
                 var createdDaysAgo = isPotential ? _random.Next(0, 14) : _random.Next(6, 110);
                 var startedDaysAgo = createdDaysAgo - _random.Next(2, 9);
+                var delivery = _today.AddDays(_random.Next(-30, 60)).AddHours(14);
 
                 yield return new Project
                 {
@@ -196,7 +197,8 @@ namespace pwm.Services.Database.Seed
                     // reached the shop floor yet.
                     ProductionStartDate =
                         isPotential ? null : _today.AddDays(-startedDaysAgo).AddHours(7),
-                    DeliveryDate = _today.AddDays(_random.Next(-30, 60)).AddHours(14),
+                    PlannedStartDate = PlannedStart(isPotential, startedDaysAgo, delivery),
+                    DeliveryDate = delivery,
                     // Null while delivery is not arranged yet; otherwise where the
                     // customer takes it - never the carrier, which is a TruckLoad's.
                     // Never arranged for a project still being quoted, either.
@@ -207,6 +209,20 @@ namespace pwm.Services.Database.Seed
                     CreatedByUserId = Pick(office).Id,
                 };
             }
+        }
+
+        /// <summary>
+        /// The start the office planned: the day work actually began for a project
+        /// already on the shop floor, a week or two out for one still being quoted -
+        /// never after its planned delivery.
+        /// </summary>
+        private DateTime PlannedStart(bool isPotential, int startedDaysAgo, DateTime delivery)
+        {
+            var planned = isPotential
+                ? _today.AddDays(_random.Next(5, 15)).AddHours(7)
+                : _today.AddDays(-startedDaysAgo).AddHours(7);
+
+            return planned <= delivery ? planned : delivery.Date.AddHours(7);
         }
 
         private Project CreateProject(
@@ -227,6 +243,7 @@ namespace pwm.Services.Database.Seed
             // Still being quoted - no production start and no delivery arranged,
             // whatever the caller passed for either.
             var isPotential = status == "Potential";
+            var delivery = _today.AddDays(deliveryInDays).AddHours(14);
 
             return new Project
             {
@@ -240,7 +257,8 @@ namespace pwm.Services.Database.Seed
                 Weight = weight,
                 CreationDate = _today.AddDays(-createdDaysAgo).AddHours(8),
                 ProductionStartDate = isPotential ? null : _today.AddDays(-startedDaysAgo).AddHours(7),
-                DeliveryDate = _today.AddDays(deliveryInDays).AddHours(14),
+                PlannedStartDate = PlannedStart(isPotential, startedDaysAgo, delivery),
+                DeliveryDate = delivery,
                 DeliveryCompanyId = isPotential || !deliveryArranged
                     ? null
                     : DeliveryPlaceFor(FindCompany(customer)).Id,

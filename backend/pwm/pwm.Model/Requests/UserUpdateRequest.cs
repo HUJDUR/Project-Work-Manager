@@ -6,6 +6,9 @@ namespace pwm.Model.Requests
 
         public string Surname { get; set; } = string.Empty;
 
+        /// <summary>Signs in with it - unique across every account.</summary>
+        public string Username { get; set; } = string.Empty;
+
         public string? PhoneNumber { get; set; }
 
         /// <summary>Null clears the picture back to the name-letters avatar.</summary>

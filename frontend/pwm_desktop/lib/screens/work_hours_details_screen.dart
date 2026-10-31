@@ -13,8 +13,8 @@ import 'widgets/form_fields.dart';
 
 
 /// One booked block of work, new or existing. Pops `'reload'` once it has
-/// written. Both timestamps are `NOT NULL` in the schema, so the form always
-/// records a finished block — an open shift still cannot be stored.
+/// written. The office always books a finished block - only a clock-in on the
+/// phone leaves one running.
 class WorkHoursDetailsScreen extends StatefulWidget {
   const WorkHoursDetailsScreen({super.key, required this.provider, this.entry});
 
@@ -86,9 +86,11 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Booked hours stay with their worker; the API refuses a change too.
             SearchableDropdownField<int>(
               name: 'userId',
               label: 'Worker',
+              enabled: _isNew,
               validator: FormBuilderValidators.required(
                 errorText: 'Pick who worked these hours.',
               ),
@@ -212,7 +214,6 @@ class _WorkHoursDetailsScreenState extends State<WorkHoursDetailsScreen> {
     try {
       await widget.provider.saveWorkHours(
         id: widget.entry?.id,
-        workLogId: widget.entry?.workLogId,
         userId: values['userId'] as int,
         projectId: values['projectId'] as int,
         operationTypeId: values['operationTypeId'] as int,

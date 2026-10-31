@@ -10,7 +10,6 @@ import 'user_provider.dart';
 import 'user_type_provider.dart';
 import 'work_hours_api_provider.dart';
 import 'work_log_detail_provider.dart';
-import 'work_log_provider.dart';
 
 
 enum WorkHoursStatusState { idle, loading, ready, failed }
@@ -36,7 +35,6 @@ class WorkHoursProvider extends ChangeNotifier {
   WorkHoursProvider({
     int? initialProjectId,
     WorkHoursApiProvider? hours,
-    BaseProvider<WorkLog>? workLogs,
     BaseProvider<WorkLogDetail>? workLogDetails,
     BaseProvider<User>? users,
     BaseProvider<UserType>? userTypes,
@@ -45,7 +43,6 @@ class WorkHoursProvider extends ChangeNotifier {
     Future<List<WorkHoursChange>> Function(int workLogDetailId)? history,
   })  : _history = history ?? WorkLogDetailProvider().history,
         _hours = hours ?? WorkHoursApiProvider(),
-        _workLogs = workLogs ?? WorkLogProvider(),
         _workLogDetails = workLogDetails ?? WorkLogDetailProvider(),
         _users = users ?? UserProvider(),
         _userTypes = userTypes ?? UserTypeProvider(),
@@ -63,7 +60,6 @@ class WorkHoursProvider extends ChangeNotifier {
 
   final WorkHoursApiProvider _hours;
   final Future<List<WorkHoursChange>> Function(int workLogDetailId) _history;
-  final BaseProvider<WorkLog> _workLogs;
   final BaseProvider<WorkLogDetail> _workLogDetails;
   final BaseProvider<User> _users;
   final BaseProvider<UserType> _userTypes;
@@ -266,12 +262,11 @@ class WorkHoursProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Inserts when [id] is null and updates otherwise. Adding writes the shift
-  /// first because the detail needs its id - the API has no endpoint that
-  /// creates both. Editing writes the same pair back.
+  /// Inserts when [id] is null and updates otherwise - one call either way.
+  /// The API files the block under the worker's shift for that day and works
+  /// out the hours, so neither is sent.
   Future<void> saveWorkHours({
     int? id,
-    int? workLogId,
     required int userId,
     required int projectId,
     required int operationTypeId,
@@ -279,27 +274,12 @@ class WorkHoursProvider extends ChangeNotifier {
     required DateTime finishedAt,
     String? note,
   }) async {
-    final hours = finishedAt.difference(startedAt).inMinutes / 60;
-
-    final shift = {
-      'userId': userId,
-      'clockedIn': SarajevoTime.toApi(startedAt),
-      'clockedOut': SarajevoTime.toApi(finishedAt),
-      'hours': hours,
-    };
-
-    final logId = workLogId == null
-        ? (await _workLogs.insert(shift)).id
-        : (await _workLogs.update(workLogId, shift)).id;
-
     final block = {
-      'workLogId': logId,
       'userId': userId,
       'operationTypeId': operationTypeId,
       'projectId': projectId,
       'startedAt': SarajevoTime.toApi(startedAt),
       'finishedAt': SarajevoTime.toApi(finishedAt),
-      'hours': hours,
       'note': (note == null || note.trim().isEmpty) ? null : note.trim(),
     };
 

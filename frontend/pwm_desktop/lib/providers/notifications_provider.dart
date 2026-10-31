@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../utils/api_client_exception.dart';
 import 'base_provider.dart';
 import 'notification_provider.dart';
+import 'notification_type_provider.dart';
 import 'user_provider.dart';
 import 'user_type_provider.dart';
 
@@ -16,9 +17,11 @@ class NotificationsProvider extends ChangeNotifier {
     NotificationProvider? notifications,
     BaseProvider<User>? users,
     BaseProvider<UserType>? userTypes,
+    BaseProvider<NotificationType>? notificationTypes,
   })  : _notifications = notifications ?? NotificationProvider(),
         _users = users ?? UserProvider(),
-        _userTypes = userTypes ?? UserTypeProvider();
+        _userTypes = userTypes ?? UserTypeProvider(),
+        _notificationTypes = notificationTypes ?? NotificationTypeProvider();
 
   /// Only accounts that still work can be written to, and the API says the same.
   static const String sortBy = 'Surname, Name';
@@ -26,11 +29,13 @@ class NotificationsProvider extends ChangeNotifier {
   final NotificationProvider _notifications;
   final BaseProvider<User> _users;
   final BaseProvider<UserType> _userTypes;
+  final BaseProvider<NotificationType> _notificationTypes;
 
   NotificationsStatusState _status = NotificationsStatusState.idle;
   String? _errorMessage;
 
   List<User> _all = const [];
+  List<NotificationType> _types = const [];
   Map<int, String> _roleById = const {};
 
   bool _toEveryone = true;
@@ -39,6 +44,9 @@ class NotificationsProvider extends ChangeNotifier {
 
   NotificationsStatusState get status => _status;
   String? get errorMessage => _errorMessage;
+
+  /// The types the office sends - the system's own are not offered.
+  List<NotificationType> get types => _types;
 
   /// Everyone who can be written to, in the order the API sorted them.
   List<User> get allRecipients => _all;
@@ -114,6 +122,7 @@ class NotificationsProvider extends ChangeNotifier {
       final results = await Future.wait([
         _users.getAll(filter: {'isActive': true, 'sortBy': sortBy}),
         _userTypes.getAll(),
+        _notificationTypes.getAll(filter: {'isSystem': false, 'sortBy': 'Id'}),
       ]);
 
       final users = results[0] as List<User>;
@@ -121,6 +130,7 @@ class NotificationsProvider extends ChangeNotifier {
 
       _roleById = {for (final type in types) type.id: type.type};
       _all = users;
+      _types = results[2] as List<NotificationType>;
 
       _status = NotificationsStatusState.ready;
     } on ApiClientException catch (error) {
@@ -137,8 +147,13 @@ class NotificationsProvider extends ChangeNotifier {
   /// Sends the message and answers how many people it reached. Sending to
   /// everyone leaves the ids off, so the API resolves the list rather than the
   /// client posting one it may have loaded a while ago.
-  Future<int> send({required String title, required String message}) {
+  Future<int> send({
+    required int notificationTypeId,
+    required String title,
+    required String message,
+  }) {
     return _notifications.sendNotification(
+      notificationTypeId: notificationTypeId,
       title: title,
       message: message,
       userIds: _toEveryone ? null : _selectedIds.toList(),

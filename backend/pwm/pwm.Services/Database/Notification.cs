@@ -14,6 +14,12 @@ namespace pwm.Services.Database
         [Required]
         public User User { get; set; } = null!;
 
+        public int NotificationTypeId { get; set; }
+
+        [ForeignKey(nameof(NotificationTypeId))]
+        [Required]
+        public NotificationType NotificationType { get; set; } = null!;
+
         [Required]
         [MaxLength(200)]
         public string Title { get; set; } = string.Empty;

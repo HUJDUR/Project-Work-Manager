@@ -31,10 +31,28 @@ namespace pwm.Services.Implementations
             return await base.InsertAsync(request);
         }
 
+        /// <summary>
+        /// The transport the cargo is on now is what has to allow the change - a
+        /// request naming another one does not get to decide that. Cargo stays on
+        /// its transport: moving it would leave the first one short of what it was
+        /// loaded, or even delivered, with.
+        /// </summary>
         public override async Task<TruckLoadDetailResponse> UpdateAsync(int id, TruckLoadDetailUpdateRequest request)
         {
+            ArgumentNullException.ThrowIfNull(request);
+
+            var existing = await _dbContext.TruckLoadDetails.FindAsync(id)
+                ?? throw new NotFoundException($"TruckLoadDetail with id {id} not found.");
+
+            await EnsureTruckLoadAllowsCargoAsync(existing.TruckLoadId);
+
+            if (request.TruckLoadId != existing.TruckLoadId)
+            {
+                throw new ClientException(
+                    "Cargo cannot be moved to another transport - remove it here and add it to the other one.");
+            }
+
             await EnsureProjectAllowsBookingAsync(request.ProjectId);
-            await EnsureTruckLoadAllowsCargoAsync(request.TruckLoadId);
 
             return await base.UpdateAsync(id, request);
         }

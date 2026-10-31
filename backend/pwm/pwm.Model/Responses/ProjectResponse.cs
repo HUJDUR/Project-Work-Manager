@@ -23,6 +23,8 @@ namespace pwm.Model.Responses
 
         public int ProjectCategoryId { get; set; }
 
+        public DateTime? PlannedStartDate { get; set; }
+
         public DateTime? DeliveryDate { get; set; }
 
         public int? DeliveryCompanyId { get; set; }

@@ -25,12 +25,14 @@ Po jedan račun za svaku ulogu:
 | Uloga | Korisničko ime | Lozinka |
 | --- | --- | --- |
 | Admin | `desktop` | `test` |
-| Finances | `NadiraStupar` | `test` |
-| Project manager | `KenanFajic` | `test` |
-| Work preparation | `VedadKahrimanovic` | `test` |
+| Finances | `nadirastupar` | `test` |
+| Project manager | `kenanfajic` | `test` |
+| Work preparation | `vedadkahrimanovic` | `test` |
 | Production worker | `mobile` | `test` |
 
 Production worker koristi samo mobilnu aplikaciju; ostale uloge mogu obje.
+Prijava radi i sa e-mail adresom (npr. `desktop@pwm.ba`); korisničko ime i
+e-mail su jedinstveni za svaki nalog, a velika i mala slova nisu bitna.
 
 ## Pokretanje
 
@@ -97,7 +99,11 @@ Ponovno punjenje baze (iz `backend/pwm`):
   napravi PDF, a desktop ga preuzme kad je gotov.
 - **pwm.Worker** još javlja adminima i projekt menadžerima zaboravljene
   clock-out-e i radnike koji ujutro nisu došli na posao.
+- **Radni sati:** ručni unos i korekcija su jedan poziv (`WorkLogDetail`); API
+  sam pronađe ili otvori smjenu radnika za taj dan i računa njen početak, kraj
+  i sate iz blokova rada. Smjena bez blokova se briše.
 - **Notifikacije** stižu odmah preko SignalR-a (`/hubs/notifications`), u obje
-  aplikacije.
+  aplikacije. Svaka ima tip (šifarnik `NotificationTypes`); sistemske tipove
+  postavlja kod i ne mogu se mijenjati ni birati pri ručnom slanju.
 - **Sistem preporuke:** opisan u
   [`recommender-dokumentacija.md`](recommender-dokumentacija.md).

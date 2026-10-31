@@ -171,16 +171,14 @@ namespace pwm.Services.Database.Seed
         ];
 
         /// <summary>
-        /// Fixed logins for grading/testing: the username is Name+Surname (see
-        /// <c>UserService.AuthenticateAsync</c>), so an empty surname makes the
-        /// username exactly "desktop" / "mobile" - the pair the project checklist
-        /// expects. One office role and one shop-floor role, so each is reachable
-        /// from the app it is named after.
+        /// Fixed logins for grading/testing: the usernames "desktop" and "mobile" the
+        /// project checklist expects. One office role and one shop-floor role, so each
+        /// is reachable from the app it is named after.
         /// </summary>
-        private static readonly (string Name, string Surname, string Role, string Email)[] DemoAccounts =
+        private static readonly (string Name, string Surname, string Role, string Email, string Username)[] DemoAccounts =
         [
-            ("Desktop", "", "Admin", "desktop@pwm.ba"),
-            ("Mobile", "", "Production worker", "mobile@pwm.ba"),
+            ("Desktop", "", "Admin", "desktop@pwm.ba", "desktop"),
+            ("Mobile", "", "Production worker", "mobile@pwm.ba", "mobile"),
         ];
 
         private const int ProductionWorkerCount = 30;
@@ -215,10 +213,10 @@ namespace pwm.Services.Database.Seed
                     $"+3876110{phone++}", FindUserType(role).Id));
             }
 
-            foreach (var (name, surname, role, email) in DemoAccounts)
+            foreach (var (name, surname, role, email, username) in DemoAccounts)
             {
                 users.Add(CreateUser(name, surname, email,
-                    $"+3876110{phone++}", FindUserType(role).Id));
+                    $"+3876110{phone++}", FindUserType(role).Id, username: username));
             }
 
             var productionWorker = FindUserType("Production worker").Id;
@@ -307,7 +305,8 @@ namespace pwm.Services.Database.Seed
             string email,
             string phoneNumber,
             int userTypeId,
-            bool isActive = true)
+            bool isActive = true,
+            string? username = null)
         {
             var (hash, salt) = HashPassword(DefaultPassword);
 
@@ -315,6 +314,8 @@ namespace pwm.Services.Database.Seed
             {
                 Name = name,
                 Surname = surname,
+                // Name and surname run together - unique here, since the e-mails are.
+                Username = username ?? $"{name}{surname}".ToLowerInvariant(),
                 Email = email,
                 PhoneNumber = phoneNumber,
                 Picture = _pictures.Length > 0 ? Pick(_pictures) : null,

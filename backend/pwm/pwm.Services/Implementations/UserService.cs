@@ -48,15 +48,9 @@ namespace pwm.Services.Implementations
                 return null;
             }
 
-            var email = emailOrUsername.Trim().ToLower();
-            // Spaces stripped so "Nadir Hujdur" and "nadirhujdur" both match the same account
-            var username = email.Replace(" ", string.Empty);
-
             var user = await _dbContext.Users
                 .Include(x => x.UserType)
-                .FirstOrDefaultAsync(x =>
-                    x.Email.ToLower() == email
-                    || (x.Name + x.Surname).ToLower() == username);
+                .FirstOrDefaultAsync(MatchesLogin(emailOrUsername));
 
             if (user == null || !_cryptoService.Verify(user.PasswordHash, user.PasswordSalt, password))
             {
@@ -82,14 +76,19 @@ namespace pwm.Services.Implementations
                 return null;
             }
 
-            var email = emailOrUsername.Trim().ToLower();
-            var username = email.Replace(" ", string.Empty);
-
-            var user = await _dbContext.Users.FirstOrDefaultAsync(x =>
-                x.Email.ToLower() == email
-                || (x.Name + x.Surname).ToLower() == username);
+            var user = await _dbContext.Users.FirstOrDefaultAsync(MatchesLogin(emailOrUsername));
 
             return user == null ? null : _mapper.Map<UserResponse>(user);
+        }
+
+        /// <summary>
+        /// The one account an e-mail or username names - both are unique, so this
+        /// can never pick one of two people who share a name.
+        /// </summary>
+        private static System.Linq.Expressions.Expression<Func<User, bool>> MatchesLogin(string emailOrUsername)
+        {
+            var login = emailOrUsername.Trim().ToLower();
+            return x => x.Email.ToLower() == login || x.Username.ToLower() == login;
         }
 
         private AuthenticatedUser ToAuthenticatedUser(User user) => new()
@@ -189,17 +188,42 @@ namespace pwm.Services.Implementations
             return _mapper.Map<UserResponse>(user);
         }
 
-        // The unique index on Email would otherwise surface as a bare 500.
+        // The unique indexes on Email and Username would otherwise surface as a bare 500.
         public override async Task<UserResponse> InsertAsync(UserInsertRequest request)
         {
+            ArgumentNullException.ThrowIfNull(request);
+            await _insertValidator.ValidateAndThrowAsync(request);
             await EnsureEmailFreeAsync(request.Email.Trim(), exceptUserId: null);
+            await EnsureUsernameFreeAsync(request.Username.Trim(), exceptUserId: null);
             return await base.InsertAsync(request);
         }
 
         public override async Task<UserResponse> UpdateAsync(int id, UserUpdateRequest request)
         {
+            ArgumentNullException.ThrowIfNull(request);
+            await _updateValidator.ValidateAndThrowAsync(request);
             await EnsureEmailFreeAsync(request.Email.Trim(), exceptUserId: id);
+            await EnsureUsernameFreeAsync(request.Username.Trim(), exceptUserId: id);
             return await base.UpdateAsync(id, request);
+        }
+
+        /// <summary>
+        /// Reported against the field, like any other validation error, so the form
+        /// can show it under the username box.
+        /// </summary>
+        private async Task EnsureUsernameFreeAsync(string username, int? exceptUserId)
+        {
+            var taken = await _dbContext.Users
+                .AnyAsync(x => x.Id != exceptUserId && x.Username == username);
+
+            if (taken)
+            {
+                throw new ValidationException(
+                [
+                    new FluentValidation.Results.ValidationFailure(
+                        nameof(UserInsertRequest.Username), "That username is taken - pick another one."),
+                ]);
+            }
         }
 
         private async Task EnsureEmailFreeAsync(string email, int? exceptUserId)
@@ -224,6 +248,7 @@ namespace pwm.Services.Implementations
                 Id = x.Id,
                 Name = x.Name,
                 Surname = x.Surname,
+                Username = x.Username,
                 PhoneNumber = x.PhoneNumber,
                 Email = x.Email,
                 UserTypeId = x.UserTypeId,
@@ -262,6 +287,7 @@ namespace pwm.Services.Implementations
                 query = query.Where(x =>
                     EF.Functions.Like(x.Name, $"%{needle}%")
                     || EF.Functions.Like(x.Surname, $"%{needle}%")
+                    || EF.Functions.Like(x.Username, $"%{needle}%")
                     || EF.Functions.Like(x.Email, $"%{needle}%"));
             }
 
@@ -300,6 +326,7 @@ namespace pwm.Services.Implementations
         protected override User MapInsertRequestToEntity(UserInsertRequest request)
         {
             var entity = base.MapInsertRequestToEntity(request);
+            entity.Username = request.Username.Trim();
             var salt = _cryptoService.GenerateSalt();
 
             entity.PasswordSalt = salt;
@@ -311,6 +338,7 @@ namespace pwm.Services.Implementations
         protected override void MapUpdateRequestToEntity(UserUpdateRequest request, User entity)
         {
             base.MapUpdateRequestToEntity(request, entity);
+            entity.Username = request.Username.Trim();
 
             if (!string.IsNullOrWhiteSpace(request.Password))
             {

@@ -94,6 +94,8 @@ class LookupTableConfig<T> {
     required this.fields,
     required this.valuesOf,
     this.readOnlyReason,
+    this.isRowLocked,
+    this.lockedRowReason,
   });
 
   final String title;
@@ -113,6 +115,11 @@ class LookupTableConfig<T> {
   final String? readOnlyReason;
 
   bool get isReadOnly => readOnlyReason != null;
+
+  /// A row the app's code depends on, in a table that is otherwise editable -
+  /// shown with a lock instead of being opened or deleted.
+  final bool Function(T row)? isRowLocked;
+  final String? lockedRowReason;
 
   List<LookupField> fieldsFor({required bool isNew}) =>
       isNew ? fields : fields.where((f) => !f.showOnlyOnInsert).toList();

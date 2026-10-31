@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using pwm.Model.Access;
+using pwm.Services.Business;
 using pwm.Services.Database;
 using pwm.Common.Services.Time;
 
@@ -91,6 +92,8 @@ public class MissedClockOutWorker : BackgroundService
                 overdue.Count, _options.ThresholdHours);
         }
 
+        var typeId = await NotificationTypeRules.IdOfAsync(dbContext, NotificationTypeRules.MissedClockOut, stoppingToken);
+
         foreach (var workLog in overdue)
         {
             if (recipientIds.Count > 0)
@@ -104,6 +107,7 @@ public class MissedClockOutWorker : BackgroundService
                 dbContext.Notifications.AddRange(recipientIds.Select(userId => new Notification
                 {
                     UserId = userId,
+                    NotificationTypeId = typeId,
                     Title = "Missed clock-out",
                     Message = message,
                     IsRead = false,

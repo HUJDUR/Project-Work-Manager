@@ -18,6 +18,19 @@ namespace pwm.WebAPI.Controllers
         }
 
         /// <summary>
+        /// The office reads transports - the shop floor's app has no use for loads
+        /// and their invoiced prices.
+        /// </summary>
+        [HttpGet]
+        [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
+        public override Task<PageResult<TruckLoadResponse>> GetAll([FromQuery] TruckLoadSearchObject? searchObject)
+            => base.GetAll(searchObject);
+
+        [HttpGet("{id}")]
+        [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
+        public override Task<TruckLoadResponse> GetById(int id) => base.GetById(id);
+
+        /// <summary>
         /// The only way <c>TruckLoadStatusId</c> ever changes - see
         /// <c>TruckLoadStatusRules</c> for the legal jumps. Admin and Project
         /// manager only: everyone else reads the status, nobody else moves it.
@@ -34,9 +47,10 @@ namespace pwm.WebAPI.Controllers
         [NonAction]
         public override Task<IActionResult> Delete(int id) => base.Delete(id);
 
-        /// <summary>The audit trail behind a transport's status - every signed-in
-        /// user may read it, the same as the load itself.</summary>
+        /// <summary>The audit trail behind a transport's status - for whoever may
+        /// read the load itself.</summary>
         [HttpGet("{id}/StatusHistory")]
+        [Authorization(Roles.Admin, Roles.WorkPreparation, Roles.Finances, Roles.ProjectManager)]
         public Task<List<TruckLoadStatusChangeResponse>> StatusHistory(int id) =>
             _truckLoads.GetStatusHistoryAsync(id);
     }

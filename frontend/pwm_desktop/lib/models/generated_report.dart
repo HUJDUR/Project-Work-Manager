@@ -1,4 +1,5 @@
 import 'package:json_annotation/json_annotation.dart';
+import '../utils/sarajevo_time.dart';
 
 part 'generated_report.g.dart';
 
@@ -36,7 +37,7 @@ enum ReportRunStatus {
 /// One run of a report. `pwm.Worker` - a separate process, off RabbitMQ - is
 /// what actually renders the PDF and stores it; this row is what the API hands
 /// back meanwhile, and what the Recent Reports list reads for its status badge.
-@JsonSerializable()
+@JsonSerializable(converters: [ApiDateTimeConverter()])
 class GeneratedReport {
   const GeneratedReport({
     required this.id,
@@ -44,6 +45,8 @@ class GeneratedReport {
     required this.parameters,
     required this.status,
     this.errorMessage,
+    this.generatedByName,
+    this.generatedAt,
   });
 
   final int id;
@@ -58,6 +61,10 @@ class GeneratedReport {
 
   /// Set only when [status] is "Failed".
   final String? errorMessage;
+
+  /// Who ran it and when - null for a run the API has no record of.
+  final String? generatedByName;
+  final DateTime? generatedAt;
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   ReportType get reportType => ReportType.fromValue(reportTypeId);

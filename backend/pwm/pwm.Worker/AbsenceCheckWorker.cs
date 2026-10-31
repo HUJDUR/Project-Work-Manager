@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using pwm.Common.Services.Time;
 using pwm.Model.Access;
+using pwm.Services.Business;
 using pwm.Services.Database;
 
 namespace pwm.Worker;
@@ -139,10 +140,12 @@ public class AbsenceCheckWorker : BackgroundService
             ? $"1 worker had not clocked in by {now:HH:mm} on {now:dd.MM.yyyy}: {names}."
             : $"{absent.Count} workers had not clocked in by {now:HH:mm} on {now:dd.MM.yyyy}: {names}.";
 
+        var typeId = await NotificationTypeRules.IdOfAsync(db, NotificationTypeRules.Absence, stoppingToken);
         var sentAt = DateTime.UtcNow;
         db.Notifications.AddRange(recipientIds.Select(userId => new Notification
         {
             UserId = userId,
+            NotificationTypeId = typeId,
             Title = Title,
             Message = message,
             IsRead = false,

@@ -20,6 +20,7 @@ namespace pwm.Services.Database
         public DbSet<ActivityLogType> ActivityLogTypes { get; set; }
         public DbSet<ActivityLog> ActivityLogs { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<NotificationType> NotificationTypes { get; set; }
         public DbSet<ProjectCategory> ProjectCategories { get; set; }
         public DbSet<ProjectStatusType> ProjectStatusTypes { get; set; }
         public DbSet<TruckLoadStatusType> TruckLoadStatusTypes { get; set; }
@@ -61,6 +62,7 @@ namespace pwm.Services.Database
             modelBuilder.Entity<ActivityLogType>().ToTable("ActivityLogTypes");
             modelBuilder.Entity<ActivityLog>().ToTable("ActivityLogs");
             modelBuilder.Entity<Notification>().ToTable("Notifications");
+            modelBuilder.Entity<NotificationType>().ToTable("NotificationTypes");
 
             modelBuilder.Entity<ProjectCategory>().ToTable("ProjectCategories");
             modelBuilder.Entity<ProjectStatusType>().ToTable("ProjectStatusTypes");
@@ -88,6 +90,7 @@ namespace pwm.Services.Database
             modelBuilder.Entity<CompanyType>().HasIndex(x => x.Name).IsUnique();
 
             modelBuilder.Entity<User>().HasIndex(x => x.Email).IsUnique();
+            modelBuilder.Entity<User>().HasIndex(x => x.Username).IsUnique();
             modelBuilder.Entity<UserType>().HasIndex(x => x.Type).IsUnique();
             modelBuilder.Entity<RefreshToken>().HasIndex(x => x.Token).IsUnique();
             modelBuilder.Entity<OperationType>().HasIndex(x => x.Name).IsUnique();
@@ -97,6 +100,7 @@ namespace pwm.Services.Database
                 .IsUnique();
 
             modelBuilder.Entity<ActivityLogType>().HasIndex(x => x.Name).IsUnique();
+            modelBuilder.Entity<NotificationType>().HasIndex(x => x.Name).IsUnique();
             modelBuilder.Entity<ProjectCategory>().HasIndex(x => x.Name).IsUnique();
             modelBuilder.Entity<ProjectStatusType>().HasIndex(x => x.Name).IsUnique();
             modelBuilder.Entity<TruckLoadStatusType>().HasIndex(x => x.Name).IsUnique();
@@ -197,6 +201,12 @@ namespace pwm.Services.Database
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(x => x.NotificationType)
+                .WithMany()
+                .HasForeignKey(x => x.NotificationTypeId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Project>()
                 .HasOne(x => x.Customer)

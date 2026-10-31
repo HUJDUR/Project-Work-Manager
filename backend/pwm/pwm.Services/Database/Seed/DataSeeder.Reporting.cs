@@ -97,18 +97,18 @@ namespace pwm.Services.Database.Seed
             var office = OfficeUsers;
             var recipients = _users.Where(u => u.IsActive).ToArray();
 
-            var messages = new (string Title, string Message)[]
+            var messages = new (string Type, string Title, string Message)[]
             {
-                ("Project ready for delivery", "The staircase module has been loaded and is ready to leave."),
-                ("New project created", "Silo foundations was created for Adria Konstrukcije d.o.o."),
-                ("Delivery date approaching", "The staircase module is due for delivery in 3 days."),
-                ("Truck load registered", "A load for Euro Spedicija d.o.o. was registered this morning."),
-                ("Assigned to project", "You have been assigned welding work on the platform driptrays."),
-                ("Missing clock out", "Please check your work log, one shift was closed automatically."),
-                ("Quality check requested", "The machine base plates need a quality check before packing."),
-                ("Shift change", "Next week the early shift starts at 06:00."),
-                ("Monthly report generated", "The monthly hour report has been generated and is ready for review."),
-                ("Material delivered", "The plate delivery for the machine base plates has arrived at the yard."),
+                (NotificationTypeRules.General, "Project ready for delivery", "The staircase module has been loaded and is ready to leave."),
+                (NotificationTypeRules.General, "New project created", "Silo foundations was created for Adria Konstrukcije d.o.o."),
+                (NotificationTypeRules.Reminder, "Delivery date approaching", "The staircase module is due for delivery in 3 days."),
+                (NotificationTypeRules.General, "Truck load registered", "A load for Euro Spedicija d.o.o. was registered this morning."),
+                (NotificationTypeRules.Schedule, "Assigned to project", "You have been assigned welding work on the platform driptrays."),
+                (NotificationTypeRules.Reminder, "Missing clock out", "Please check your work log, one shift was closed automatically."),
+                (NotificationTypeRules.Reminder, "Quality check requested", "The machine base plates need a quality check before packing."),
+                (NotificationTypeRules.Schedule, "Shift change", "Next week the early shift starts at 06:00."),
+                (NotificationTypeRules.General, "Monthly report generated", "The monthly hour report has been generated and is ready for review."),
+                (NotificationTypeRules.Safety, "Protective gear", "Goggles and masks are required at the shotblasting booth from Monday."),
             };
 
             var notifications = new List<Notification>();
@@ -126,7 +126,7 @@ namespace pwm.Services.Database.Seed
 
                 for (var i = 0; i < count; i++)
                 {
-                    var (title, message) = messages[nextMessage++ % messages.Length];
+                    var (type, title, message) = messages[nextMessage++ % messages.Length];
                     var hoursAgo = _random.Next(1, 72);
 
                     var sentBy = Pick(office).Id;
@@ -137,6 +137,7 @@ namespace pwm.Services.Database.Seed
                     notifications.Add(new Notification
                     {
                         UserId = recipient.Id,
+                        NotificationTypeId = FindNotificationType(type).Id,
                         Title = title,
                         Message = message,
                         IsRead = _random.Next(3) != 0,

@@ -3,8 +3,6 @@ import '../utils/api_client_exception.dart';
 import '../utils/app_roles.dart';
 import '../utils/formatters.dart';
 import '../utils/sarajevo_time.dart';
-import 'activity_log_provider.dart';
-import 'activity_log_type_provider.dart';
 import 'auth_provider.dart';
 import 'base_provider.dart';
 import 'dart:convert';
@@ -27,8 +25,6 @@ class ReportsProvider extends ChangeNotifier {
   ReportsProvider({
     ReportProvider? reports,
     BaseProvider<GeneratedReport>? generatedReports,
-    BaseProvider<ActivityLog>? activityLogs,
-    BaseProvider<ActivityLogType>? activityLogTypes,
     BaseProvider<User>? users,
     BaseProvider<Project>? projects,
     DateTime? today,
@@ -37,8 +33,6 @@ class ReportsProvider extends ChangeNotifier {
   })  : availableTypes = AppRoles.reportsFor(role ?? AuthProvider.role),
         _reports = reports ?? ReportProvider(),
         _generatedReports = generatedReports ?? GeneratedReportProvider(),
-        _activityLogs = activityLogs ?? ActivityLogProvider(),
-        _activityLogTypes = activityLogTypes ?? ActivityLogTypeProvider(),
         _users = users ?? UserProvider(),
         _projects = projects ?? ProjectProvider(),
         _today = today ?? SarajevoTime.now() {
@@ -66,15 +60,10 @@ class ReportsProvider extends ChangeNotifier {
   /// and its Ids are handed out in order, so the Id is the run order.
   static const String recentSortBy = 'Id desc';
 
-  /// The prefix `ReportService` gives the activity log type it writes per run.
-  static const String reportLogTypePrefix = 'Generated report - ';
-
   static final DateFormat _monthLabel = DateFormat('MMMM yyyy');
 
   final ReportProvider _reports;
   final BaseProvider<GeneratedReport> _generatedReports;
-  final BaseProvider<ActivityLog> _activityLogs;
-  final BaseProvider<ActivityLogType> _activityLogTypes;
   final BaseProvider<User> _users;
   final BaseProvider<Project> _projects;
   final DateTime _today;
@@ -276,57 +265,25 @@ class ReportsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The API leaves out the kinds this role may not download, and says who
+  /// ran each one and when.
   Future<void> _fetchRecent() async {
-    final results = await Future.wait([
-      _generatedReports.get(filter: {
-        'page': 1,
-        'pageSize': recentCount,
-        'includeTotalCount': false,
-        'sortBy': recentSortBy,
-      }),
-      _fetchRuns(),
-    ]);
+    final result = await _generatedReports.get(filter: {
+      'page': 1,
+      'pageSize': recentCount,
+      'includeTotalCount': false,
+      'sortBy': recentSortBy,
+    });
 
-    final result = results[0] as PageResult<GeneratedReport>;
-    final runs = results[1] as Map<int, ActivityLog>;
-
-    _recent = [
-      for (final report in result.items) _toRecent(report, runs[report.id]),
-    ];
+    _recent = [for (final report in result.items) _toRecent(report)];
   }
 
-  /// Who ran a report and when. `GeneratedReports` does not hold that any more —
-  /// the ActivityLog entry pointing back at the report is the record of the run.
-  Future<Map<int, ActivityLog>> _fetchRuns() async {
-    final types = await _all(_activityLogTypes);
-
-    final reportTypes = types.where(
-      (type) => type.name.startsWith(reportLogTypePrefix),
-    );
-
-    final pages = await Future.wait([
-      for (final type in reportTypes)
-        _activityLogs.get(filter: {
-          'activityLogTypeId': type.id,
-          'page': 1,
-          'pageSize': 100,
-          'includeTotalCount': false,
-          'sortBy': 'Date desc',
-        }),
-    ]);
-
-    return {
-      for (final page in pages)
-        for (final log in page.items) ?log.generatedReportId: log,
-    };
-  }
-
-  RecentReport _toRecent(GeneratedReport report, ActivityLog? run) => RecentReport(
+  RecentReport _toRecent(GeneratedReport report) => RecentReport(
         id: report.id,
         type: report.reportType,
         summary: _describe(report),
-        generatedAt: run?.date,
-        generatedByName: _userById[run?.userId]?.fullName ?? 'Unknown user',
+        generatedAt: report.generatedAt,
+        generatedByName: report.generatedByName ?? 'Unknown user',
         status: report.runStatus,
         errorMessage: report.errorMessage,
       );

@@ -41,6 +41,10 @@ namespace pwm.Services.Database
         [Required]
         public ProjectCategory ProjectCategory { get; set; } = null!;
 
+        /// <summary>When work on the project is planned to start - set by the office, unlike <see cref="ProductionStartDate"/>.</summary>
+        public DateTime? PlannedStartDate { get; set; }
+
+        /// <summary>When the project is planned to be finished and delivered.</summary>
         public DateTime? DeliveryDate { get; set; }
 
         public int? DeliveryCompanyId { get; set; }
@@ -51,7 +55,7 @@ namespace pwm.Services.Database
         [Required]
         public DateTime CreationDate { get; set; } = DateTime.UtcNow;
 
-        /// <summary>Null until the project reaches the shop floor.</summary>
+        /// <summary>The actual start: set when the project first reaches the shop floor, null until then.</summary>
         public DateTime? ProductionStartDate { get; set; }
 
         public int ProjectStatusId { get; set; }

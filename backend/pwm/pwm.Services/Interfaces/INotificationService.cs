@@ -31,12 +31,13 @@ namespace pwm.Services.Interfaces
         /// entry, since nobody signed in sent this.
         /// </summary>
         /// <summary>
-        /// Stages one notification for every active account holding one of
-        /// <paramref name="roles"/>, except <paramref name="exceptUserId"/> - whoever
-        /// caused it already knows. Tracked, not saved: the caller's own
-        /// SaveChangesAsync commits it together with the change it is about.
+        /// Stages one notification of the system type <paramref name="typeName"/> for
+        /// every active account holding one of <paramref name="roles"/>, except
+        /// <paramref name="exceptUserId"/> - whoever caused it already knows. Tracked,
+        /// not saved: the caller's own SaveChangesAsync commits it together with the
+        /// change it is about.
         /// </summary>
-        Task StageForRolesAsync(string title, string message, int? exceptUserId, params string[] roles);
+        Task StageForRolesAsync(string typeName, string title, string message, int? exceptUserId, params string[] roles);
 
         Task NotifyAdminsOfPasswordResetRequestAsync(int requesterId, string requesterName, string requesterEmail);
     }

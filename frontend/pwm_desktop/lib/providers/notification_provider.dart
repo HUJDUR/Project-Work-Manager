@@ -16,12 +16,14 @@ class NotificationProvider extends BaseProvider<Notification> {
   /// generic list; this is the only way into it. Null [userIds] means everyone
   /// whose account still works.
   Future<int> sendNotification({
+    required int notificationTypeId,
     required String title,
     required String message,
     List<int>? userIds,
   }) async {
     final uri = Uri.parse('${BaseProvider.baseUrl}$endpoint/Send');
     final body = jsonEncode({
+      'notificationTypeId': notificationTypeId,
       'title': title,
       'message': message,
       'userIds': userIds,

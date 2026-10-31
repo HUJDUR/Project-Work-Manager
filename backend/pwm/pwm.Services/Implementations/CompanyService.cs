@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using pwm.Model.Requests;
 using pwm.Model.Responses;
 using pwm.Model.SearchObjects;
+using pwm.Services.Business;
 using pwm.Services.Database;
 using pwm.Services.Interfaces;
 
@@ -19,6 +20,24 @@ namespace pwm.Services.Implementations
             IValidator<CompanyUpdateRequest> updateValidator)
             : base(dbContext, mapper, insertValidator, updateValidator)
         {
+        }
+
+        public override async Task<CompanyResponse> InsertAsync(CompanyInsertRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            await _insertValidator.ValidateAndThrowAsync(request);
+            await CompanyRules.EnsureCityInCountryAsync(_dbContext, request.CityId, request.CountryId);
+
+            return await base.InsertAsync(request);
+        }
+
+        public override async Task<CompanyResponse> UpdateAsync(int id, CompanyUpdateRequest request)
+        {
+            ArgumentNullException.ThrowIfNull(request);
+            await _updateValidator.ValidateAndThrowAsync(request);
+            await CompanyRules.EnsureCityInCountryAsync(_dbContext, request.CityId, request.CountryId);
+
+            return await base.UpdateAsync(id, request);
         }
 
         protected override IQueryable<Company> ApplyFilters(IQueryable<Company> query, CompanySearchObject? search)

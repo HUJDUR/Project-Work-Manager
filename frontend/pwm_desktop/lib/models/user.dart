@@ -9,6 +9,7 @@ class User {
     required this.name,
     required this.surname,
     required this.email,
+    this.username = '',
     required this.userTypeId,
     required this.isActive,
     this.phoneNumber,
@@ -19,6 +20,9 @@ class User {
   final String name;
   final String surname;
   final String email;
+
+  @JsonKey(defaultValue: '')
+  final String username;
   final int userTypeId;
   final bool isActive;
   final String? phoneNumber;

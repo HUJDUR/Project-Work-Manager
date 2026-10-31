@@ -49,8 +49,6 @@ namespace pwm.Services
             services.AddTransient<IValidator<TruckLoadInsertRequest>, TruckLoadInsertRequestValidator>();
             services.AddTransient<IValidator<TruckLoadUpdateRequest>, TruckLoadUpdateRequestValidator>();
             services.AddTransient<IValidator<NotificationSendRequest>, NotificationSendRequestValidator>();
-            services.AddTransient<IValidator<WorkLogInsertRequest>, WorkLogInsertRequestValidator>();
-            services.AddTransient<IValidator<WorkLogUpdateRequest>, WorkLogUpdateRequestValidator>();
             services.AddTransient<IValidator<WorkLogDetailInsertRequest>, WorkLogDetailInsertRequestValidator>();
             services.AddTransient<IValidator<WorkLogDetailUpdateRequest>, WorkLogDetailUpdateRequestValidator>();
             services.AddTransient<IValidator<TruckLoadDetailInsertRequest>, TruckLoadDetailInsertRequestValidator>();
@@ -69,6 +67,8 @@ namespace pwm.Services
             services.AddTransient<IValidator<CityUpdateRequest>, CityUpdateRequestValidator>();
             services.AddTransient<IValidator<CompanyTypeInsertRequest>, CompanyTypeInsertRequestValidator>();
             services.AddTransient<IValidator<CompanyTypeUpdateRequest>, CompanyTypeUpdateRequestValidator>();
+            services.AddTransient<IValidator<NotificationTypeInsertRequest>, NotificationTypeInsertRequestValidator>();
+            services.AddTransient<IValidator<NotificationTypeUpdateRequest>, NotificationTypeUpdateRequestValidator>();
             services.AddTransient<IValidator<OperationTypeInsertRequest>, OperationTypeInsertRequestValidator>();
             services.AddTransient<IValidator<OperationTypeUpdateRequest>, OperationTypeUpdateRequestValidator>();
             services.AddTransient<IValidator<ProjectCategoryInsertRequest>, ProjectCategoryInsertRequestValidator>();
@@ -88,6 +88,7 @@ namespace pwm.Services
             services.AddScoped<IActivityLogTypeService, ActivityLogTypeService>();
             services.AddScoped<IActivityLogService, ActivityLogService>();
             services.AddScoped<INotificationService, NotificationService>();
+            services.AddScoped<INotificationTypeService, NotificationTypeService>();
             services.AddScoped<IProjectCategoryService, ProjectCategoryService>();
             services.AddScoped<IProjectStatusTypeService, ProjectStatusTypeService>();
             services.AddScoped<ITruckLoadStatusTypeService, TruckLoadStatusTypeService>();

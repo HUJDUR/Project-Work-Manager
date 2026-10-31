@@ -13,7 +13,7 @@ class RecommendationResult {
     this.message,
     this.explanation,
     required this.sampleSize,
-    required this.accuracyPercent,
+    this.accuracyPercent,
     required this.totalHours,
     required this.estimatedWorkers,
     required this.estimatedDurationDays,
@@ -31,7 +31,9 @@ class RecommendationResult {
   final String? explanation;
 
   final int sampleSize;
-  final double accuracyPercent;
+  /// Null when the past projects' hours do not vary, so there is nothing to
+  /// measure the fit against.
+  final double? accuracyPercent;
   final double totalHours;
   final int estimatedWorkers;
   final int estimatedDurationDays;

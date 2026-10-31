@@ -48,16 +48,25 @@ final _columns = <ExcelColumn<ProjectRow>>[
     filterValues: (row) => [row.priority.label],
   ),
   ExcelColumn(
-    label: 'Start Date',
+    label: 'Planned Start',
     flex: 2,
     // ISO sorts chronologically as plain text; the formatted date shown in
     // the filter checklist below does not.
-    sortKey: (row) => row.startDate?.toIso8601String() ?? '',
-    filterValues: (row) =>
-        [row.startDate == null ? ExcelColumn.blank : formatFullDate(row.startDate!)],
+    sortKey: (row) => row.plannedStartDate?.toIso8601String() ?? '',
+    filterValues: (row) => [
+      row.plannedStartDate == null ? ExcelColumn.blank : formatFullDate(row.plannedStartDate!)
+    ],
   ),
   ExcelColumn(
-    label: 'End Date',
+    label: 'Production Start',
+    flex: 2,
+    sortKey: (row) => row.productionStartDate?.toIso8601String() ?? '',
+    filterValues: (row) => [
+      row.productionStartDate == null ? ExcelColumn.blank : formatFullDate(row.productionStartDate!)
+    ],
+  ),
+  ExcelColumn(
+    label: 'Planned End',
     flex: 2,
     sortKey: (row) => row.endDate?.toIso8601String() ?? '',
     filterValues: (row) =>
@@ -230,11 +239,17 @@ class _ProjectRowTile extends StatelessWidget {
             _columnGap,
             Expanded(
               flex: _columns[5].flex,
-              child: _Cell(row.startDate == null ? '—' : formatFullDate(row.startDate!)),
+              child: _Cell(row.plannedStartDate == null ? '—' : formatFullDate(row.plannedStartDate!)),
             ),
             _columnGap,
             Expanded(
               flex: _columns[6].flex,
+              child: _Cell(
+                  row.productionStartDate == null ? '—' : formatFullDate(row.productionStartDate!)),
+            ),
+            _columnGap,
+            Expanded(
+              flex: _columns[7].flex,
               child: _Cell(row.endDate == null ? '—' : formatFullDate(row.endDate!)),
             ),
             SizedBox(

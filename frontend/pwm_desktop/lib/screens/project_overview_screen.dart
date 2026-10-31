@@ -258,7 +258,13 @@ class _InfoCard extends StatelessWidget {
               child: _FieldGroup(children: [
                 _Field(
                   label: 'Planned Start',
-                  text: row.startDate == null ? '—' : formatFullDate(row.startDate!),
+                  text: row.plannedStartDate == null ? 'Not set' : formatFullDate(row.plannedStartDate!),
+                ),
+                _Field(
+                  label: 'Production Started',
+                  text: row.productionStartDate == null
+                      ? 'Not yet'
+                      : formatFullDate(row.productionStartDate!),
                 ),
                 _Field(
                   label: 'Planned End',
@@ -333,7 +339,7 @@ class _StatusPanel extends StatelessWidget {
     final statusIdByName = {for (final status in statusTypes) status.name: status.id};
     final nextStatuses = ProjectStatusRules.allowedNext(
       row.statusName,
-      hasStartedProduction: row.startDate != null,
+      hasStartedProduction: row.productionStartDate != null,
     );
 
     // Not `Panel`: that widget wraps its child in an `Expanded`, which needs

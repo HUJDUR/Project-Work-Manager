@@ -1,4 +1,5 @@
 using pwm.Model.Access;
+using pwm.Services.Business;
 using ReportKind = pwm.Model.Enums.ReportType;
 
 namespace pwm.Services.Database.Seed
@@ -116,6 +117,13 @@ namespace pwm.Services.Database.Seed
             ];
             await AddRangeAsync(_reportTypes);
 
+            _notificationTypes =
+            [
+                .. NotificationTypeRules.Manual.Select(name => new NotificationType { Name = name }),
+                .. NotificationTypeRules.System.Select(name => new NotificationType { Name = name, IsSystem = true }),
+            ];
+            await AddRangeAsync(_notificationTypes);
+
             // One "Generated report" type per report, so the log says which one was run.
             _activityLogTypes =
             [
@@ -133,6 +141,8 @@ namespace pwm.Services.Database.Seed
         /// <summary>Mirrors the name <c>ReportService</c> looks up when it records a run.</summary>
         private static string ReportLogTypeName(string reportDescription) =>
             $"Generated report - {reportDescription}";
+
+        private NotificationType FindNotificationType(string name) => _notificationTypes.First(x => x.Name == name);
 
         private Country FindCountry(string code) => _countries.First(x => x.Code == code);
 

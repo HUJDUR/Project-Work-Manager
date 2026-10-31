@@ -19,10 +19,12 @@ se pravi na osnovu ranije isporučenih projekata iste kategorije.
 
 ## Kako se računa
 
-1. Uzimaju se svi projekti iste kategorije sa statusom **Delivered**. Samo za
-   njih je poznat konačan broj sati.
-2. Ako ih je manje od 3, procjena se ne prikazuje, nego poruka da nema dovoljno
-   podataka.
+1. Uzimaju se projekti iste kategorije sa statusom **Delivered** koji imaju
+   evidentirane sate (barem jedan blok rada sa više od 0 sati). Samo za njih je
+   poznat konačan broj sati; isporučen projekat bez ijednog sata ne govori ništa
+   o tome koliko posla traži, pa se ne ubraja u uzorak.
+2. Ako takvih projekata ima manje od 3, procjena se ne prikazuje, nego poruka da
+   nema dovoljno podataka.
 3. Za svaku vrstu posla (zavarivanje, brušenje...) sistem iz tih projekata
    pravi **linearnu regresiju**: liniju koja povezuje težinu projekta i broj
    sati te vrste posla. Na toj liniji se očita broj sati za unesenu težinu.
@@ -45,5 +47,12 @@ Uz svaku procjenu prikazuje se:
   kod ranijih projekata te kategorije. Niska tačnost znači da procjenu treba
   uzeti s rezervom.
 - rečenica koja to oboje kaže riječima
+
+Kada su projekti u uzorku trajali tačno isti broj sati, u satima nema varijacije
+koju bi težina mogla objasniti. R² tada nema smisla (svaka linija kroz prosjek bi
+dala "100 %"), pa se tačnost ne prikazuje: API vraća `AccuracyPercent = null`,
+ekran umjesto postotka piše "accuracy cannot be estimated", a rečenica
+objašnjenja kaže da se tačnost ne može procijeniti jer su svi projekti trajali
+isto.
 
 Procjena je pomoć pri planiranju, a ne konačna odluka.
