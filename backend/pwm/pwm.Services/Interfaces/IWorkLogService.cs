@@ -4,7 +4,11 @@ using pwm.Model.SearchObjects;
 
 namespace pwm.Services.Interfaces
 {
-    public interface IWorkLogService : IBaseCRUDService<WorkLogResponse, WorkLogSearchObject, WorkLogInsertRequest, WorkLogUpdateRequest>
+    /// <summary>
+    /// Shifts are read-only from outside: they are worked out from their blocks of
+    /// work, which are written through clocking in and out or <see cref="IWorkLogDetailService"/>.
+    /// </summary>
+    public interface IWorkLogService : IBaseReadService<WorkLogResponse, WorkLogSearchObject>
     {
         Task<ClockInOptionsResponse> GetClockInOptionsAsync();
 

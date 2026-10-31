@@ -7,6 +7,9 @@ namespace pwm.Model.Requests
     /// </summary>
     public class NotificationSendRequest
     {
+        /// <summary>One of the types the office sends - never a system one.</summary>
+        public int NotificationTypeId { get; set; }
+
         public string Title { get; set; } = string.Empty;
 
         public string Message { get; set; } = string.Empty;

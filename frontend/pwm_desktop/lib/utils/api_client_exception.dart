@@ -3,9 +3,13 @@ import 'dart:convert';
 /// Thrown when the API returns an error body we can show to the user
 /// (e.g. [ClientException] → HTTP 400 with `message` / `errors` from ExceptionFilter).
 class ApiClientException implements Exception {
-  ApiClientException(this.message);
+  ApiClientException(this.message, {this.fieldErrors = const {}});
 
   final String message;
+
+  /// A validation message per request field, keyed by the form field's name
+  /// (`username` for the API's `Username`), so a form can show it under the box.
+  final Map<String, String> fieldErrors;
 
   @override
   String toString() => message;
@@ -65,6 +69,27 @@ class ApiErrorParser {
       return null;
     }
   }
+
+  /// The ExceptionFilter's own keys - not request fields.
+  static const _generalKeys = {'clientError', 'forbidden', 'notFound', 'conflict', 'serverError', ''};
+
+  static Map<String, String> fieldErrorsFromBody(String body) {
+    try {
+      final decoded = jsonDecode(body.trim());
+      if (decoded is! Map || decoded['errors'] is! Map) return const {};
+
+      return {
+        for (final entry in (decoded['errors'] as Map).entries)
+          if (!_generalKeys.contains(entry.key) && _messagesFromValue(entry.value).isNotEmpty)
+            _fieldName(entry.key as String): _messagesFromValue(entry.value).first,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  static String _fieldName(String key) =>
+      key.isEmpty ? key : key[0].toLowerCase() + key.substring(1);
 
   static List<String> _messagesFromValue(dynamic v) {
     if (v is List) {

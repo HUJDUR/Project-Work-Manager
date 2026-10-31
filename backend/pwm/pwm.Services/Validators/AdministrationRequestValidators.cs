@@ -70,6 +70,25 @@ namespace pwm.Services.Validators
     {
     }
 
+    public abstract class NotificationTypeRequestValidator<TRequest> : AbstractValidator<TRequest>
+        where TRequest : NotificationTypeInsertRequest
+    {
+        protected NotificationTypeRequestValidator()
+        {
+            RuleFor(x => x.Name)
+                .NotEmpty().WithMessage("A notification type needs a name.")
+                .MaximumLength(100).WithMessage("Keep the name to 100 characters or fewer.");
+        }
+    }
+
+    public class NotificationTypeInsertRequestValidator : NotificationTypeRequestValidator<NotificationTypeInsertRequest>
+    {
+    }
+
+    public class NotificationTypeUpdateRequestValidator : NotificationTypeRequestValidator<NotificationTypeUpdateRequest>
+    {
+    }
+
     public abstract class OperationTypeRequestValidator<TRequest> : AbstractValidator<TRequest>
         where TRequest : OperationTypeInsertRequest
     {

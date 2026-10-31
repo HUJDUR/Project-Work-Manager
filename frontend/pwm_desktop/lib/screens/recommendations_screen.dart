@@ -207,9 +207,11 @@ class _MetricRow extends StatelessWidget {
         Icons.verified_outlined,
         'Based On Projects',
         hasEstimate ? formatCount(provider.sampleSize) : '—',
-        hasEstimate
-            ? '~${provider.accuracyPercent.toStringAsFixed(0)}% accuracy'
-            : 'comparable past jobs',
+        switch (provider.accuracyPercent) {
+          _ when !hasEstimate => 'comparable past jobs',
+          final accuracy? => '~${accuracy.toStringAsFixed(0)}% accuracy',
+          null => 'accuracy cannot be estimated',
+        },
       ),
     ];
 

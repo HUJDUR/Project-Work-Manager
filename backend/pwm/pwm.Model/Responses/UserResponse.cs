@@ -8,6 +8,8 @@ namespace pwm.Model.Responses
 
         public string Surname { get; set; } = string.Empty;
 
+        public string Username { get; set; } = string.Empty;
+
         public string? PhoneNumber { get; set; }
 
         public byte[]? Picture { get; set; }

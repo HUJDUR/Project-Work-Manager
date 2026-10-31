@@ -164,6 +164,7 @@ abstract class BaseProvider<T> with ChangeNotifier {
     // 400 Bad Request - business rules (ClientException), validation, etc.
     throw ApiClientException(
       parsed ?? 'Request could not be completed. Please try again.',
+      fieldErrors: ApiErrorParser.fieldErrorsFromBody(response.body),
     );
   }
 

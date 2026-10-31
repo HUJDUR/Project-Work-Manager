@@ -290,7 +290,8 @@ class _Table<T> extends StatelessWidget {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final row = rows[index];
-                      final onTap = this.onTap;
+                      final locked = config.isRowLocked?.call(row) ?? false;
+                      final onTap = locked ? null : this.onTap;
                       final onDelete = this.onDelete;
 
                       return InkWell(
@@ -311,7 +312,16 @@ class _Table<T> extends StatelessWidget {
                                       ),
                                 ),
                               ],
-                              if (onDelete != null)
+                              if (onDelete != null && locked)
+                                SizedBox(
+                                  width: 40,
+                                  child: Tooltip(
+                                    message: config.lockedRowReason ?? '',
+                                    child: Icon(Icons.lock_outline,
+                                        size: 18, color: AppColors.textMuted),
+                                  ),
+                                )
+                              else if (onDelete != null)
                                 SizedBox(
                                   width: 40,
                                   child: IconButton(

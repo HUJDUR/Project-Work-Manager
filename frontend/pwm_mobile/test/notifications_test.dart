@@ -405,6 +405,27 @@ void main() {
       expect(find.text('just now'), findsOneWidget);
     });
 
+    testWidgets('shows what type of notification each card is', (tester) async {
+      await pump(
+        tester,
+        api: _FakeNotifications([
+          Notification(
+            id: 1,
+            userId: 20,
+            notificationTypeId: 4,
+            notificationTypeName: 'Schedule',
+            title: 'Shift change',
+            message: 'Next week the early shift starts at 06:00.',
+            isRead: false,
+            createdAt: _now,
+          ),
+        ]),
+      );
+
+      expect(find.text('Schedule'), findsOneWidget);
+      expect(find.byIcon(Icons.event_outlined), findsOneWidget);
+    });
+
     testWidgets('a failure offers a way to try again', (tester) async {
       tester.view
         ..physicalSize = const Size(390, 844)

@@ -56,6 +56,8 @@ namespace pwm.Services.Implementations
                     $"The \"{TruckLoadStatusRules.Ordered}\" truck load status is missing - reseed the lookup tables.");
 
             await CompanyRules.EnsureSelectableAsync(_dbContext, request.TransportCompanyId, null, "carrier");
+            await CompanyRules.EnsureTypeAsync(
+                _dbContext, request.TransportCompanyId, null, CompanyRules.CustomerType, mustBe: false, "carrier");
 
             var entity = _mapper.Map<TruckLoad>(request);
             entity.TruckLoadStatusId = orderedStatus.Id;
@@ -100,6 +102,9 @@ namespace pwm.Services.Implementations
             {
                 await CompanyRules.EnsureSelectableAsync(
                     _dbContext, request.TransportCompanyId, entity.TransportCompanyId, "carrier");
+                await CompanyRules.EnsureTypeAsync(
+                    _dbContext, request.TransportCompanyId, entity.TransportCompanyId,
+                    CompanyRules.CustomerType, mustBe: false, "carrier");
                 _mapper.Map(request, entity);
                 // Never settable while still Ordered - nothing to invoice yet.
                 entity.Price = null;
@@ -211,6 +216,7 @@ namespace pwm.Services.Implementations
                 + (rejected ? $" Reason: {reason}" : string.Empty);
 
             await _notifications.StageForRolesAsync(
+                NotificationTypeRules.TransportStatus,
                 rejected ? "Transport rejected" : "Transport status changed",
                 message,
                 changedByUserId,

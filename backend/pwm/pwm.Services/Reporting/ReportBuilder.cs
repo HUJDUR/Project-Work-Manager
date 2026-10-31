@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using pwm.Model.Requests;
 using pwm.Services.Database;
 using pwm.Common.Services.Time;
-using pwm.Services.Business;
 
 namespace pwm.Services.Reporting
 {
@@ -38,13 +37,16 @@ namespace pwm.Services.Reporting
                 .OrderBy(x => x.StartedAt)
                 .ToListAsync();
 
-            var rows = SplitRegularAndOvertime(blocks)
-                .GroupBy(x => x.Block.WorkLog.User)
+            // Each block's regular part as MonthlyHourSummary stored it, worked out over
+            // the worker's whole day - not just the blocks of the project picked here,
+            // so this PDF agrees with the Work Hours and Monthly Reports screens.
+            var rows = blocks
+                .GroupBy(x => x.WorkLog.User)
                 .Select(worker => new MonthlyWorkHoursRow
                 {
                     WorkerName = $"{worker.Key.Name} {worker.Key.Surname}".Trim(),
-                    RegularHours = Round(worker.Sum(x => x.Regular)),
-                    OvertimeHours = Round(worker.Sum(x => x.Overtime)),
+                    RegularHours = Round(worker.Sum(x => x.RegularHours)),
+                    OvertimeHours = Round(worker.Sum(x => x.Hours - x.RegularHours)),
                 })
                 .OrderBy(row => row.WorkerName)
                 .ToList();
@@ -124,16 +126,6 @@ namespace pwm.Services.Reporting
                 : await NameOfProjectAsync(request.ProjectId.Value);
 
             return TransportLoadsDocument.Render(firstDay, lastDay, project, rows);
-        }
-
-        /// <summary>Each block with its regular and overtime part - see <see cref="OvertimeRules"/>.</summary>
-        private static IEnumerable<(WorkLogDetail Block, double Regular, double Overtime)>
-            SplitRegularAndOvertime(IReadOnlyCollection<WorkLogDetail> blocks)
-        {
-            var regularById = OvertimeRules.RegularHours(
-                blocks.Select(x => (x.Id, x.WorkLog.UserId, x.StartedAt, x.Hours)));
-
-            return blocks.Select(x => (x, regularById[x.Id], x.Hours - regularById[x.Id]));
         }
 
         private static double Round(double value) => Math.Round(value, 2);

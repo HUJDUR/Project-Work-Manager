@@ -56,11 +56,17 @@ class _FakeNotificationProvider extends NotificationProvider {
 
   @override
   Future<int> sendNotification({
+    required int notificationTypeId,
     required String title,
     required String message,
     List<int>? userIds,
   }) async {
-    sent.add({'title': title, 'message': message, 'userIds': userIds});
+    sent.add({
+      'notificationTypeId': notificationTypeId,
+      'title': title,
+      'message': message,
+      'userIds': userIds,
+    });
     if (failure case final error?) throw error;
 
     return userIds?.length ?? _activeUsers.length;
@@ -154,6 +160,10 @@ NotificationsProvider _fakeNotifications() {
       UserType(id: 2, type: 'Project manager'),
       UserType(id: 3, type: 'Production worker'),
     ]),
+    notificationTypes: _FakeProvider(const [
+      NotificationType(id: 1, name: 'General'),
+      NotificationType(id: 2, name: 'Safety'),
+    ]),
   );
 }
 
@@ -233,10 +243,12 @@ void main() {
     });
 
     test('leaves the ids off when the message goes to everyone', () async {
-      final sent = await provider.send(title: 'Shutdown', message: 'No work Friday.');
+      final sent = await provider.send(
+          notificationTypeId: 1, title: 'Shutdown', message: 'No work Friday.');
 
       // The API resolves the list, so it cannot go stale between load and send.
       expect(_notifications.sent.single, {
+        'notificationTypeId': 1,
         'title': 'Shutdown',
         'message': 'No work Friday.',
         'userIds': null,
@@ -248,7 +260,8 @@ void main() {
       provider.toggle(2);
       provider.toggle(4);
 
-      final sent = await provider.send(title: 'Overtime', message: 'Saturday shift.');
+      final sent = await provider.send(
+          notificationTypeId: 2, title: 'Overtime', message: 'Saturday shift.');
 
       expect(_notifications.sent.single['userIds'], [3]);
       expect(sent, 1);
@@ -287,6 +300,7 @@ void main() {
     expect(find.text('Create and send a notification to your workers'),
         findsOneWidget);
     expect(find.text('Message details'), findsOneWidget);
+    expect(find.text('Notification type'), findsOneWidget);
     expect(find.text('Title'), findsOneWidget);
     expect(find.text('Message'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
@@ -348,12 +362,21 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Send Notification'));
+    await tester.pumpAndSettle();
+
+    // Nothing goes out until the count is confirmed.
+    expect(find.text('Send this notification to all 3 people?'), findsOneWidget);
+    expect(_notifications.sent, isEmpty);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Send'));
     // Not pumpAndSettle: the toast's own progress line keeps a frame
     // scheduled for its full four seconds, which pumpAndSettle would run
     // straight through, dismissing it before it could be asserted on here.
     await tester.pump();
+    await tester.pump();
 
     expect(_notifications.sent.single['title'], 'Shutdown Friday');
+    expect(_notifications.sent.single['notificationTypeId'], 1);
     expect(find.text('Notification sent to 3 people'), findsOneWidget);
   });
 
@@ -387,6 +410,8 @@ void main() {
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Send Notification'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Send'));
     await tester.pumpAndSettle();
 
     expect(find.text('There is nobody to send this to.'), findsOneWidget);

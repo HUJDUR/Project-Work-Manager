@@ -9,6 +9,7 @@ import '../providers/received_notifications_provider.dart';
 import '../utils/api_client_exception.dart';
 import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
+import '../utils/notification_types.dart';
 import 'widgets/form_fields.dart';
 import 'widgets/notification_list.dart';
 
@@ -221,6 +222,7 @@ class _MessageCardState extends State<_MessageCard> {
       ),
       child: FormBuilder(
         key: _formKey,
+        initialValue: {'notificationTypeId': provider.types.firstOrNull?.id},
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -233,6 +235,22 @@ class _MessageCardState extends State<_MessageCard> {
               _ErrorBanner(message: _error!),
               const SizedBox(height: AppSpacing.gap),
             ],
+            SearchableDropdownField<int>(
+              name: 'notificationTypeId',
+              label: 'Notification type',
+              validator: FormBuilderValidators.required(
+                errorText: 'Pick a notification type.',
+              ),
+              entries: [
+                for (final type in provider.types)
+                  DropdownMenuEntry(
+                    value: type.id,
+                    label: type.name,
+                    leadingIcon: Icon(notificationTypeIcon(type.name), size: 18),
+                  ),
+              ],
+            ),
+            const SizedBox(height: formFieldGap),
             FormBuilderTextField(
               name: 'title',
               decoration: appInputDecoration(
@@ -317,6 +335,20 @@ class _MessageCardState extends State<_MessageCard> {
     if (!(_formKey.currentState?.saveAndValidate() ?? false)) return;
 
     final values = _formKey.currentState!.value;
+    final provider = widget.provider;
+    final count = provider.selectedCount;
+
+    // Sent notifications cannot be edited or taken back.
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Send notification',
+      message: provider.toEveryone
+          ? 'Send this notification to all $count ${count == 1 ? 'person' : 'people'}?'
+          : 'Send this notification to $count ${count == 1 ? 'person' : 'people'}?',
+      confirmLabel: 'Send',
+      destructive: false,
+    );
+    if (!confirmed || !mounted) return;
 
     setState(() {
       _sending = true;
@@ -324,7 +356,8 @@ class _MessageCardState extends State<_MessageCard> {
     });
 
     try {
-      final sent = await widget.provider.send(
+      final sent = await provider.send(
+        notificationTypeId: values['notificationTypeId'] as int,
         title: (values['title'] as String).trim(),
         message: (values['message'] as String).trim(),
       );
@@ -352,6 +385,7 @@ class _MessageCardState extends State<_MessageCard> {
   }
 
   void _reset() {
+    // Back to the type the form opened with, not an empty dropdown.
     _formKey.currentState?.reset();
     setState(() => _error = null);
   }

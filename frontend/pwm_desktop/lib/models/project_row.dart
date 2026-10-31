@@ -21,7 +21,8 @@ class ProjectRow {
     required this.createdAt,
     this.description,
     this.notes,
-    this.startDate,
+    this.plannedStartDate,
+    this.productionStartDate,
     this.endDate,
     this.deliveryCompanyId,
     this.location,
@@ -53,8 +54,10 @@ class ProjectRow {
   final String statusName;
   final DateTime createdAt;
 
-  /// When production started, and when the project is (or was) due out.
-  final DateTime? startDate;
+  /// When work was planned to start, when production actually started - null
+  /// until it has - and when the project is (or was) due out.
+  final DateTime? plannedStartDate;
+  final DateTime? productionStartDate;
   final DateTime? endDate;
 
   /// The carrier taking the goods out, and where that is: the delivery

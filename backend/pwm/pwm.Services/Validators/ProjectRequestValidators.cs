@@ -26,6 +26,11 @@ namespace pwm.Services.Validators
             RuleFor(x => x.ProjectCategoryId).GreaterThan(0).WithMessage("Pick a category.");
 
             RuleFor(x => x.Priority).IsInEnum().WithMessage("Pick a priority.");
+
+            RuleFor(x => x.PlannedStartDate)
+                .LessThanOrEqualTo(x => x.DeliveryDate)
+                .WithMessage("The planned start cannot come after the planned delivery date.")
+                .When(x => x.PlannedStartDate.HasValue && x.DeliveryDate.HasValue);
         }
     }
 
@@ -48,6 +53,11 @@ namespace pwm.Services.Validators
             RuleFor(x => x.ProjectCategoryId).GreaterThan(0).WithMessage("Pick a category.");
 
             RuleFor(x => x.Priority).IsInEnum().WithMessage("Pick a priority.");
+
+            RuleFor(x => x.PlannedStartDate)
+                .LessThanOrEqualTo(x => x.DeliveryDate)
+                .WithMessage("The planned start cannot come after the planned delivery date.")
+                .When(x => x.PlannedStartDate.HasValue && x.DeliveryDate.HasValue);
         }
     }
 }

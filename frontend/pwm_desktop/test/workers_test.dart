@@ -4,6 +4,7 @@ import 'package:pwm_desktop/models/models.dart';
 import 'package:pwm_desktop/providers/base_provider.dart';
 import 'package:pwm_desktop/providers/workers_provider.dart';
 import 'package:pwm_desktop/screens/workers_screen.dart';
+import 'package:pwm_desktop/utils/api_client_exception.dart';
 
 /// Stands in for one controller, applying the search object it is handed the
 /// way the backend would — which is what pins the contract the provider sends.
@@ -22,6 +23,9 @@ class _FakeProvider<T> extends BaseProvider<T> {
   final List<Map<String, dynamic>> inserted = [];
   final List<(int, Map<String, dynamic>)> updated = [];
   final List<int> removed = [];
+
+  /// Set to make the next insert fail the way the API would.
+  Object? insertFailure;
 
   @override
   Future<T> getById(int id) async => rows.firstWhere((row) => (row as dynamic).id == id);
@@ -48,6 +52,7 @@ class _FakeProvider<T> extends BaseProvider<T> {
 
   @override
   Future<T> insert(dynamic request) async {
+    if (insertFailure case final error?) throw error;
     inserted.add(Map<String, dynamic>.from(request as Map));
     return rows.first;
   }
@@ -258,6 +263,7 @@ void main() {
         name: 'Ivana',
         surname: 'Peric',
         email: 'ivana.peric@pwm.ba',
+        username: 'ivanaperic',
         userTypeId: 3,
         isActive: true,
         password: 'test',
@@ -266,6 +272,7 @@ void main() {
 
       final body = _userRows.inserted.single;
       expect(body['surname'], 'Peric');
+      expect(body['username'], 'ivanaperic');
       expect(body['userTypeId'], 3);
       expect(body['password'], 'test');
 
@@ -282,6 +289,7 @@ void main() {
         name: 'Selma',
         surname: 'Delic',
         email: 'selma.delic@pwm.ba',
+        username: 'selmadelic',
         userTypeId: 2,
         isActive: true,
       );
@@ -299,6 +307,7 @@ void main() {
         name: 'Emir',
         surname: 'Kovacevic',
         email: 'emir.kovacevic@pwm.ba',
+        username: 'emirkovacevic',
         userTypeId: 3,
         isActive: true,
         operationIds: const [1, 2],
@@ -389,6 +398,7 @@ void main() {
       await tester.enterText(field('First name'), 'Amina');
       await tester.enterText(field('Surname'), 'Hodzic');
       await tester.enterText(field('E-mail'), 'amina@pwm.ba');
+      await tester.enterText(field('Username'), 'aminahodzic');
     }
 
     testWidgets('states the rules before they are broken', (tester) async {
@@ -436,6 +446,28 @@ void main() {
       expect(_userRows.inserted, isEmpty);
     });
 
+    testWidgets('a username the API says is taken is shown under its field',
+        (tester) async {
+      await openBlankForm(tester);
+      _userRows.insertFailure = ApiClientException(
+        'That username is taken - pick another one.',
+        fieldErrors: {'username': 'That username is taken - pick another one.'},
+      );
+
+      await tester.enterText(field('Password'), 'Fabrika22!');
+      await tester.enterText(field('Confirm password'), 'Fabrika22!');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      final message = find.text('That username is taken - pick another one.');
+      expect(message, findsOneWidget);
+      expect(
+        find.ancestor(of: message, matching: find.byWidgetPredicate(
+            (widget) => widget is TextField && widget.decoration?.labelText == 'Username')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('posts once the pair agree and the rules are met',
         (tester) async {
       await openBlankForm(tester);
@@ -447,6 +479,7 @@ void main() {
 
       final body = _userRows.inserted.single;
       expect(body['email'], 'amina@pwm.ba');
+      expect(body['username'], 'aminahodzic');
       expect(body['password'], 'Fabrika22!');
       // The confirmation is a form field, not something the API knows about.
       expect(body.containsKey('confirmPassword'), isFalse);

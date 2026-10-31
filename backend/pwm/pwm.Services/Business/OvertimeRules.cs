@@ -3,9 +3,10 @@ using pwm.Common.Services.Time;
 namespace pwm.Services.Business
 {
     /// <summary>
-    /// The one overtime rule, used by everything that splits hours - the Work Hours
-    /// screen, the Monthly Reports screen and the monthly PDF - so they can never
-    /// disagree: the first eight hours a worker books on one Sarajevo day are
+    /// The one overtime rule. <see cref="MonthlyHourSummary"/> applies it to every
+    /// block of a month and stores each block's regular part, which the Work Hours
+    /// screen, the Monthly Reports screen and the monthly PDF all read - so they can
+    /// never disagree: the first eight hours a worker books on one Sarajevo day are
     /// regular, everything after is overtime, handed out in start order. A block that
     /// straddles the line is split across both.
     /// </summary>

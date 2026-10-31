@@ -5,6 +5,7 @@ import '../../providers/received_notifications_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../utils/formatters.dart';
 import '../../utils/notification_groups.dart';
+import '../../utils/notification_types.dart';
 
 /// The body of a notification list — loading, empty, error, or the rows
 /// themselves — shared between the bell's popup and the Notifications
@@ -133,6 +134,10 @@ class NotificationTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (notification.notificationTypeName.isNotEmpty) ...[
+                    NotificationTypeLabel(name: notification.notificationTypeName),
+                    const SizedBox(height: 3),
+                  ],
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

@@ -7,9 +7,9 @@ import 'lookup_table_screen.dart';
 import 'widgets/active_chip.dart';
 import 'widgets/lookup_table_config.dart';
 
-/// The Administration screen: eleven reference tables, open only to
+/// The Administration screen: twelve reference tables, open only to
 /// `AppRoles.admin` (see `AppRoles._blocked`, which is what keeps the other
-/// three office roles off this destination - the API narrows the same eleven
+/// three office roles off this destination - the API narrows the same
 /// controllers' writes to `Roles.Admin` for the same reason).
 ///
 /// This is a hub, not a list of its own: each tile pushes `LookupTableScreen`
@@ -26,6 +26,7 @@ class AdministrationScreen extends StatelessWidget {
     _tileFor(Icons.public_outlined, _countries()),
     _tileFor(Icons.location_city_outlined, _cities()),
     _tileFor(Icons.apartment_outlined, _companyTypes()),
+    _tileFor(Icons.notifications_outlined, _notificationTypes()),
     _tileFor(Icons.business_outlined, _companies()),
     _tileFor(Icons.flag_outlined, _projectStatusTypes()),
     _tileFor(Icons.folder_copy_outlined, _projectCategories()),
@@ -201,6 +202,21 @@ LookupTableConfig<CompanyType> _companyTypes() => simpleNameTable<CompanyType>(
       createProvider: () => CompanyTypeProvider(),
       idOf: (row) => row.id,
       nameOf: (row) => row.name,
+    );
+
+LookupTableConfig<NotificationType> _notificationTypes() => LookupTableConfig<NotificationType>(
+      title: 'Notification Types',
+      description: 'What the office can send - and what the system raises itself.',
+      createProvider: () => NotificationTypeProvider(),
+      idOf: (row) => row.id,
+      columns: [
+        LookupColumn('Name', (row, ctx) => row.name),
+        LookupColumn('Sent by', (row, ctx) => row.isSystem ? 'System' : 'Office'),
+      ],
+      fields: const [LookupField(key: 'name', label: 'Name')],
+      valuesOf: (row) => {'name': row.name},
+      isRowLocked: (row) => row.isSystem,
+      lockedRowReason: 'Raised by the system - it cannot be renamed or deleted.',
     );
 
 LookupTableConfig<ProjectStatusType> _projectStatusTypes() =>

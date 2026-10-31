@@ -8,7 +8,7 @@ namespace pwm.Model.Responses
     {
         /// <summary>
         /// False when the category has fewer than the minimum number of delivered
-        /// projects to learn from - see <c>RecommendationService.MinSampleSize</c>.
+        /// projects with booked hours to learn from - see <c>RecommendationService.MinSampleSize</c>.
         /// No other field is trustworthy when this is false.
         /// </summary>
         public bool HasEstimate { get; set; }
@@ -23,14 +23,15 @@ namespace pwm.Model.Responses
         /// </summary>
         public string? Explanation { get; set; }
 
-        /// <summary>How many past delivered projects of this category the estimate is based on.</summary>
+        /// <summary>How many past delivered projects of this category, with booked hours, the estimate is based on.</summary>
         public int SampleSize { get; set; }
 
         /// <summary>
         /// Rough accuracy of the hours-vs-tonnage relationship for this category, as the
-        /// R-squared of the fit against the sample, 0-100.
+        /// R-squared of the fit against the sample, 0-100. Null when the sample's hours
+        /// do not vary at all, so the accuracy cannot be estimated.
         /// </summary>
-        public double AccuracyPercent { get; set; }
+        public double? AccuracyPercent { get; set; }
 
         public double TotalHours { get; set; }
 

@@ -398,7 +398,8 @@ class ProjectsProvider extends ChangeNotifier {
               statusId: project.projectStatusId,
               statusName: statusById[project.projectStatusId]?.name ?? 'Unknown',
               createdAt: project.creationDate,
-              startDate: project.productionStartDate,
+              plannedStartDate: project.plannedStartDate,
+              productionStartDate: project.productionStartDate,
               endDate: project.deliveryDate,
               deliveryCompanyId: project.deliveryCompanyId,
               location: project.deliveryCompanyId == null
@@ -427,6 +428,7 @@ class ProjectsProvider extends ChangeNotifier {
     String? description,
     String? notes,
     int? deliveryCompanyId,
+    DateTime? plannedStartDate,
     DateTime? deliveryDate,
   }) async {
     final body = {
@@ -441,6 +443,7 @@ class ProjectsProvider extends ChangeNotifier {
       // Creation date is NOT NULL in the schema, so the client always sends it.
       'creationDate': SarajevoTime.toApi(creationDate),
       'deliveryCompanyId': deliveryCompanyId,
+      'plannedStartDate': plannedStartDate == null ? null : SarajevoTime.toApi(plannedStartDate),
       'deliveryDate': deliveryDate == null ? null : SarajevoTime.toApi(deliveryDate),
     };
 

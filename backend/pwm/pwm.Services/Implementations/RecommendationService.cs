@@ -19,8 +19,8 @@ namespace pwm.Services.Implementations
     public class RecommendationService : IRecommendationService
     {
         /// <summary>
-        /// Below this many past delivered projects the fit is not worth showing - two
-        /// points draw a line through anything.
+        /// Below this many past delivered projects with booked hours the fit is not
+        /// worth showing - two points draw a line through anything.
         /// </summary>
         public const int MinSampleSize = 3;
 
@@ -51,11 +51,13 @@ namespace pwm.Services.Implementations
                 ?? throw new ClientException(
                     $"Project category {request.ProjectCategoryId} does not exist.");
 
-            // Only a completed project has a known outcome to learn from.
+            // Only a completed project has a known outcome to learn from - and only
+            // one with hours booked against it says anything about how long it took.
             var pastProjects = await _dbContext.Projects
                 .Include(x => x.ProjectStatus)
                 .Where(x => x.ProjectCategoryId == category.Id)
                 .Where(x => x.ProjectStatus.Name == ProjectStatusRules.Delivered)
+                .Where(x => _dbContext.WorkLogDetails.Any(b => b.ProjectId == x.Id && b.Hours > 0))
                 .ToListAsync();
 
             if (pastProjects.Count < MinSampleSize)
@@ -65,10 +67,10 @@ namespace pwm.Services.Implementations
                     HasEstimate = false,
                     SampleSize = pastProjects.Count,
                     Message = pastProjects.Count == 0
-                        ? $"No delivered projects of \"{category.Name}\" yet - the estimator " +
-                          "has nothing to learn this category's hours-per-tonne from."
-                        : $"Only {pastProjects.Count} delivered project(s) of \"{category.Name}\" " +
-                          $"so far; at least {MinSampleSize} are needed before an estimate is shown.",
+                        ? $"No delivered projects of \"{category.Name}\" with booked hours yet - the " +
+                          "estimator has nothing to learn this category's hours-per-tonne from."
+                        : $"Only {pastProjects.Count} delivered project(s) of \"{category.Name}\" with " +
+                          $"booked hours so far; at least {MinSampleSize} are needed before an estimate is shown.",
                 };
             }
 
@@ -139,8 +141,9 @@ namespace pwm.Services.Implementations
                     .Sum(b => b.Hours)))
                 .ToArray();
 
-            var accuracy = RSquared(totalPoints);
-            var accuracyPercent = Math.Round(Math.Clamp(accuracy, 0, 1) * 100, 1);
+            double? accuracyPercent = RSquared(totalPoints) is { } accuracy
+                ? Math.Round(Math.Clamp(accuracy, 0, 1) * 100, 1)
+                : null;
 
             // The one sentence that answers "why this number" - shown next to the
             // estimate rather than left for the sample size and accuracy cards to
@@ -148,8 +151,11 @@ namespace pwm.Services.Implementations
             var explanation =
                 $"Estimated by fitting a linear trend between tonnage and hours per work " +
                 $"type across {pastProjects.Count} past delivered \"{category.Name}\" " +
-                $"project{(pastProjects.Count == 1 ? "" : "s")}; that trend explains about " +
-                $"{accuracyPercent:0.#}% of the variation in the hours those projects actually took.";
+                $"project{(pastProjects.Count == 1 ? "" : "s")}; " +
+                (accuracyPercent is { } percent
+                    ? $"that trend explains about {percent:0.#}% of the variation in the hours those projects actually took."
+                    : "those projects all took the same hours, so there is no variation to measure the trend " +
+                      "against and its accuracy cannot be estimated.");
 
             var typicalCrewSize = Math.Max(1, (int)Math.Round(pastProjects
                 .Select(x => blocks.Where(b => b.ProjectId == x.Id).Select(b => b.UserId).Distinct().Count())
@@ -195,7 +201,12 @@ namespace pwm.Services.Implementations
             return (slope, intercept);
         }
 
-        private static double RSquared((double Tonnes, double Hours)[] points)
+        /// <summary>
+        /// How much of the variation in hours the line explains - null when the hours
+        /// do not vary at all, since there is then nothing to explain and any line
+        /// through the mean would score a perfect, meaningless 1.
+        /// </summary>
+        private static double? RSquared((double Tonnes, double Hours)[] points)
         {
             if (points.Length < 2)
             {
@@ -209,7 +220,7 @@ namespace pwm.Services.Implementations
 
             if (totalSumOfSquares < 1e-9)
             {
-                return 1;
+                return null;
             }
 
             var residualSumOfSquares = points.Sum(p =>

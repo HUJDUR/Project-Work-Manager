@@ -12,5 +12,13 @@ namespace pwm.Model.Responses
 
         /// <summary>Set only when <see cref="Status"/> is "Failed".</summary>
         public string? ErrorMessage { get; set; }
+
+        /// <summary>Who ran it - read from the run's <c>ActivityLog</c> entry. Null for a run with none.</summary>
+        public int? GeneratedByUserId { get; set; }
+
+        public string? GeneratedByName { get; set; }
+
+        /// <summary>When it was run, in UTC - from the same <c>ActivityLog</c> entry.</summary>
+        public DateTime? GeneratedAt { get; set; }
     }
 }

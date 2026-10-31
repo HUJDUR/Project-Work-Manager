@@ -12,7 +12,6 @@ const int workNoteMaxLength = 200;
 class WorkHoursEntry {
   const WorkHoursEntry({
     required this.id,
-    required this.workLogId,
     required this.userId,
     required this.projectId,
     required this.operationTypeId,
@@ -36,7 +35,6 @@ class WorkHoursEntry {
 
     return WorkHoursEntry(
       id: json['id'] as int,
-      workLogId: json['workLogId'] as int,
       userId: json['userId'] as int,
       projectId: json['projectId'] as int,
       operationTypeId: json['operationTypeId'] as int,
@@ -55,9 +53,6 @@ class WorkHoursEntry {
   }
 
   final int id;
-
-  /// The shift this block was booked against.
-  final int workLogId;
 
   final int userId;
   final int projectId;

@@ -9,6 +9,8 @@ class Notification {
   const Notification({
     required this.id,
     required this.userId,
+    this.notificationTypeId = 0,
+    this.notificationTypeName = '',
     required this.title,
     required this.message,
     required this.isRead,
@@ -17,6 +19,13 @@ class Notification {
 
   final int id;
   final int userId;
+
+  @JsonKey(defaultValue: 0)
+  final int notificationTypeId;
+
+  @JsonKey(defaultValue: '')
+  final String notificationTypeName;
+
   final String title;
   final String message;
   final bool isRead;
@@ -29,6 +38,8 @@ class Notification {
   Notification get read => Notification(
         id: id,
         userId: userId,
+        notificationTypeId: notificationTypeId,
+        notificationTypeName: notificationTypeName,
         title: title,
         message: message,
         isRead: true,

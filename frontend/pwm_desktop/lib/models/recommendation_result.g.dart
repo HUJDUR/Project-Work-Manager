@@ -13,7 +13,7 @@ RecommendationResult _$RecommendationResultFromJson(
   message: json['message'] as String?,
   explanation: json['explanation'] as String?,
   sampleSize: (json['sampleSize'] as num).toInt(),
-  accuracyPercent: (json['accuracyPercent'] as num).toDouble(),
+  accuracyPercent: (json['accuracyPercent'] as num?)?.toDouble(),
   totalHours: (json['totalHours'] as num).toDouble(),
   estimatedWorkers: (json['estimatedWorkers'] as num).toInt(),
   estimatedDurationDays: (json['estimatedDurationDays'] as num).toInt(),

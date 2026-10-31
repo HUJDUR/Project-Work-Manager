@@ -62,6 +62,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
       // Whoever is signed in raised it, unless it was raised before.
       'weight': row?.weight.toString(),
       'deliveryCompanyId': row?.deliveryCompanyId,
+      'plannedStartDate': row?.plannedStartDate,
       'deliveryDate': row?.endDate,
     };
   }
@@ -150,17 +151,44 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
               ],
             ),
             const SizedBox(height: formFieldGap),
-            // Production start is no longer picked here - it is set the moment
-            // a project actually moves into production, on the overview screen.
-            FormBuilderDateTimePicker(
-              name: 'deliveryDate',
-              enabled: !_locked,
-              inputType: InputType.date,
-              format: formFieldDateFormat,
-              firstDate: DateTime(SarajevoTime.now().year - 2),
-              lastDate: DateTime(SarajevoTime.now().year + 3),
-              // Left empty until the project is scheduled.
-              decoration: appInputDecoration('Delivery date', hintText: 'Not set'),
+            // The planned dates only - the actual production start is set the
+            // moment a project moves into production, on the overview screen.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: FormBuilderDateTimePicker(
+                    name: 'plannedStartDate',
+                    enabled: !_locked,
+                    inputType: InputType.date,
+                    format: formFieldDateFormat,
+                    firstDate: DateTime(SarajevoTime.now().year - 2),
+                    lastDate: DateTime(SarajevoTime.now().year + 3),
+                    // Left empty until the project is scheduled.
+                    decoration: appInputDecoration('Planned start', hintText: 'Not set'),
+                    validator: (start) {
+                      final end = _formKey.currentState?.fields['deliveryDate']?.value as DateTime?;
+                      return start != null && end != null && start.isAfter(end)
+                          ? 'The planned start cannot come after the delivery date.'
+                          : null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: formFieldGap),
+                Expanded(
+                  child: FormBuilderDateTimePicker(
+                    name: 'deliveryDate',
+                    enabled: !_locked,
+                    inputType: InputType.date,
+                    format: formFieldDateFormat,
+                    firstDate: DateTime(SarajevoTime.now().year - 2),
+                    lastDate: DateTime(SarajevoTime.now().year + 3),
+                    decoration: appInputDecoration('Delivery date', hintText: 'Not set'),
+                    onChanged: (_) =>
+                        _formKey.currentState?.fields['plannedStartDate']?.validate(focusOnInvalid: false),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: formSectionGap),
             Row(
@@ -290,6 +318,7 @@ class _ProjectDetailsScreenState extends State<ProjectDetailsScreen> {
         weight: double.parse(values['weight'] as String),
         creationDate: widget.row?.createdAt ?? SarajevoTime.now(),
         deliveryCompanyId: values['deliveryCompanyId'] as int?,
+        plannedStartDate: values['plannedStartDate'] as DateTime?,
         deliveryDate: values['deliveryDate'] as DateTime?,
       );
 

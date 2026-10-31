@@ -16,6 +16,11 @@ namespace pwm.Services.Database
         [MaxLength(50)]
         public string Surname { get; set; } = string.Empty;
 
+        /// <summary>What the account signs in with besides its e-mail - unique, unlike a name.</summary>
+        [Required]
+        [MaxLength(50)]
+        public string Username { get; set; } = string.Empty;
+
         [Phone]
         [MaxLength(20)]
         public string? PhoneNumber { get; set; }

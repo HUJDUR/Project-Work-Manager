@@ -61,8 +61,8 @@ class AuthProvider with ChangeNotifier {
 
   bool get isBusy => _isBusy;
 
-  /// [emailOrUsername] is matched against the account's e-mail or its name+surname
-  /// username. Throws [ApiClientException] with the API's own wording when refused.
+  /// [emailOrUsername] is matched against the account's e-mail or its username
+  /// - both unique. Throws [ApiClientException] with the API's own wording when refused.
   Future<void> login(String emailOrUsername, String password) async {
     _isBusy = true;
     notifyListeners();

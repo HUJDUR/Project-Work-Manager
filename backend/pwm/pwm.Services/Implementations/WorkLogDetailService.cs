@@ -34,32 +34,37 @@ namespace pwm.Services.Implementations
         }
 
         /// <summary>
-        /// A block of work booked by the office (a worker clocks in through
-        /// <c>WorkLogService.ClockInAsync</c> instead). The request's user and hours
-        /// are not trusted: the user is the shift's, the hours are worked out from
-        /// the two times, and the shift's total is brought up to date in the same save.
+        /// The office's one call for booking hours by hand (a worker clocks in through
+        /// <c>WorkLogService.ClockInAsync</c> instead): the block goes on the worker's
+        /// shift for that day - raised if the day has none - and the shift is worked
+        /// out again from its blocks. The hours come from the two times, never the
+        /// request. Everything commits together or not at all.
         /// </summary>
         public override async Task<WorkLogDetailResponse> InsertAsync(WorkLogDetailInsertRequest request)
         {
             ArgumentNullException.ThrowIfNull(request);
             await _insertValidator.ValidateAndThrowAsync(request);
+            await EnsureBookableAsync(request.UserId, request, exceptBlockId: null);
 
-            var shift = await FindShiftAsync(request.WorkLogId);
-            await EnsureBookableAsync(shift.UserId, request, exceptBlockId: null);
+            var shift = await WorkShifts.ForDayAsync(_dbContext, request.UserId, request.StartedAt);
 
             var block = _mapper.Map<WorkLogDetail>(request);
+            block.WorkLog = shift;
             block.Note = WorkBookingRules.CleanNote(request.Note);
-            block.UserId = shift.UserId;
             block.Hours = HoursOf(request);
             _dbContext.WorkLogDetails.Add(block);
 
-            RetotalShift(shift, await SavedHoursAsync(shift.Id, exceptBlockId: null) + block.Hours);
-            await RecordChangeAsync(block, shift.UserId, WorkHoursChangeAction.Added, before: null, after: await DescribeAsync(block));
+            await WorkShifts.RecalculateAsync(_dbContext, shift);
+            await RecordChangeAsync(block, block.UserId, WorkHoursChangeAction.Added, before: null, after: await DescribeAsync(block));
             await MonthlyHourSummary.SaveAndRecalculateAsync(_dbContext, [block.StartedAt]);
 
             return _mapper.Map<WorkLogDetailResponse>(block);
         }
 
+        /// <summary>
+        /// A correction. The worker stays who they were; a block given another day
+        /// moves to that day's shift, and both shifts are worked out again.
+        /// </summary>
         public override async Task<WorkLogDetailResponse> UpdateAsync(int id, WorkLogDetailUpdateRequest request)
         {
             ArgumentNullException.ThrowIfNull(request);
@@ -67,29 +72,37 @@ namespace pwm.Services.Implementations
 
             var block = await _dbContext.WorkLogDetails.FindAsync(id)
                 ?? throw new NotFoundException($"WorkLogDetail with id {id} not found.");
-            var previousShiftId = block.WorkLogId;
+
+            if (request.UserId != block.UserId)
+            {
+                throw new ClientException(
+                    "Booked hours cannot be handed to another worker - delete them and book them for the right one.");
+            }
+
+            // Tracked before the block is pointed elsewhere, so loading it cannot
+            // pull the block back onto it.
+            var previousShift = await FindShiftAsync(block.WorkLogId);
             var previousStart = block.StartedAt;
             var before = await DescribeAsync(block);
 
-            var shift = await FindShiftAsync(request.WorkLogId);
-            await EnsureBookableAsync(shift.UserId, request, exceptBlockId: id);
+            await EnsureBookableAsync(block.UserId, request, exceptBlockId: id);
+            var shift = await WorkShifts.ForDayAsync(_dbContext, block.UserId, request.StartedAt);
 
             _mapper.Map(request, block);
+            block.WorkLog = shift;
             block.Note = WorkBookingRules.CleanNote(request.Note);
-            block.UserId = shift.UserId;
             block.Hours = HoursOf(request);
 
-            RetotalShift(shift, await SavedHoursAsync(shift.Id, exceptBlockId: id) + block.Hours);
-            if (previousShiftId != shift.Id)
+            await WorkShifts.RecalculateAsync(_dbContext, shift);
+            if (shift != previousShift)
             {
-                // Moved off another shift - that one's total drops by it.
-                RetotalShift(await FindShiftAsync(previousShiftId), await SavedHoursAsync(previousShiftId, exceptBlockId: id));
+                await WorkShifts.RecalculateAsync(_dbContext, previousShift);
             }
 
             var after = await DescribeAsync(block);
             if (after != before)
             {
-                await RecordChangeAsync(block, shift.UserId, WorkHoursChangeAction.Changed, before, after);
+                await RecordChangeAsync(block, block.UserId, WorkHoursChangeAction.Changed, before, after);
             }
 
             await MonthlyHourSummary.SaveAndRecalculateAsync(_dbContext, [previousStart, block.StartedAt]);
@@ -98,17 +111,14 @@ namespace pwm.Services.Implementations
         }
 
         /// <summary>
-        /// Removes the block, and the shift with it when nothing else was booked
-        /// against it - a shift with no work on it is not a record of anything.
-        /// Otherwise the shift's total drops by it. One save either way.
+        /// Removes the block and works its shift out again from what is left - which
+        /// removes the shift too when this was its last block. One commit either way.
         /// </summary>
         public override async Task DeleteAsync(int id)
         {
             var block = await _dbContext.WorkLogDetails.FindAsync(id)
                 ?? throw new NotFoundException($"WorkLogDetail with id {id} not found.");
-
-            var hasSiblings = await _dbContext.WorkLogDetails
-                .AnyAsync(x => x.WorkLogId == block.WorkLogId && x.Id != id);
+            var shift = await FindShiftAsync(block.WorkLogId);
 
             // Recorded without the block itself - it is gone after this save, and
             // this row is the part of its story that has to stay.
@@ -116,19 +126,7 @@ namespace pwm.Services.Implementations
                 before: await DescribeAsync(block), after: null);
 
             _dbContext.WorkLogDetails.Remove(block);
-
-            var shift = await _dbContext.WorkLogs.FindAsync(block.WorkLogId);
-            if (shift is not null)
-            {
-                if (hasSiblings)
-                {
-                    RetotalShift(shift, await SavedHoursAsync(shift.Id, exceptBlockId: id));
-                }
-                else
-                {
-                    _dbContext.WorkLogs.Remove(shift);
-                }
-            }
+            await WorkShifts.RecalculateAsync(_dbContext, shift);
 
             await MonthlyHourSummary.SaveAndRecalculateAsync(_dbContext, [block.StartedAt]);
         }
@@ -202,7 +200,8 @@ namespace pwm.Services.Implementations
                 _ => ("Work hours deleted", $"{actor} deleted {worker}'s work hours: {before}."),
             };
 
-            await _notifications.StageForRolesAsync(title, message, actorId, Roles.Admin, Roles.ProjectManager);
+            await _notifications.StageForRolesAsync(
+                NotificationTypeRules.WorkHoursChange, title, message, actorId, Roles.Admin, Roles.ProjectManager);
         }
 
         /// <summary>
@@ -240,16 +239,9 @@ namespace pwm.Services.Implementations
             await WorkBookingRules.EnsureNoOverlapAsync(_dbContext, userId, request.StartedAt, request.FinishedAt, exceptBlockId);
         }
 
+        /// <summary>The validator has already made sure both times are there.</summary>
         private static double HoursOf(WorkLogDetailInsertRequest request) =>
-            request.FinishedAt is { } finished ? WorkBookingRules.HoursBetween(request.StartedAt, finished) : 0;
-
-        /// <summary>The hours already stored on a shift's blocks, leaving one out.</summary>
-        private Task<double> SavedHoursAsync(int workLogId, int? exceptBlockId) => _dbContext.WorkLogDetails
-            .Where(x => x.WorkLogId == workLogId && (exceptBlockId == null || x.Id != exceptBlockId))
-            .SumAsync(x => x.Hours);
-
-        /// <summary>A shift's hours are its blocks' hours added up - kept so, never taken from a request.</summary>
-        private static void RetotalShift(WorkLog shift, double hours) => shift.Hours = Math.Round(hours, 2);
+            WorkBookingRules.HoursBetween(request.StartedAt, request.FinishedAt!.Value);
 
         /// <summary>
         /// The Work Hours screen: filtered, sorted and paged in the database, with
@@ -311,7 +303,6 @@ namespace pwm.Services.Implementations
                 .Select(x => new
                 {
                     x.Id,
-                    x.WorkLogId,
                     x.UserId,
                     x.ProjectId,
                     x.OperationTypeId,
@@ -334,7 +325,6 @@ namespace pwm.Services.Implementations
                     .Select(x => new WorkHoursEntryResponse
                     {
                         Id = x.Id,
-                        WorkLogId = x.WorkLogId,
                         UserId = x.UserId,
                         ProjectId = x.ProjectId,
                         OperationTypeId = x.OperationTypeId,

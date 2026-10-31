@@ -70,6 +70,26 @@ namespace pwm.Services.Validators
     }
 
     /// <summary>
+    /// What a username may look like. Mirrored by <c>utils/username_rules.dart</c>
+    /// on the desktop.
+    /// </summary>
+    public static class UsernameRules
+    {
+        public const int MinLength = 3;
+        public const int MaxLength = 50;
+
+        public const string Pattern = @"^[A-Za-z0-9._-]+$";
+
+        public static IRuleBuilderOptions<T, string> Username<T>(this IRuleBuilder<T, string> rule)
+        {
+            return rule
+                .NotEmpty().WithMessage("Sign-in needs a username.")
+                .Length(MinLength, MaxLength).WithMessage($"Use {MinLength} to {MaxLength} characters.")
+                .Matches(Pattern).WithMessage("Use only letters, digits, dots, hyphens and underscores - no spaces.");
+        }
+    }
+
+    /// <summary>
     /// The columns are NOT NULL, which an empty string satisfies - so the fields
     /// the Worker Details screen marks as required are checked here as well.
     /// </summary>
@@ -89,6 +109,8 @@ namespace pwm.Services.Validators
                 .NotEmpty().WithMessage("Sign-in needs an e-mail address.")
                 .EmailAddress().WithMessage("That is not an e-mail address.")
                 .MaximumLength(100);
+
+            RuleFor(x => x.Username).Username();
 
             RuleFor(x => x.UserTypeId).GreaterThan(0).WithMessage("Pick a role.");
 
@@ -120,6 +142,8 @@ namespace pwm.Services.Validators
                 .NotEmpty().WithMessage("Sign-in needs an e-mail address.")
                 .EmailAddress().WithMessage("That is not an e-mail address.")
                 .MaximumLength(100);
+
+            RuleFor(x => x.Username).Username();
 
             RuleFor(x => x.UserTypeId).GreaterThan(0).WithMessage("Pick a role.");
 

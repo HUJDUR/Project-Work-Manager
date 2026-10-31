@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 /// `GET /WorkLogDetail/Hours` - the Work Hours screen's rows, joined, split into
 /// regular and overtime, filtered, sorted and paged by the API. Read-only:
-/// writes go through the plain `WorkLog`/`WorkLogDetail` endpoints.
+/// writes go through `WorkLogDetail`.
 class WorkHoursApiProvider extends BaseProvider<WorkHoursEntry> {
   WorkHoursApiProvider() : super('WorkLogDetail/Hours');
 

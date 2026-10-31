@@ -76,20 +76,12 @@ class _FakeHoursApi extends WorkHoursApiProvider {
 }
 
 final _today = DateUtils.dateOnly(DateTime.now());
-final _lastWeek = _today.subtract(const Duration(days: 7));
-
-WorkLog _shift(int id, int userId, DateTime day) => WorkLog(
-      id: id,
-      userId: userId,
-      clockedIn: day.add(const Duration(hours: 7)),
-      clockedOut: day.add(const Duration(hours: 16)),
-      hours: 9,
-    );
+// By calendar day, not 7 x 24 h - a week back can cross a DST change.
+final _lastWeek = DateTime(_today.year, _today.month, _today.day - 7);
 
 /// A row as `GET /WorkLogDetail/Hours` hands it over - already joined and split.
 WorkHoursEntry _entry({
   required int id,
-  required int workLogId,
   required int userId,
   required String worker,
   required int projectId,
@@ -101,7 +93,6 @@ WorkHoursEntry _entry({
   final hours = regular + overtime;
   return WorkHoursEntry(
     id: id,
-    workLogId: workLogId,
     userId: userId,
     projectId: projectId,
     operationTypeId: 1,
@@ -119,7 +110,6 @@ WorkHoursEntry _entry({
 }
 
 late _FakeHoursApi _hourRows;
-late _FakeProvider<WorkLog> _shiftRows;
 late _FakeProvider<WorkLogDetail> _bookingRows;
 late _FakeProvider<User> _userRows;
 
@@ -141,7 +131,6 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
       hours: _hourRows = _FakeHoursApi([
         _entry(
             id: 101,
-            workLogId: 10,
             userId: 1,
             worker: 'Emir Kovacevic',
             projectId: 2,
@@ -151,7 +140,6 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
             overtime: 1),
         _entry(
             id: 100,
-            workLogId: 10,
             userId: 1,
             worker: 'Emir Kovacevic',
             projectId: 1,
@@ -160,7 +148,6 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
             regular: 5),
         _entry(
             id: 102,
-            workLogId: 11,
             userId: 2,
             worker: 'Damir Softic',
             projectId: 1,
@@ -169,18 +156,12 @@ WorkHoursProvider _fakeWorkHours() => WorkHoursProvider(
             regular: 6),
         _entry(
             id: 103,
-            workLogId: 12,
             userId: 1,
             worker: 'Emir Kovacevic',
             projectId: 1,
             project: 'Hall roof MU-1',
             start: _lastWeek.add(const Duration(hours: 7)),
             regular: 3),
-      ]),
-      workLogs: _shiftRows = _FakeProvider([
-        _shift(10, 1, _today),
-        _shift(11, 2, _today),
-        _shift(12, 1, _lastWeek),
       ]),
       workLogDetails: _bookingRows = _FakeProvider([
         WorkLogDetail(
@@ -336,13 +317,13 @@ void main() {
     test('carries the ids and both timestamps a details form writes back', () {
       final entry = provider.entries.firstWhere((entry) => entry.id == 101);
 
-      expect(entry.workLogId, 10);
       expect(entry.operationTypeId, 1);
       expect(entry.startedAt, _today.add(const Duration(hours: 12)));
       expect(entry.finishedAt, isNotNull);
     });
 
-    test('books new hours as a shift and a block against it', () async {
+    test('books new hours in one call, leaving the shift and hours to the API',
+        () async {
       await provider.saveWorkHours(
         userId: 2,
         projectId: 1,
@@ -351,24 +332,20 @@ void main() {
         finishedAt: DateTime(2026, 8, 31, 15, 30),
       );
 
-      final shift = _shiftRows.inserted.single;
-      expect(shift['userId'], 2);
-      expect(shift['hours'], 8.5);
-
       final block = _bookingRows.inserted.single;
-      expect(block['workLogId'], 10);
+      expect(block['userId'], 2);
       expect(block['projectId'], 1);
       expect(block['operationTypeId'], 3);
-      expect(block['hours'], 8.5);
+      expect(block['finishedAt'], isNotNull);
+      expect(block.containsKey('workLogId'), isFalse);
+      expect(block.containsKey('hours'), isFalse);
     });
 
-    test('puts an edited block and its shift back rather than adding a second',
-        () async {
+    test('puts an edited block back rather than adding a second', () async {
       final entry = provider.entries.firstWhere((entry) => entry.id == 103);
 
       await provider.saveWorkHours(
         id: entry.id,
-        workLogId: entry.workLogId,
         userId: entry.userId,
         projectId: 2,
         operationTypeId: entry.operationTypeId,
@@ -376,11 +353,9 @@ void main() {
         finishedAt: DateTime(2026, 8, 24, 11),
       );
 
-      expect(_shiftRows.updated.single.$1, 12);
       final (id, block) = _bookingRows.updated.single;
       expect(id, 103);
       expect(block['projectId'], 2);
-      expect(block['hours'], 4);
       expect(_bookingRows.inserted, isEmpty);
     });
 
@@ -390,7 +365,6 @@ void main() {
           provider.entries.firstWhere((entry) => entry.id == 103));
 
       expect(_bookingRows.removed, [103]);
-      expect(_shiftRows.removed, isEmpty);
     });
   });
 

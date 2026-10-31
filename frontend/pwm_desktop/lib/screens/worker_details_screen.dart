@@ -13,6 +13,7 @@ import '../utils/app_theme.dart';
 import '../utils/dialogs.dart';
 import '../utils/password_rules.dart';
 import '../utils/phone_rules.dart';
+import '../utils/username_rules.dart';
 import 'widgets/details_scaffold.dart';
 import 'widgets/form_fields.dart';
 import 'widgets/user_avatar.dart';
@@ -73,6 +74,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
   final _nameFocus = FocusNode();
   final _surnameFocus = FocusNode();
   final _emailFocus = FocusNode();
+  final _usernameFocus = FocusNode();
 
   /// Validates a field the moment it is left, not only once Save is pressed -
   /// so leaving a broken field behind (typed, then emptied again) is caught
@@ -160,6 +162,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
       'name': row?.name,
       'surname': row?.surname,
       'email': row?.email,
+      'username': row?.username,
       'phoneNumber': row?.phoneNumber,
       'userTypeId': _selectedRoleId,
       'isActive': row?.isActive ?? true,
@@ -169,6 +172,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
     _nameFocus.addListener(() => _onFieldBlurred('name', _nameFocus));
     _surnameFocus.addListener(() => _onFieldBlurred('surname', _surnameFocus));
     _emailFocus.addListener(() => _onFieldBlurred('email', _emailFocus));
+    _usernameFocus.addListener(() => _onFieldBlurred('username', _usernameFocus));
     _passwordFocus.addListener(() => _onPasswordFieldBlurred(_passwordFocus));
     _confirmPasswordFocus
         .addListener(() => _onPasswordFieldBlurred(_confirmPasswordFocus));
@@ -179,6 +183,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
     _nameFocus.dispose();
     _surnameFocus.dispose();
     _emailFocus.dispose();
+    _usernameFocus.dispose();
     _passwordFocus.dispose();
     _confirmPasswordFocus.dispose();
     _password.dispose();
@@ -329,25 +334,42 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
                 const SizedBox(width: formFieldGap),
                 Expanded(
                   child: FormBuilderTextField(
+                    name: 'username',
+                    focusNode: _usernameFocus,
+                    decoration: appInputDecoration('Username'),
+                    validator: UsernameRules.validate,
+                    onChanged: (_) => _revalidateField('username'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: formFieldGap + 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: FormBuilderTextField(
                     name: 'phoneNumber',
                     decoration: appInputDecoration('Phone', hintText: 'Optional'),
                     validator: PhoneRules.validate,
                     onChanged: (_) => _revalidateField('phoneNumber'),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: formFieldGap + 10),
-            SearchableDropdownField<int>(
-              name: 'userTypeId',
-              label: 'Role',
-              validator: FormBuilderValidators.required(
-                errorText: 'Pick a role.',
-              ),
-              onChanged: _onRoleChanged,
-              entries: [
-                for (final UserType role in provider.roles)
-                  DropdownMenuEntry(value: role.id, label: role.type),
+                const SizedBox(width: formFieldGap),
+                Expanded(
+                  child: SearchableDropdownField<int>(
+                    name: 'userTypeId',
+                    label: 'Role',
+                    validator: FormBuilderValidators.required(
+                      errorText: 'Pick a role.',
+                    ),
+                    onChanged: _onRoleChanged,
+                    entries: [
+                      for (final UserType role in provider.roles)
+                        DropdownMenuEntry(value: role.id, label: role.type),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: formSectionGap),
@@ -479,6 +501,7 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
         name: (values['name'] as String).trim(),
         surname: (values['surname'] as String).trim(),
         email: (values['email'] as String).trim(),
+        username: (values['username'] as String).trim(),
         userTypeId: values['userTypeId'] as int,
         isActive: values['isActive'] as bool? ?? true,
         phoneNumber: _trimToNull(values['phoneNumber']),
@@ -491,8 +514,19 @@ class _WorkerDetailsScreenState extends State<WorkerDetailsScreen> {
       showSavedSnackBar(context, _isNew ? 'Account created' : 'Account saved');
       Navigator.of(context).pop('reload');
     } catch (error) {
+      // A field the API refused - a username already taken - is shown under
+      // that field, the same as the form's own checks.
+      final fieldErrors = error is ApiClientException ? error.fieldErrors : const <String, String>{};
+      final form = _formKey.currentState!;
+      final placed = fieldErrors.entries.where((e) => form.fields.containsKey(e.key)).toList();
+      for (final entry in placed) {
+        form.fields[entry.key]!.invalidate(entry.value, shouldFocus: false);
+      }
+
       setState(() {
-        _error = _messageFor(error, 'The account could not be saved');
+        _error = placed.length == fieldErrors.length && placed.isNotEmpty
+            ? null
+            : _messageFor(error, 'The account could not be saved');
         _saving = false;
       });
     }
